@@ -16,6 +16,7 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     public DbSet<HierarchyNode> HierarchyNodes => Set<HierarchyNode>();
     public DbSet<HierarchyLink> HierarchyLinks => Set<HierarchyLink>();
     public DbSet<StoryObjectHierarchySelection> StoryObjectHierarchySelections => Set<StoryObjectHierarchySelection>();
+    public DbSet<StoryObjectCatalogSelection> StoryObjectCatalogSelections => Set<StoryObjectCatalogSelection>();
     public DbSet<Catalog> Catalogs => Set<Catalog>();
     public DbSet<CatalogEntry> CatalogEntries => Set<CatalogEntry>();
     public DbSet<CatalogEntryGroup> CatalogEntryGroups => Set<CatalogEntryGroup>();
@@ -168,6 +169,45 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .WithMany()
             .HasForeignKey(selection => selection.HierarchyNodeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StoryObjectCatalogSelection>()
+            .HasIndex(selection => new
+            {
+                selection.StoryObjectId,
+                selection.TargetType,
+                selection.CatalogId,
+                selection.CatalogEntryGroupId,
+                selection.CatalogEntryId,
+            })
+            .IsUnique();
+
+        modelBuilder.Entity<StoryObjectCatalogSelection>()
+            .Property(selection => selection.TargetType)
+            .HasMaxLength(20);
+
+        modelBuilder.Entity<StoryObjectCatalogSelection>()
+            .HasOne(selection => selection.StoryObject)
+            .WithMany(storyObject => storyObject.CatalogSelections)
+            .HasForeignKey(selection => selection.StoryObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StoryObjectCatalogSelection>()
+            .HasOne(selection => selection.Catalog)
+            .WithMany()
+            .HasForeignKey(selection => selection.CatalogId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StoryObjectCatalogSelection>()
+            .HasOne(selection => selection.CatalogEntryGroup)
+            .WithMany()
+            .HasForeignKey(selection => selection.CatalogEntryGroupId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StoryObjectCatalogSelection>()
+            .HasOne(selection => selection.CatalogEntry)
+            .WithMany()
+            .HasForeignKey(selection => selection.CatalogEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Catalog>()
             .HasIndex(catalog => new { catalog.ProjectId, catalog.Key })

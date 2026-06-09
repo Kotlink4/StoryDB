@@ -59,6 +59,7 @@ export type StoryObject = {
   typeKey: string
   attributes: ObjectAttribute[]
   hierarchySelections: ObjectHierarchySelection[]
+  catalogSelections: ObjectCatalogSelection[]
 }
 
 export type ObjectAttribute = {
@@ -78,10 +79,29 @@ export type DraftHierarchySelection = {
   nodeIds: number[]
 }
 
+export type DraftCatalogSelection = {
+  targetType: CatalogSelectionTargetType
+  catalogId: string
+  catalogEntryGroupId: string
+  catalogEntryId: string
+}
+
+export type CatalogSelectionTargetType = 'catalog' | 'group' | 'entry'
+
 export type ObjectHierarchySelection = {
   groupId: number
   groupName: string
   nodes: ObjectHierarchyNodeSelection[]
+}
+
+export type ObjectCatalogSelection = {
+  targetType: CatalogSelectionTargetType
+  catalogId: number
+  catalogName: string
+  catalogEntryGroupId: number | null
+  catalogEntryGroupName: string | null
+  catalogEntryId: number | null
+  catalogEntryName: string | null
 }
 
 export type ObjectHierarchyNodeSelection = {

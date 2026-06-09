@@ -24,6 +24,12 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .ThenInclude(selection => selection.HierarchyGroup)
             .Include(storyObject => storyObject.HierarchySelections)
             .ThenInclude(selection => selection.HierarchyNode)
+            .Include(storyObject => storyObject.CatalogSelections)
+            .ThenInclude(selection => selection.Catalog)
+            .Include(storyObject => storyObject.CatalogSelections)
+            .ThenInclude(selection => selection.CatalogEntryGroup)
+            .Include(storyObject => storyObject.CatalogSelections)
+            .ThenInclude(selection => selection.CatalogEntry)
             .Where(storyObject =>
                 storyObject.ProjectId == projectId &&
                 storyObject.ObjectType != null &&
@@ -74,6 +80,12 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(hierarchyResult.Error);
         }
 
+        var catalogSelectionsResult = await GetValidatedCatalogSelections(projectId, request.CatalogSelections);
+        if (catalogSelectionsResult.Error is not null)
+        {
+            return BadRequest(catalogSelectionsResult.Error);
+        }
+
         var now = DateTime.UtcNow;
         var storyObject = new StoryObject
         {
@@ -89,6 +101,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             UpdatedAt = now,
             Attributes = ToObjectAttributes(request.Attributes, definitionsResult.Definitions),
             HierarchySelections = ToHierarchySelections(request.HierarchySelections),
+            CatalogSelections = ToCatalogSelections(request.CatalogSelections),
         };
 
         dbContext.Objects.Add(storyObject);
@@ -115,6 +128,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .Include(storyObject => storyObject.ObjectType)
             .Include(storyObject => storyObject.Attributes)
             .Include(storyObject => storyObject.HierarchySelections)
+            .Include(storyObject => storyObject.CatalogSelections)
             .FirstOrDefaultAsync(storyObject => storyObject.ProjectId == projectId && storyObject.Id == objectId);
 
         if (storyObject is null)
@@ -134,6 +148,12 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(hierarchyResult.Error);
         }
 
+        var catalogSelectionsResult = await GetValidatedCatalogSelections(projectId, request.CatalogSelections);
+        if (catalogSelectionsResult.Error is not null)
+        {
+            return BadRequest(catalogSelectionsResult.Error);
+        }
+
         storyObject.Name = request.Name.Trim();
         storyObject.Surname = NormalizeOptionalText(request.Surname);
         storyObject.Description = NormalizeOptionalText(request.Description);
@@ -146,6 +166,8 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         storyObject.Attributes = ToObjectAttributes(request.Attributes, definitionsResult.Definitions);
         dbContext.StoryObjectHierarchySelections.RemoveRange(storyObject.HierarchySelections);
         storyObject.HierarchySelections = ToHierarchySelections(request.HierarchySelections);
+        dbContext.StoryObjectCatalogSelections.RemoveRange(storyObject.CatalogSelections);
+        storyObject.CatalogSelections = ToCatalogSelections(request.CatalogSelections);
 
         await dbContext.SaveChangesAsync();
 
@@ -378,6 +400,141 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .ToList();
     }
 
+    private async Task<CatalogSelectionsValidationResult> GetValidatedCatalogSelections(
+        int projectId,
+        IReadOnlyList<ObjectCatalogSelectionRequest> selections)
+    {
+        var normalizedSelections = NormalizeCatalogSelections(selections);
+        if (normalizedSelections.Count == 0)
+        {
+            return new CatalogSelectionsValidationResult(null);
+        }
+
+        var catalogIds = normalizedSelections.Select(selection => selection.CatalogId).Distinct().ToList();
+        var validCatalogCount = await dbContext.Catalogs.CountAsync(catalog =>
+            catalog.ProjectId == projectId && catalogIds.Contains(catalog.Id));
+        if (validCatalogCount != catalogIds.Count)
+        {
+            return new CatalogSelectionsValidationResult("One or more catalogs were not found.");
+        }
+
+        var groupIds = normalizedSelections
+            .Where(selection => selection.TargetType == "group" && selection.CatalogEntryGroupId is not null)
+            .Select(selection => selection.CatalogEntryGroupId!.Value)
+            .Distinct()
+            .ToList();
+        if (groupIds.Count > 0)
+        {
+            var validGroupCount = await dbContext.CatalogEntryGroups.CountAsync(group =>
+                group.Catalog!.ProjectId == projectId &&
+                groupIds.Contains(group.Id));
+            if (validGroupCount != groupIds.Count)
+            {
+                return new CatalogSelectionsValidationResult("One or more catalog groups were not found.");
+            }
+        }
+
+        var entryIds = normalizedSelections
+            .Where(selection => selection.TargetType == "entry" && selection.CatalogEntryId is not null)
+            .Select(selection => selection.CatalogEntryId!.Value)
+            .Distinct()
+            .ToList();
+        if (entryIds.Count > 0)
+        {
+            var validEntryCount = await dbContext.CatalogEntries.CountAsync(entry =>
+                entry.Catalog!.ProjectId == projectId &&
+                entryIds.Contains(entry.Id));
+            if (validEntryCount != entryIds.Count)
+            {
+                return new CatalogSelectionsValidationResult("One or more catalog entries were not found.");
+            }
+        }
+
+        foreach (var selection in normalizedSelections)
+        {
+            if (selection.TargetType == "group")
+            {
+                var groupMatchesCatalog = await dbContext.CatalogEntryGroups.AnyAsync(group =>
+                    group.Id == selection.CatalogEntryGroupId &&
+                    group.CatalogId == selection.CatalogId);
+                if (!groupMatchesCatalog)
+                {
+                    return new CatalogSelectionsValidationResult("Catalog group does not belong to selected catalog.");
+                }
+            }
+
+            if (selection.TargetType == "entry")
+            {
+                var entryMatchesCatalog = await dbContext.CatalogEntries.AnyAsync(entry =>
+                    entry.Id == selection.CatalogEntryId &&
+                    entry.CatalogId == selection.CatalogId);
+                if (!entryMatchesCatalog)
+                {
+                    return new CatalogSelectionsValidationResult("Catalog entry does not belong to selected catalog.");
+                }
+            }
+        }
+
+        return new CatalogSelectionsValidationResult(null);
+    }
+
+    private static List<StoryObjectCatalogSelection> ToCatalogSelections(
+        IReadOnlyList<ObjectCatalogSelectionRequest> selections)
+    {
+        return NormalizeCatalogSelections(selections)
+            .Select((selection, index) => new StoryObjectCatalogSelection
+            {
+                TargetType = selection.TargetType,
+                CatalogId = selection.CatalogId,
+                CatalogEntryGroupId = selection.TargetType == "group" ? selection.CatalogEntryGroupId : null,
+                CatalogEntryId = selection.TargetType == "entry" ? selection.CatalogEntryId : null,
+                SortOrder = index,
+            })
+            .ToList();
+    }
+
+    private static List<ObjectCatalogSelectionRequest> NormalizeCatalogSelections(
+        IReadOnlyList<ObjectCatalogSelectionRequest> selections)
+    {
+        var normalizedSelections = new List<ObjectCatalogSelectionRequest>();
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var selection in selections)
+        {
+            var targetType = selection.TargetType.Trim();
+            if (targetType != "catalog" && targetType != "group" && targetType != "entry")
+            {
+                continue;
+            }
+
+            if (selection.CatalogId <= 0)
+            {
+                continue;
+            }
+
+            var groupId = targetType == "group" ? selection.CatalogEntryGroupId : null;
+            var entryId = targetType == "entry" ? selection.CatalogEntryId : null;
+            if ((targetType == "group" && groupId is null) || (targetType == "entry" && entryId is null))
+            {
+                continue;
+            }
+
+            var key = $"{targetType}:{selection.CatalogId}:{groupId}:{entryId}";
+            if (!seenKeys.Add(key))
+            {
+                continue;
+            }
+
+            normalizedSelections.Add(new ObjectCatalogSelectionRequest(
+                targetType,
+                selection.CatalogId,
+                groupId,
+                entryId));
+        }
+
+        return normalizedSelections;
+    }
+
     private async Task<StoryObjectDto> GetObjectDto(int projectId, int objectId)
     {
         var storyObject = await dbContext.Objects
@@ -389,6 +546,12 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .ThenInclude(selection => selection.HierarchyGroup)
             .Include(currentObject => currentObject.HierarchySelections)
             .ThenInclude(selection => selection.HierarchyNode)
+            .Include(currentObject => currentObject.CatalogSelections)
+            .ThenInclude(selection => selection.Catalog)
+            .Include(currentObject => currentObject.CatalogSelections)
+            .ThenInclude(selection => selection.CatalogEntryGroup)
+            .Include(currentObject => currentObject.CatalogSelections)
+            .ThenInclude(selection => selection.CatalogEntry)
             .FirstAsync(currentObject => currentObject.ProjectId == projectId && currentObject.Id == objectId);
 
         return ToDto(storyObject);
@@ -429,6 +592,18 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
                             selection.HierarchyNodeId,
                             selection.HierarchyNode!.Name))
                         .ToList()))
+                .ToList(),
+            storyObject.CatalogSelections
+                .Where(selection => selection.Catalog is not null)
+                .OrderBy(selection => selection.SortOrder)
+                .Select(selection => new ObjectCatalogSelectionDto(
+                    selection.TargetType,
+                    selection.CatalogId,
+                    selection.Catalog!.Name,
+                    selection.CatalogEntryGroupId,
+                    selection.CatalogEntryGroup?.Name,
+                    selection.CatalogEntryId,
+                    selection.CatalogEntry?.Name))
                 .ToList());
     }
 }
@@ -442,11 +617,18 @@ public record CreateStoryObjectRequest(
     string? Role,
     string? ImagePath,
     IReadOnlyList<CreateObjectAttributeRequest> Attributes,
-    IReadOnlyList<ObjectHierarchySelectionRequest> HierarchySelections);
+    IReadOnlyList<ObjectHierarchySelectionRequest> HierarchySelections,
+    IReadOnlyList<ObjectCatalogSelectionRequest> CatalogSelections);
 
 public record CreateObjectAttributeRequest(string Name, string? Value);
 
 public record ObjectHierarchySelectionRequest(int GroupId, IReadOnlyList<int> NodeIds);
+
+public record ObjectCatalogSelectionRequest(
+    string TargetType,
+    int CatalogId,
+    int? CatalogEntryGroupId,
+    int? CatalogEntryId);
 
 public record UpdateStoryObjectRequest(
     string Name,
@@ -456,7 +638,8 @@ public record UpdateStoryObjectRequest(
     string? Role,
     string? ImagePath,
     IReadOnlyList<CreateObjectAttributeRequest> Attributes,
-    IReadOnlyList<ObjectHierarchySelectionRequest> HierarchySelections);
+    IReadOnlyList<ObjectHierarchySelectionRequest> HierarchySelections,
+    IReadOnlyList<ObjectCatalogSelectionRequest> CatalogSelections);
 
 public record StoryObjectDto(
     int Id,
@@ -468,7 +651,8 @@ public record StoryObjectDto(
     string? ImagePath,
     string TypeKey,
     IReadOnlyList<ObjectAttributeDto> Attributes,
-    IReadOnlyList<ObjectHierarchySelectionDto> HierarchySelections);
+    IReadOnlyList<ObjectHierarchySelectionDto> HierarchySelections,
+    IReadOnlyList<ObjectCatalogSelectionDto> CatalogSelections);
 
 public record ObjectAttributeDto(int Id, int AttributeDefinitionId, string Name, string? Value);
 
@@ -479,8 +663,19 @@ public record ObjectHierarchySelectionDto(
 
 public record ObjectHierarchyNodeSelectionDto(int Id, string Name);
 
+public record ObjectCatalogSelectionDto(
+    string TargetType,
+    int CatalogId,
+    string CatalogName,
+    int? CatalogEntryGroupId,
+    string? CatalogEntryGroupName,
+    int? CatalogEntryId,
+    string? CatalogEntryName);
+
 public record AttributeDefinitionsValidationResult(
     string? Error,
     IReadOnlyDictionary<int, AttributeDefinition> Definitions);
 
 public record HierarchySelectionsValidationResult(string? Error);
+
+public record CatalogSelectionsValidationResult(string? Error);

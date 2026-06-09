@@ -162,6 +162,11 @@ public class ProjectsController(StoryDbContext dbContext) : ControllerBase
             catalogEntryGroupIds.Contains(link.ChildGroupId));
         dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(catalogGroupHierarchyLinks);
 
+        var catalogSelections = dbContext.StoryObjectCatalogSelections.Where(selection =>
+            selection.StoryObject!.ProjectId == id ||
+            selection.Catalog!.ProjectId == id);
+        dbContext.StoryObjectCatalogSelections.RemoveRange(catalogSelections);
+
         dbContext.Projects.Remove(project);
         await dbContext.SaveChangesAsync();
 

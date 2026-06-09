@@ -9,6 +9,7 @@ import type {
   CatalogFieldDefinition,
   CatalogFieldDraft,
   CatalogHierarchyMode,
+  DraftCatalogSelection,
   DraftAttribute,
   DraftHierarchySelection,
   HierarchyGroup,
@@ -42,6 +43,36 @@ const normalizeHierarchySelections = (selections: DraftHierarchySelection[]) =>
       nodeIds: Array.from(new Set(selection.nodeIds)),
     }))
     .filter((selection) => selection.groupId > 0 && selection.nodeIds.length > 0)
+
+const normalizeCatalogSelections = (selections: DraftCatalogSelection[]) =>
+  selections
+    .map((selection) => ({
+      targetType: selection.targetType,
+      catalogId: Number(selection.catalogId),
+      catalogEntryGroupId:
+        selection.targetType === 'group' && selection.catalogEntryGroupId !== ''
+          ? Number(selection.catalogEntryGroupId)
+          : null,
+      catalogEntryId:
+        selection.targetType === 'entry' && selection.catalogEntryId !== ''
+          ? Number(selection.catalogEntryId)
+          : null,
+    }))
+    .filter((selection) => {
+      if (!Number.isInteger(selection.catalogId) || selection.catalogId <= 0) {
+        return false
+      }
+
+      if (selection.targetType === 'group') {
+        return selection.catalogEntryGroupId !== null
+      }
+
+      if (selection.targetType === 'entry') {
+        return selection.catalogEntryId !== null
+      }
+
+      return true
+    })
 
 export const fetchProjects = async () => {
   const response = await fetch(`${apiBaseUrl}/projects`)
@@ -399,6 +430,7 @@ export const createCharacterRequest = async (
   imagePath: string | null,
   draftAttributes: DraftAttribute[],
   draftHierarchySelections: DraftHierarchySelection[],
+  draftCatalogSelections: DraftCatalogSelection[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects`, {
     method: 'POST',
@@ -413,6 +445,7 @@ export const createCharacterRequest = async (
       imagePath,
       attributes: normalizeAttributes(draftAttributes),
       hierarchySelections: normalizeHierarchySelections(draftHierarchySelections),
+      catalogSelections: normalizeCatalogSelections(draftCatalogSelections),
     }),
   })
   ensureOk(response, 'Failed to create character.')
@@ -431,6 +464,7 @@ export const updateCharacterRequest = async (
   imagePath: string | null,
   draftAttributes: DraftAttribute[],
   draftHierarchySelections: DraftHierarchySelection[],
+  draftCatalogSelections: DraftCatalogSelection[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects/${characterId}`, {
     method: 'PUT',
@@ -444,6 +478,7 @@ export const updateCharacterRequest = async (
       imagePath,
       attributes: normalizeAttributes(draftAttributes),
       hierarchySelections: normalizeHierarchySelections(draftHierarchySelections),
+      catalogSelections: normalizeCatalogSelections(draftCatalogSelections),
     }),
   })
   ensureOk(response, 'Failed to update character.')

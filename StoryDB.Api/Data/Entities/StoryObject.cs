@@ -19,4 +19,5 @@ public class StoryObject
     public ObjectType? ObjectType { get; set; }
     public List<ObjectAttribute> Attributes { get; set; } = [];
     public List<StoryObjectHierarchySelection> HierarchySelections { get; set; } = [];
+    public List<StoryObjectCatalogSelection> CatalogSelections { get; set; } = [];
 }

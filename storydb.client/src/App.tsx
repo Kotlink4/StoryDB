@@ -61,6 +61,7 @@ import type {
   CatalogFieldDraft,
   Dialog,
   DraftAttribute,
+  DraftCatalogSelection,
   DraftHierarchySelection,
   HierarchyGroup,
   HierarchyNode,
@@ -112,6 +113,9 @@ const translations = {
     places: 'Places',
     organizations: 'Organizations',
     catalogs: 'Catalogs',
+    catalogValues: 'Catalog values',
+    addCatalogValue: 'Add catalog value',
+    catalogValueType: 'Value type',
     newCatalog: 'New catalog',
     catalogName: 'Catalog name',
     catalogDescription: 'Catalog description',
@@ -275,6 +279,9 @@ const translations = {
     places: 'Места',
     organizations: 'Организации',
     catalogs: 'Каталоги',
+    catalogValues: 'Значения каталогов',
+    addCatalogValue: 'Добавить значение каталога',
+    catalogValueType: 'Тип значения',
     newCatalog: 'Новый каталог',
     catalogName: 'Название каталога',
     catalogDescription: 'Описание каталога',
@@ -480,6 +487,13 @@ const createEmptyCatalogEntryDraft = (): CatalogEntryDraft => ({
   fieldValues: {},
 })
 
+const createEmptyDraftCatalogSelection = (): DraftCatalogSelection => ({
+  targetType: 'catalog',
+  catalogId: '',
+  catalogEntryGroupId: '',
+  catalogEntryId: '',
+})
+
 const toAttributeDefinitionDraft = (
   definition: AttributeDefinition,
 ): AttributeDefinitionDraft => ({
@@ -552,6 +566,9 @@ function StoryDbApp() {
   const [catalogEntriesByCatalogId, setCatalogEntriesByCatalogId] = useState<
     Record<number, CatalogEntry[]>
   >({})
+  const [catalogEntryGroupsByCatalogId, setCatalogEntryGroupsByCatalogId] = useState<
+    Record<number, CatalogEntryGroup[]>
+  >({})
   const [catalogFieldDraft, setCatalogFieldDraft] =
     useState<CatalogFieldDraft>(createEmptyCatalogFieldDraft)
   const [editingCatalogFieldId, setEditingCatalogFieldId] = useState<number | null>(null)
@@ -592,6 +609,7 @@ function StoryDbApp() {
     { name: '', value: '' },
   ])
   const [draftHierarchySelections, setDraftHierarchySelections] = useState<DraftHierarchySelection[]>([])
+  const [draftCatalogSelections, setDraftCatalogSelections] = useState<DraftCatalogSelection[]>([])
   const [newHierarchySelectionGroupId, setNewHierarchySelectionGroupId] = useState('')
   const [isAttributePickerOpen, setIsAttributePickerOpen] = useState(false)
   const [newCharacterAttributeName, setNewCharacterAttributeName] = useState('')
@@ -967,6 +985,10 @@ function StoryDbApp() {
             [activeCatalogId]: entries,
           }))
           setCatalogEntryGroups(groups)
+          setCatalogEntryGroupsByCatalogId((currentGroups) => ({
+            ...currentGroups,
+            [activeCatalogId]: groups,
+          }))
           setCatalogFieldDefinitions(fields)
           setCatalogEntryGroupFilter((currentFilter) => {
             if (currentFilter === '__all__' || currentFilter === '__ungrouped__') {
@@ -1076,6 +1098,66 @@ function StoryDbApp() {
     let isActive = true
 
     if (
+      selectedProject === null ||
+      (dialog !== 'newCharacter' && dialog !== 'editCharacter') ||
+      catalogs.length === 0
+    ) {
+      return undefined
+    }
+
+    const missingCatalogs = catalogs.filter(
+      (catalog) =>
+        catalogEntriesByCatalogId[catalog.id] === undefined ||
+        catalogEntryGroupsByCatalogId[catalog.id] === undefined,
+    )
+    if (missingCatalogs.length === 0) {
+      return undefined
+    }
+
+    void Promise.all(
+      missingCatalogs.map(async (catalog) => {
+        const [entries, groups] = await Promise.all([
+          fetchCatalogEntries(selectedProject.id, catalog.id),
+          fetchCatalogEntryGroups(selectedProject.id, catalog.id),
+        ])
+
+        return [catalog.id, entries, groups] as const
+      }),
+    )
+      .then((loadedCatalogs) => {
+        if (isActive) {
+          setCatalogEntriesByCatalogId((currentEntries) => ({
+            ...currentEntries,
+            ...Object.fromEntries(loadedCatalogs.map(([catalogId, entries]) => [catalogId, entries])),
+          }))
+          setCatalogEntryGroupsByCatalogId((currentGroups) => ({
+            ...currentGroups,
+            ...Object.fromEntries(loadedCatalogs.map(([catalogId, , groups]) => [catalogId, groups])),
+          }))
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setApiError(t.apiUnavailable)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [
+    catalogEntriesByCatalogId,
+    catalogEntryGroupsByCatalogId,
+    catalogs,
+    dialog,
+    selectedProject,
+    t.apiUnavailable,
+  ])
+
+  useEffect(() => {
+    let isActive = true
+
+    if (
       !isWorkspace ||
       selectedProject === null ||
       workspaceSection !== 'hierarchy' ||
@@ -1119,6 +1201,7 @@ function StoryDbApp() {
     setIsCharacterAttributesExpanded(true)
     setIsCharacterHierarchyExpanded(true)
     setDraftHierarchySelections([])
+    setDraftCatalogSelections([])
     setNewHierarchySelectionGroupId('')
     setNewCharacterAttributeName('')
     setNewCharacterAttributeValue('')
@@ -1167,6 +1250,15 @@ function StoryDbApp() {
       storyObject.hierarchySelections.map((selection) => ({
         groupId: selection.groupId,
         nodeIds: selection.nodes.map((node) => node.id),
+      })),
+    )
+    setDraftCatalogSelections(
+      storyObject.catalogSelections.map((selection) => ({
+        targetType: selection.targetType,
+        catalogId: String(selection.catalogId),
+        catalogEntryGroupId:
+          selection.catalogEntryGroupId === null ? '' : String(selection.catalogEntryGroupId),
+        catalogEntryId: selection.catalogEntryId === null ? '' : String(selection.catalogEntryId),
       })),
     )
     setDraftAttributes(
@@ -1735,6 +1827,7 @@ function StoryDbApp() {
         characterImagePath,
         draftAttributes,
         draftHierarchySelections,
+        draftCatalogSelections,
       )
       setCharacters((currentCharacters) => [...currentCharacters, createdCharacter])
       setCharacterName('')
@@ -1745,6 +1838,7 @@ function StoryDbApp() {
       setCharacterImagePath(null)
       setDraftAttributes([{ name: '', value: '' }])
       setDraftHierarchySelections([])
+      setDraftCatalogSelections([])
       closeDialog()
     } catch {
       setApiError(t.apiUnavailable)
@@ -1788,6 +1882,7 @@ function StoryDbApp() {
         characterImagePath,
         draftAttributes,
         draftHierarchySelections,
+        draftCatalogSelections,
       )
       setCharacters((currentCharacters) =>
         currentCharacters.map((character) =>
@@ -1803,6 +1898,7 @@ function StoryDbApp() {
       setCharacterImagePath(null)
       setDraftAttributes([{ name: '', value: '' }])
       setDraftHierarchySelections([])
+      setDraftCatalogSelections([])
       closeDialog()
     } catch {
       setApiError(t.apiUnavailable)
@@ -2666,6 +2762,55 @@ function StoryDbApp() {
     )
   }
 
+  const addDraftCatalogSelection = () => {
+    setDraftCatalogSelections((currentSelections) => [
+      ...currentSelections,
+      createEmptyDraftCatalogSelection(),
+    ])
+  }
+
+  const updateDraftCatalogSelection = (
+    index: number,
+    selection: DraftCatalogSelection,
+  ) => {
+    setDraftCatalogSelections((currentSelections) =>
+      currentSelections.map((currentSelection, currentIndex) =>
+        currentIndex === index ? selection : currentSelection,
+      ),
+    )
+  }
+
+  const removeDraftCatalogSelection = (index: number) => {
+    setDraftCatalogSelections((currentSelections) =>
+      currentSelections.filter((_, currentIndex) => currentIndex !== index),
+    )
+  }
+
+  const openCatalogSelection = (selection: StoryObject['catalogSelections'][number]) => {
+    setDialog(null)
+    setWorkspaceTab('database')
+    setWorkspaceSection('catalogs')
+    setActiveCatalogId(selection.catalogId)
+    setActiveCatalogEntryMenuId(null)
+
+    if (selection.targetType === 'entry' && selection.catalogEntryId !== null) {
+      setActiveCatalogEntryId(selection.catalogEntryId)
+      setCatalogEntryGroupFilter('__all__')
+      setCatalogPanelPage('entry')
+      return
+    }
+
+    setActiveCatalogEntryId(null)
+    if (selection.targetType === 'group' && selection.catalogEntryGroupId !== null) {
+      setCatalogEntryGroupFilter(String(selection.catalogEntryGroupId))
+      setCatalogPanelPage('group')
+      return
+    }
+
+    setCatalogEntryGroupFilter('__all__')
+    setCatalogPanelPage('catalog')
+  }
+
   const toggleSidebarSection = (section: WorkspaceSection) => {
     setCollapsedSidebarSections((currentSections) =>
       currentSections.includes(section)
@@ -2974,6 +3119,7 @@ function StoryDbApp() {
                       setIsCharacterAttributesExpanded(true)
                       setIsCharacterHierarchyExpanded(true)
                       setDraftHierarchySelections([])
+                      setDraftCatalogSelections([])
                       setNewHierarchySelectionGroupId('')
                       setNewCharacterAttributeName('')
                       setNewCharacterAttributeValue('')
@@ -3419,6 +3565,27 @@ function StoryDbApp() {
                       </div>
                     </section>
                   )}
+                  {selectedCharacter.catalogSelections.length > 0 && (
+                    <section className="dossier-attributes-section">
+                      <h4>{t.catalogValues}</h4>
+                      <div className="catalog-reference-values">
+                        {selectedCharacter.catalogSelections.map((selection) => (
+                          <button
+                            className="inline-link-button"
+                            key={`${selection.targetType}-${selection.catalogId}-${selection.catalogEntryGroupId ?? 0}-${selection.catalogEntryId ?? 0}`}
+                            type="button"
+                            onClick={() => openCatalogSelection(selection)}
+                          >
+                            {selection.targetType === 'entry'
+                              ? selection.catalogEntryName
+                              : selection.targetType === 'group'
+                                ? selection.catalogEntryGroupName
+                                : selection.catalogName}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   </div>
                 </div>
               </section>
@@ -3774,6 +3941,123 @@ function StoryDbApp() {
                     )}
                   </section>
                 )}
+                <section className="attribute-editor collapsible-block">
+                  <div className="attribute-editor-header">
+                    <div className="collapse-heading static-heading">{t.catalogValues}</div>
+                    <button
+                      className="secondary-action compact"
+                      type="button"
+                      onClick={addDraftCatalogSelection}
+                    >
+                      {t.addCatalogValue}
+                    </button>
+                  </div>
+                  <div className="attribute-editor-body">
+                    {draftCatalogSelections.length === 0 && (
+                      <p className="empty-state compact">{t.noCatalogs}</p>
+                    )}
+                    {draftCatalogSelections.map((selection, index) => {
+                      const selectedCatalogId = Number(selection.catalogId)
+                      const selectedGroups = catalogEntryGroupsByCatalogId[selectedCatalogId] ?? []
+                      const selectedEntries = catalogEntriesByCatalogId[selectedCatalogId] ?? []
+
+                      return (
+                        <div className="catalog-selection-row" key={index}>
+                          <label className="project-name-field">
+                            <span>{t.catalogValueType}</span>
+                            <select
+                              value={selection.targetType}
+                              onChange={(event) =>
+                                updateDraftCatalogSelection(index, {
+                                  ...selection,
+                                  targetType: event.target.value as DraftCatalogSelection['targetType'],
+                                  catalogEntryGroupId: '',
+                                  catalogEntryId: '',
+                                })
+                              }
+                            >
+                              <option value="catalog">{t.catalogs}</option>
+                              <option value="group">{t.attributeGroup}</option>
+                              <option value="entry">{t.catalogEntryName}</option>
+                            </select>
+                          </label>
+                          <label className="project-name-field">
+                            <span>{t.catalogName}</span>
+                            <select
+                              value={selection.catalogId}
+                              onChange={(event) =>
+                                updateDraftCatalogSelection(index, {
+                                  ...selection,
+                                  catalogId: event.target.value,
+                                  catalogEntryGroupId: '',
+                                  catalogEntryId: '',
+                                })
+                              }
+                            >
+                              <option value="">{t.catalogName}</option>
+                              {catalogs.map((catalog) => (
+                                <option key={catalog.id} value={catalog.id}>
+                                  {catalog.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          {selection.targetType === 'group' && (
+                            <label className="project-name-field">
+                              <span>{t.attributeGroup}</span>
+                              <select
+                                value={selection.catalogEntryGroupId}
+                                onChange={(event) =>
+                                  updateDraftCatalogSelection(index, {
+                                    ...selection,
+                                    catalogEntryGroupId: event.target.value,
+                                  })
+                                }
+                              >
+                                <option value="">{t.attributeGroup}</option>
+                                {selectedGroups.map((group) => (
+                                  <option key={group.id} value={group.id}>
+                                    {group.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          {selection.targetType === 'entry' && (
+                            <label className="project-name-field">
+                              <span>{t.catalogEntryName}</span>
+                              <select
+                                value={selection.catalogEntryId}
+                                onChange={(event) =>
+                                  updateDraftCatalogSelection(index, {
+                                    ...selection,
+                                    catalogEntryId: event.target.value,
+                                  })
+                                }
+                              >
+                                <option value="">{t.catalogEntryName}</option>
+                                {selectedEntries.map((entry) => (
+                                  <option key={entry.id} value={entry.id}>
+                                    {entry.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          <button
+                            className="icon-action danger-icon"
+                            type="button"
+                            aria-label={t.delete}
+                            title={t.delete}
+                            onClick={() => removeDraftCatalogSelection(index)}
+                          >
+                            <Trash2 size={16} strokeWidth={2.2} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
                 </div>
                 <button className="primary-action" type="submit">
                   {dialog === 'editCharacter' ? t.save : t.createCharacter}

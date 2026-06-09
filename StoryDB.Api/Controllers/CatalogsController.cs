@@ -160,6 +160,9 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             .ToListAsync();
         if (entryIds.Count > 0)
         {
+            dbContext.StoryObjectCatalogSelections.RemoveRange(
+                dbContext.StoryObjectCatalogSelections.Where(selection =>
+                    selection.CatalogEntryId != null && entryIds.Contains(selection.CatalogEntryId.Value)));
             dbContext.CatalogEntryHierarchyLinks.RemoveRange(
                 dbContext.CatalogEntryHierarchyLinks.Where(link =>
                     entryIds.Contains(link.ParentEntryId) || entryIds.Contains(link.ChildEntryId)));
@@ -174,10 +177,16 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             .ToListAsync();
         if (groupIds.Count > 0)
         {
+            dbContext.StoryObjectCatalogSelections.RemoveRange(
+                dbContext.StoryObjectCatalogSelections.Where(selection =>
+                    selection.CatalogEntryGroupId != null && groupIds.Contains(selection.CatalogEntryGroupId.Value)));
             dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
                 dbContext.CatalogEntryGroupHierarchyLinks.Where(link =>
                     groupIds.Contains(link.ParentGroupId) || groupIds.Contains(link.ChildGroupId)));
         }
+
+        dbContext.StoryObjectCatalogSelections.RemoveRange(
+            dbContext.StoryObjectCatalogSelections.Where(selection => selection.CatalogId == catalogId));
 
         var referencingFields = await dbContext.CatalogFieldDefinitions
             .Where(definition => definition.ReferenceCatalogId == catalogId)
@@ -419,6 +428,8 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         dbContext.CatalogEntryHierarchyLinks.RemoveRange(
             dbContext.CatalogEntryHierarchyLinks.Where(link =>
                 link.ParentEntryId == entryId || link.ChildEntryId == entryId));
+        dbContext.StoryObjectCatalogSelections.RemoveRange(
+            dbContext.StoryObjectCatalogSelections.Where(selection => selection.CatalogEntryId == entryId));
         dbContext.CatalogEntryFieldValues.RemoveRange(
             dbContext.CatalogEntryFieldValues.Where(value =>
                 value.ReferencedEntryId == entryId));
@@ -573,6 +584,8 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
             dbContext.CatalogEntryGroupHierarchyLinks.Where(link =>
                 link.ParentGroupId == groupId || link.ChildGroupId == groupId));
+        dbContext.StoryObjectCatalogSelections.RemoveRange(
+            dbContext.StoryObjectCatalogSelections.Where(selection => selection.CatalogEntryGroupId == groupId));
         dbContext.CatalogEntryGroups.Remove(group);
         await dbContext.SaveChangesAsync();
 
