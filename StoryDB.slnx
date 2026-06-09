@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="StoryDB.Api/StoryDB.Api.csproj" />
+  <Project Path="StoryDB.Client/storydb.client.esproj">
+    <Build />
+  </Project>
+</Solution>

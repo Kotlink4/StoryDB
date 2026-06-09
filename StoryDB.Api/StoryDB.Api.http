@@ -1,0 +1,38 @@
+@StoryDB.Api_HostAddress = http://localhost:5282
+
+GET {{StoryDB.Api_HostAddress}}/api/projects
+Accept: application/json
+
+###
+
+POST {{StoryDB.Api_HostAddress}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "New Story",
+  "coverImagePath": null,
+  "enabledObjectTypeKeys": ["characters", "items"]
+}
+
+###
+
+GET {{StoryDB.Api_HostAddress}}/api/projects/1/attribute-definitions?typeKey=characters
+Accept: application/json
+
+###
+
+POST {{StoryDB.Api_HostAddress}}/api/projects/1/attribute-definitions
+Content-Type: application/json
+
+{
+  "typeKey": "characters",
+  "name": "Height",
+  "dataType": "number",
+  "groupName": "Body",
+  "minValue": 120,
+  "maxValue": 250,
+  "unit": "cm",
+  "options": []
+}
+
+###
