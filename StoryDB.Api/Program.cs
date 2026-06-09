@@ -23,9 +23,6 @@ builder.Services.AddDbContext<StoryDbContext>(options =>
         ?? throw new InvalidOperationException("Connection string 'StoryDb' was not found.");
     options.UseNpgsql(connectionString);
 });
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -33,12 +30,6 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<StoryDbContext>();
     dbContext.Database.Migrate();
 }
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
-
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
