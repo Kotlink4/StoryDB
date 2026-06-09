@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 stop_port_process() {
   local port="$1"
   local pids=""
@@ -20,11 +19,16 @@ stop_port_process() {
 
 cd "$ROOT"
 
+if ! command -v docker-compose >/dev/null 2>&1; then
+  echo "docker-compose was not found. Install docker-compose v1 or Docker Compose plugin." >&2
+  exit 1
+fi
+
 echo "Stopping StoryDB API and frontend..."
 stop_port_process 5282
 stop_port_process 50201
 
 echo "Stopping Docker containers..."
-docker compose down
+docker-compose down
 
 echo "StoryDB is stopped. PostgreSQL data volume was kept."

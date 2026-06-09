@@ -6,7 +6,6 @@ API_LOG="$ROOT/api-dev-5282.log"
 API_ERR_LOG="$ROOT/api-dev-5282.err.log"
 CLIENT_LOG="$ROOT/client-dev-50201.log"
 CLIENT_ERR_LOG="$ROOT/client-dev-50201.err.log"
-
 stop_port_process() {
   local port="$1"
   local pids=""
@@ -24,12 +23,17 @@ stop_port_process() {
 
 cd "$ROOT"
 
+if ! command -v docker-compose >/dev/null 2>&1; then
+  echo "docker-compose was not found. Install docker-compose v1 or Docker Compose plugin." >&2
+  exit 1
+fi
+
 echo "Stopping old StoryDB app processes..."
 stop_port_process 5282
 stop_port_process 50201
 
 echo "Starting PostgreSQL container..."
-docker compose up -d
+docker-compose up -d
 
 echo "Waiting for PostgreSQL healthcheck..."
 deadline=$((SECONDS + 60))
