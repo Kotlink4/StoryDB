@@ -97,17 +97,20 @@ fi
 echo "Starting StoryDB API on http://localhost:5282 ..."
 ConnectionStrings__StoryDb="Host=localhost;Port=$POSTGRES_HOST_PORT;Database=storydb;Username=postgres;Password=postgres" \
 ASPNETCORE_ENVIRONMENT=Development \
-  nohup dotnet run --project StoryDB.Api --no-launch-profile --urls http://0.0.0.0:5282 >"$API_LOG" 2>"$API_ERR_LOG" &
+  nohup dotnet run --project StoryDB.Api --no-launch-profile -- --urls http://0.0.0.0:5282 >"$API_LOG" 2>"$API_ERR_LOG" &
+API_PID=$!
 
 echo "Starting StoryDB frontend on http://0.0.0.0:50201 ..."
 (
   cd "$ROOT/storydb.client"
   nohup npm run dev -- --host 0.0.0.0 >"$CLIENT_LOG" 2>"$CLIENT_ERR_LOG" &
+  echo $! > "$ROOT/client-dev-50201.pid"
 )
+echo "$API_PID" > "$ROOT/api-dev-5282.pid"
 
 echo "Waiting for API and frontend ports..."
 for port in 5282 50201; do
-  deadline=$((SECONDS + 30))
+  deadline=$((SECONDS + 120))
   while (( SECONDS < deadline )); do
     if is_port_in_use "$port"; then
       break
