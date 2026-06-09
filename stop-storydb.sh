@@ -19,8 +19,8 @@ stop_port_process() {
 
 cd "$ROOT"
 
-if ! command -v docker-compose >/dev/null 2>&1; then
-  echo "docker-compose was not found. Install docker-compose v1 or Docker Compose plugin." >&2
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker was not found. Install Docker Engine." >&2
   exit 1
 fi
 
@@ -28,7 +28,7 @@ echo "Stopping StoryDB API and frontend..."
 stop_port_process 5282
 stop_port_process 50201
 
-echo "Stopping Docker containers..."
-docker-compose down
+echo "Stopping Docker container..."
+docker rm -f storydb-postgres >/dev/null 2>&1 || true
 
 echo "StoryDB is stopped. PostgreSQL data volume was kept."

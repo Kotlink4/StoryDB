@@ -40,8 +40,8 @@ is_port_in_use() {
 
 cd "$ROOT"
 
-if ! command -v docker-compose >/dev/null 2>&1; then
-  echo "docker-compose was not found. Install docker-compose v1 or Docker Compose plugin." >&2
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker was not found. Install Docker Engine." >&2
   exit 1
 fi
 
@@ -63,7 +63,20 @@ export POSTGRES_HOST_PORT
 
 echo "Using PostgreSQL host port $POSTGRES_HOST_PORT."
 echo "Starting PostgreSQL container..."
-docker-compose up -d
+docker rm -f storydb-postgres >/dev/null 2>&1 || true
+docker volume create storydb_storydb_postgres_data >/dev/null
+docker run -d \
+  --name storydb-postgres \
+  -e POSTGRES_DB=storydb \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p "$POSTGRES_HOST_PORT:5432" \
+  -v storydb_storydb_postgres_data:/var/lib/postgresql/data \
+  --health-cmd='pg_isready -U postgres -d storydb' \
+  --health-interval=5s \
+  --health-timeout=5s \
+  --health-retries=10 \
+  postgres:17-alpine >/dev/null
 
 echo "Waiting for PostgreSQL healthcheck..."
 deadline=$((SECONDS + 60))
