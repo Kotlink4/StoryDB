@@ -8,6 +8,7 @@ import type {
   CatalogFieldDataType,
   CatalogFieldDefinition,
   CatalogFieldDraft,
+  CatalogHierarchyMode,
   CatalogPanelPage,
   InlineNameEdit,
   LayoutMode,
@@ -31,6 +32,7 @@ type CatalogPanelProps = {
   activeCatalogEntry: CatalogEntry | null
   activeCatalogEntryGroup: CatalogEntryGroup | null
   catalogEntries: CatalogEntry[]
+  catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
   catalogEntryDraft: CatalogEntryDraft
   catalogEntryGroups: CatalogEntryGroup[]
   catalogFieldDraft: CatalogFieldDraft
@@ -60,11 +62,19 @@ type CatalogPanelProps = {
   onEditCatalogField: (field: CatalogFieldDefinition) => void
   onImageUploadError: () => void
   onOpenCatalogEntry: (entry: CatalogEntry) => void
+  onOpenReferencedCatalogEntry: (catalogId: number, entryId: number) => void
+  onCatalogHierarchySettingsChange: (
+    catalog: Catalog,
+    supportsHierarchy: boolean,
+    hierarchyMode: CatalogHierarchyMode,
+  ) => void
+  onCatalogEntryGroupParentsChange: (group: CatalogEntryGroup, parentGroupIds: number[]) => void
   onCatalogEntryMenuToggle: (entryId: number) => void
   onNameDraftChange: (value: string) => void
   onCatalogFieldDraftChange: (draft: CatalogFieldDraft) => void
   onSaveNameEdit: () => void
   onStartNameEdit: (edit: Exclude<InlineNameEdit, null>, currentName: string) => void
+  onShowEntryForm: () => void
   onShowTemplate: () => void
 }
 
@@ -74,6 +84,7 @@ export function CatalogPanel({
   activeCatalogEntry,
   activeCatalogEntryGroup,
   catalogEntries,
+  catalogEntriesByCatalogId,
   catalogEntryDraft,
   catalogEntryGroups,
   catalogFieldDraft,
@@ -103,11 +114,15 @@ export function CatalogPanel({
   onEditCatalogField,
   onImageUploadError,
   onOpenCatalogEntry,
+  onOpenReferencedCatalogEntry,
+  onCatalogHierarchySettingsChange,
+  onCatalogEntryGroupParentsChange,
   onCatalogEntryMenuToggle,
   onNameDraftChange,
   onCatalogFieldDraftChange,
   onSaveNameEdit,
   onStartNameEdit,
+  onShowEntryForm,
   onShowTemplate,
 }: CatalogPanelProps) {
   const saveOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -128,6 +143,10 @@ export function CatalogPanel({
   const pageTitle =
     page === 'template'
       ? t.catalogTemplate
+      : page === 'entryForm'
+        ? editingCatalogEntryId === null
+          ? t.newCatalogEntry
+          : `${t.edit}: ${catalogEntryDraft.name || t.catalogEntryName}`
       : page === 'entry'
         ? activeCatalogEntry?.name ?? t.catalogEntryName
         : page === 'group'
@@ -136,6 +155,8 @@ export function CatalogPanel({
   const pageKicker =
     page === 'template'
       ? activeCatalog?.name ?? t.catalogs
+      : page === 'entryForm'
+        ? activeCatalog?.name ?? t.catalogs
       : page === 'entry'
         ? activeCatalog?.name ?? t.catalogs
         : page === 'group'
@@ -216,14 +237,54 @@ export function CatalogPanel({
       ) : (
         <>
           {page === 'catalog' && (
-            <section className="catalog-page-actions">
-              <button className="secondary-action compact" type="button" onClick={onShowTemplate}>
-                {t.catalogTemplate}
-              </button>
-              <button className="primary-action compact" type="button" onClick={onCreateCatalogEntryGroup}>
-                + {t.createAttributeGroup}
-              </button>
-            </section>
+            <>
+              <section className="catalog-page-actions">
+                <button className="primary-action compact" type="button" onClick={onShowEntryForm}>
+                  + {t.newCatalogEntry}
+                </button>
+                <button className="secondary-action compact" type="button" onClick={onShowTemplate}>
+                  {t.catalogTemplate}
+                </button>
+                <button className="primary-action compact" type="button" onClick={onCreateCatalogEntryGroup}>
+                  + {t.createAttributeGroup}
+                </button>
+              </section>
+              <section className="catalog-hierarchy-settings">
+                <label className="project-name-field checkbox-field">
+                  <span>{t.supportsHierarchy}</span>
+                  <input
+                    type="checkbox"
+                    checked={activeCatalog.supportsHierarchy}
+                    onChange={(event) =>
+                      onCatalogHierarchySettingsChange(
+                        activeCatalog,
+                        event.target.checked,
+                        activeCatalog.hierarchyMode,
+                      )
+                    }
+                  />
+                </label>
+                {activeCatalog.supportsHierarchy && (
+                  <label className="project-name-field">
+                    <span>{t.catalogHierarchyMode}</span>
+                    <select
+                      value={activeCatalog.hierarchyMode}
+                      onChange={(event) =>
+                        onCatalogHierarchySettingsChange(
+                          activeCatalog,
+                          true,
+                          event.target.value as CatalogHierarchyMode,
+                        )
+                      }
+                    >
+                      <option value="entries">{t.catalogHierarchyEntries}</option>
+                      <option value="entriesInGroup">{t.catalogHierarchyEntriesInGroup}</option>
+                      <option value="groups">{t.catalogHierarchyGroups}</option>
+                    </select>
+                  </label>
+                )}
+              </section>
+            </>
           )}
 
           {page === 'group' && (
@@ -280,6 +341,34 @@ export function CatalogPanel({
             <button className="primary-action compact" type="button" onClick={onCreateCatalogEntryGroup}>
               + {t.createAttributeGroup}
             </button>
+            <button className="secondary-action compact" type="button" onClick={onShowEntryForm}>
+              + {t.newCatalogEntry}
+            </button>
+            {activeCatalog.supportsHierarchy &&
+              activeCatalog.hierarchyMode === 'groups' &&
+              activeCatalogEntryGroup !== null && (
+                <label className="project-name-field hierarchy-node-description">
+                  <span>{t.hierarchyParents}</span>
+                  <select
+                    multiple
+                    value={activeCatalogEntryGroup.parentGroupIds.map(String)}
+                    onChange={(event) =>
+                      onCatalogEntryGroupParentsChange(
+                        activeCatalogEntryGroup,
+                        Array.from(event.target.selectedOptions).map((option) => Number(option.value)),
+                      )
+                    }
+                  >
+                    {catalogEntryGroups
+                      .filter((group) => group.id !== activeCatalogEntryGroup.id)
+                      .map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
           </section>
           )}
 
@@ -460,83 +549,6 @@ export function CatalogPanel({
           )}
 
           {(page === 'catalog' || page === 'group') && (
-            <>
-          <form className="hierarchy-node-form" onSubmit={submitCatalogEntry}>
-            <div className="catalog-entry-image-field">
-              <ImageDropzone
-                imagePath={catalogEntryDraft.imagePath}
-                label={t.cover}
-                placeholder={t.coverDropzone}
-                onChange={(imagePath) => onCatalogEntryDraftChange({ ...catalogEntryDraft, imagePath })}
-                onError={onImageUploadError}
-              />
-            </div>
-            <label className="project-name-field">
-              <span>{t.catalogEntryName}</span>
-              <input
-                type="text"
-                value={catalogEntryDraft.name}
-                onChange={(event) =>
-                  onCatalogEntryDraftChange({ ...catalogEntryDraft, name: event.target.value })
-                }
-                placeholder={t.catalogEntryName}
-              />
-            </label>
-            <label className="project-name-field hierarchy-node-description">
-              <span>{t.description}</span>
-              <textarea
-                value={catalogEntryDraft.description}
-                onChange={(event) =>
-                  onCatalogEntryDraftChange({ ...catalogEntryDraft, description: event.target.value })
-                }
-                placeholder={t.descriptionPlaceholder}
-              />
-            </label>
-            <label className="project-name-field">
-              <span>{t.attributeGroup}</span>
-              <select
-                value={catalogEntryDraft.entryGroupId}
-                onChange={(event) =>
-                  onCatalogEntryDraftChange({ ...catalogEntryDraft, entryGroupId: event.target.value })
-                }
-              >
-                <option value="">{t.primaryAttributeGroup}</option>
-                {catalogEntryGroups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {catalogFields.map((field) => (
-              <CatalogEntryFieldInput
-                field={field}
-                key={field.id}
-                t={t}
-                value={catalogEntryDraft.fieldValues[field.id] ?? ''}
-                onChange={(value) =>
-                  onCatalogEntryDraftChange({
-                    ...catalogEntryDraft,
-                    fieldValues: {
-                      ...catalogEntryDraft.fieldValues,
-                      [field.id]: value,
-                    },
-                  })
-                }
-              />
-            ))}
-            <div className="attribute-definition-actions">
-              {editingCatalogEntryId !== null && (
-                <button className="secondary-action compact" type="button" onClick={onCancelCatalogEntryEdit}>
-                  {t.cancel}
-                </button>
-              )}
-            <button className="primary-action compact" type="submit">
-                {editingCatalogEntryId === null ? t.newCatalogEntry : t.save}
-            </button>
-            </div>
-          </form>
-
           <div className={layoutMode === 'grid' ? 'folder-view grid' : 'folder-view list'} aria-label={t.catalogEntries}>
             {catalogEntries.map((entry) => (
               <CatalogEntryCard
@@ -556,7 +568,143 @@ export function CatalogPanel({
               </section>
             )}
           </div>
-            </>
+          )}
+
+          {page === 'entryForm' && (
+            <form className="catalog-entry-editor-page" onSubmit={submitCatalogEntry}>
+              <section className="catalog-entry-dossier catalog-entry-editor-dossier">
+                <ImageDropzone
+                  imagePath={catalogEntryDraft.imagePath}
+                  label={t.cover}
+                  placeholder={t.coverDropzone}
+                  onChange={(imagePath) => onCatalogEntryDraftChange({ ...catalogEntryDraft, imagePath })}
+                  onError={onImageUploadError}
+                />
+                <div className="catalog-entry-editor-main">
+                  <label className="project-name-field">
+                    <span>{t.catalogEntryName}</span>
+                    <input
+                      type="text"
+                      value={catalogEntryDraft.name}
+                      onChange={(event) =>
+                        onCatalogEntryDraftChange({ ...catalogEntryDraft, name: event.target.value })
+                      }
+                      placeholder={t.catalogEntryName}
+                    />
+                  </label>
+                  <label className="project-name-field">
+                    <span>{t.attributeGroup}</span>
+                    <select
+                      value={catalogEntryDraft.entryGroupId}
+                      onChange={(event) =>
+                        onCatalogEntryDraftChange({
+                          ...catalogEntryDraft,
+                          entryGroupId: event.target.value,
+                          parentEntryIds:
+                            activeCatalog.hierarchyMode === 'entriesInGroup'
+                              ? []
+                              : catalogEntryDraft.parentEntryIds,
+                        })
+                      }
+                    >
+                      <option value="">{t.primaryAttributeGroup}</option>
+                      {catalogEntryGroups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {activeCatalog.supportsHierarchy &&
+                    activeCatalog.hierarchyMode !== 'groups' && (
+                      <label className="project-name-field hierarchy-node-description">
+                        <span>{t.hierarchyParents}</span>
+                        <select
+                          multiple
+                          value={catalogEntryDraft.parentEntryIds.map(String)}
+                          onChange={(event) =>
+                            onCatalogEntryDraftChange({
+                              ...catalogEntryDraft,
+                              parentEntryIds: Array.from(event.target.selectedOptions).map((option) =>
+                                Number(option.value),
+                              ),
+                            })
+                          }
+                        >
+                          {(catalogEntriesByCatalogId[activeCatalog.id] ?? [])
+                            .filter((entry) => entry.id !== editingCatalogEntryId)
+                            .filter(
+                              (entry) =>
+                                activeCatalog.hierarchyMode !== 'entriesInGroup' ||
+                                String(entry.entryGroupId ?? '') === catalogEntryDraft.entryGroupId,
+                            )
+                            .map((entry) => (
+                              <option key={entry.id} value={entry.id}>
+                                {entry.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    )}
+                  <label className="project-name-field hierarchy-node-description">
+                    <span>{t.description}</span>
+                    <textarea
+                      value={catalogEntryDraft.description}
+                      onChange={(event) =>
+                        onCatalogEntryDraftChange({
+                          ...catalogEntryDraft,
+                          description: event.target.value,
+                        })
+                      }
+                      placeholder={t.descriptionPlaceholder}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="catalog-template-panel">
+                <header className="catalog-template-header">
+                  <div>
+                    <p className="panel-kicker">{t.catalogTemplate}</p>
+                    <h3>{t.catalogTemplate}</h3>
+                  </div>
+                </header>
+                <div className="catalog-entry-field-grid">
+                  {catalogFields.map((field) => (
+                    <CatalogEntryFieldInput
+                      catalogEntriesByCatalogId={catalogEntriesByCatalogId}
+                      field={field}
+                      key={field.id}
+                      t={t}
+                      value={catalogEntryDraft.fieldValues[field.id] ?? ''}
+                      onChange={(value) =>
+                        onCatalogEntryDraftChange({
+                          ...catalogEntryDraft,
+                          fieldValues: {
+                            ...catalogEntryDraft.fieldValues,
+                            [field.id]: value,
+                          },
+                        })
+                      }
+                    />
+                  ))}
+                  {catalogFields.length === 0 && (
+                    <section className="empty-state compact" aria-live="polite">
+                      <h2>{t.noCatalogFields}</h2>
+                    </section>
+                  )}
+                </div>
+              </section>
+
+              <div className="attribute-definition-actions">
+                <button className="secondary-action compact" type="button" onClick={onCancelCatalogEntryEdit}>
+                  {t.cancel}
+                </button>
+                <button className="primary-action compact" type="submit">
+                  {editingCatalogEntryId === null ? t.newCatalogEntry : t.save}
+                </button>
+              </div>
+            </form>
           )}
 
           {page === 'entry' && activeCatalogEntry !== null && (
@@ -598,7 +746,14 @@ export function CatalogPanel({
                       <tr key={field.id}>
                         <td>{field.name}</td>
                         <td>{t[`catalogFieldType${field.dataType}`]}</td>
-                        <td>{formatCatalogEntryFieldValue(field, activeCatalogEntry)}</td>
+                        <td>
+                          <CatalogEntryFieldValueView
+                            catalogEntriesByCatalogId={catalogEntriesByCatalogId}
+                            entry={activeCatalogEntry}
+                            field={field}
+                            onOpenReferencedCatalogEntry={onOpenReferencedCatalogEntry}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -634,28 +789,21 @@ const formatCatalogFieldValue = (field: CatalogFieldDefinition, catalogs: Catalo
   return field.isRequired ? '*' : '-'
 }
 
-const formatCatalogEntryFieldValue = (field: CatalogFieldDefinition, entry: CatalogEntry) => {
-  const entryValue = entry.fieldValues.find((value) => value.fieldDefinitionId === field.id)
-
-  if (entryValue === undefined) {
-    return '-'
-  }
-
-  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
-    return entryValue.referencedEntryIds.length > 0 ? entryValue.referencedEntryIds.join(', ') : '-'
-  }
-
-  return entryValue.value !== null && entryValue.value.length > 0 ? entryValue.value : '-'
-}
-
 type CatalogEntryFieldInputProps = {
+  catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
   field: CatalogFieldDefinition
   t: Record<string, string>
   value: string
   onChange: (value: string) => void
 }
 
-function CatalogEntryFieldInput({ field, t, value, onChange }: CatalogEntryFieldInputProps) {
+function CatalogEntryFieldInput({
+  catalogEntriesByCatalogId,
+  field,
+  t,
+  value,
+  onChange,
+}: CatalogEntryFieldInputProps) {
   if (field.dataType === 'longText') {
     return (
       <label className="project-name-field hierarchy-node-description">
@@ -682,16 +830,52 @@ function CatalogEntryFieldInput({ field, t, value, onChange }: CatalogEntryField
   }
 
   if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
+    const referenceEntries =
+      field.referenceCatalogId === null ? [] : catalogEntriesByCatalogId[field.referenceCatalogId] ?? []
+    const selectedIds = value
+      .split(',')
+      .map((entryId) => Number(entryId))
+      .filter((entryId) => Number.isInteger(entryId) && entryId > 0)
+
+    if (field.dataType === 'multipleEntryReference') {
+      return (
+        <label className="project-name-field">
+          <span>{field.name}</span>
+          <select
+            multiple
+            value={selectedIds.map(String)}
+            onChange={(event) =>
+              onChange(
+                Array.from(event.target.selectedOptions)
+                  .map((option) => option.value)
+                  .join(','),
+              )
+            }
+          >
+            {referenceEntries.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )
+    }
+
     return (
       <label className="project-name-field">
         <span>{field.name}</span>
-        <input
-          type="text"
+        <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder={t.catalogFieldReference}
-          disabled
-        />
+        >
+          <option value="">{field.isRequired ? t.catalogFieldRequired : '-'}</option>
+          {referenceEntries.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {entry.name}
+            </option>
+          ))}
+        </select>
       </label>
     )
   }
@@ -706,4 +890,53 @@ function CatalogEntryFieldInput({ field, t, value, onChange }: CatalogEntryField
       />
     </label>
   )
+}
+
+type CatalogEntryFieldValueViewProps = {
+  catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
+  entry: CatalogEntry
+  field: CatalogFieldDefinition
+  onOpenReferencedCatalogEntry: (catalogId: number, entryId: number) => void
+}
+
+function CatalogEntryFieldValueView({
+  catalogEntriesByCatalogId,
+  entry,
+  field,
+  onOpenReferencedCatalogEntry,
+}: CatalogEntryFieldValueViewProps) {
+  const entryValue = entry.fieldValues.find((value) => value.fieldDefinitionId === field.id)
+
+  if (entryValue === undefined) {
+    return <>-</>
+  }
+
+  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
+    if (field.referenceCatalogId === null || entryValue.referencedEntryIds.length === 0) {
+      return <>-</>
+    }
+
+    const referenceEntries = catalogEntriesByCatalogId[field.referenceCatalogId] ?? []
+
+    return (
+      <div className="catalog-reference-values">
+        {entryValue.referencedEntryIds.map((entryId) => {
+          const referencedEntry = referenceEntries.find((currentEntry) => currentEntry.id === entryId)
+
+          return (
+            <button
+              className="inline-link-button"
+              key={entryId}
+              type="button"
+              onClick={() => onOpenReferencedCatalogEntry(field.referenceCatalogId as number, entryId)}
+            >
+              {referencedEntry?.name ?? `#${entryId}`}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return <>{entryValue.value !== null && entryValue.value.length > 0 ? entryValue.value : '-'}</>
 }

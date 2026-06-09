@@ -55,6 +55,7 @@ import type {
   CatalogEntry,
   CatalogEntryDraft,
   CatalogEntryGroup,
+  CatalogHierarchyMode,
   CatalogPanelPage,
   CatalogFieldDefinition,
   CatalogFieldDraft,
@@ -115,6 +116,10 @@ const translations = {
     catalogName: 'Catalog name',
     catalogDescription: 'Catalog description',
     supportsHierarchy: 'Supports hierarchy',
+    catalogHierarchyMode: 'Hierarchy mode',
+    catalogHierarchyEntries: 'Catalog entries',
+    catalogHierarchyEntriesInGroup: 'Entries inside group',
+    catalogHierarchyGroups: 'Groups',
     catalogEntries: 'Catalog entries',
     newCatalogEntry: 'New entry',
     catalogEntryName: 'Entry name',
@@ -274,6 +279,10 @@ const translations = {
     catalogName: 'Название каталога',
     catalogDescription: 'Описание каталога',
     supportsHierarchy: 'Поддерживает иерархию',
+    catalogHierarchyMode: 'Режим иерархии',
+    catalogHierarchyEntries: 'Записи каталога',
+    catalogHierarchyEntriesInGroup: 'Записи внутри группы',
+    catalogHierarchyGroups: 'Группы',
     catalogEntries: 'Записи каталога',
     newCatalogEntry: 'Новая запись',
     catalogEntryName: 'Название записи',
@@ -467,6 +476,7 @@ const createEmptyCatalogEntryDraft = (): CatalogEntryDraft => ({
   description: '',
   imagePath: null,
   entryGroupId: '',
+  parentEntryIds: [],
   fieldValues: {},
 })
 
@@ -505,6 +515,7 @@ const toCatalogEntryDraft = (entry: CatalogEntry): CatalogEntryDraft => {
     description: entry.description ?? '',
     imagePath: entry.imagePath,
     entryGroupId: entry.entryGroupId === null ? '' : String(entry.entryGroupId),
+    parentEntryIds: entry.parentEntryIds,
     fieldValues,
   }
 }
@@ -538,6 +549,9 @@ function StoryDbApp() {
   const [catalogEntries, setCatalogEntries] = useState<CatalogEntry[]>([])
   const [catalogEntryGroups, setCatalogEntryGroups] = useState<CatalogEntryGroup[]>([])
   const [catalogFieldDefinitions, setCatalogFieldDefinitions] = useState<CatalogFieldDefinition[]>([])
+  const [catalogEntriesByCatalogId, setCatalogEntriesByCatalogId] = useState<
+    Record<number, CatalogEntry[]>
+  >({})
   const [catalogFieldDraft, setCatalogFieldDraft] =
     useState<CatalogFieldDraft>(createEmptyCatalogFieldDraft)
   const [editingCatalogFieldId, setEditingCatalogFieldId] = useState<number | null>(null)
@@ -948,6 +962,10 @@ function StoryDbApp() {
       .then(([entries, groups, fields]) => {
         if (isActive) {
           setCatalogEntries(entries)
+          setCatalogEntriesByCatalogId((currentEntries) => ({
+            ...currentEntries,
+            [activeCatalogId]: entries,
+          }))
           setCatalogEntryGroups(groups)
           setCatalogFieldDefinitions(fields)
           setCatalogEntryGroupFilter((currentFilter) => {
@@ -971,6 +989,60 @@ function StoryDbApp() {
       isActive = false
     }
   }, [activeCatalogId, isWorkspace, selectedProject, t.apiUnavailable])
+
+  useEffect(() => {
+    let isActive = true
+
+    if (!isWorkspace || selectedProject === null) {
+      return undefined
+    }
+
+    const referenceCatalogIds = Array.from(
+      new Set(
+        catalogFieldDefinitions
+          .filter(
+            (field) =>
+              (field.dataType === 'entryReference' ||
+                field.dataType === 'multipleEntryReference') &&
+              field.referenceCatalogId !== null,
+          )
+          .map((field) => field.referenceCatalogId as number),
+      ),
+    ).filter((catalogId) => catalogEntriesByCatalogId[catalogId] === undefined)
+
+    if (referenceCatalogIds.length === 0) {
+      return undefined
+    }
+
+    void Promise.all(
+      referenceCatalogIds.map((catalogId) =>
+        fetchCatalogEntries(selectedProject.id, catalogId).then((entries) => [catalogId, entries] as const),
+      ),
+    )
+      .then((entriesByCatalog) => {
+        if (isActive) {
+          setCatalogEntriesByCatalogId((currentEntries) => ({
+            ...currentEntries,
+            ...Object.fromEntries(entriesByCatalog),
+          }))
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setApiError(t.apiUnavailable)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [
+    catalogEntriesByCatalogId,
+    catalogFieldDefinitions,
+    isWorkspace,
+    selectedProject,
+    t.apiUnavailable,
+  ])
 
   useEffect(() => {
     let isActive = true
@@ -1390,6 +1462,13 @@ function StoryDbApp() {
 
       const remainingCatalogs = catalogs.filter((currentCatalog) => currentCatalog.id !== catalog.id)
       setCatalogs(remainingCatalogs)
+      setCatalogEntriesByCatalogId((currentEntries) =>
+        Object.fromEntries(
+          Object.entries(currentEntries).filter(
+            ([catalogId]) => Number(catalogId) !== catalog.id,
+          ),
+        ),
+      )
 
       if (activeCatalogId === catalog.id) {
         const nextCatalog = remainingCatalogs[0] ?? null
@@ -1451,6 +1530,12 @@ function StoryDbApp() {
       setCatalogEntries((currentEntries) =>
         currentEntries.filter((currentEntry) => currentEntry.id !== entry.id),
       )
+      setCatalogEntriesByCatalogId((currentEntries) => ({
+        ...currentEntries,
+        [activeCatalogId]: (currentEntries[activeCatalogId] ?? catalogEntries).filter(
+          (currentEntry) => currentEntry.id !== entry.id,
+        ),
+      }))
       if (activeCatalogEntryId === entry.id) {
         setActiveCatalogEntryId(null)
         setCatalogPanelPage('catalog')
@@ -1492,6 +1577,7 @@ function StoryDbApp() {
           nextName,
           catalog.description ?? '',
           catalog.supportsHierarchy,
+          catalog.hierarchyMode,
         )
         setCatalogs((currentCatalogs) =>
           currentCatalogs.map((currentCatalog) =>
@@ -1508,6 +1594,7 @@ function StoryDbApp() {
           activeCatalogId,
           inlineNameEdit.id,
           nextName,
+          catalogEntryGroups.find((group) => group.id === inlineNameEdit.id)?.parentGroupIds ?? [],
         )
         setCatalogEntryGroups((currentGroups) =>
           currentGroups.map((group) => (group.id === updatedGroup.id ? updatedGroup : group)),
@@ -1930,19 +2017,34 @@ function StoryDbApp() {
           selectedProject.id,
           activeCatalogId,
           catalogEntryDraft,
+          catalogFieldDefinitions,
         )
         setCatalogEntries((currentEntries) => [...currentEntries, createdEntry])
+        setCatalogEntriesByCatalogId((currentEntries) => ({
+          ...currentEntries,
+          [activeCatalogId]: [...(currentEntries[activeCatalogId] ?? []), createdEntry],
+        }))
+        setActiveCatalogEntryId(createdEntry.id)
+        setCatalogPanelPage('entry')
       } else {
         const updatedEntry = await updateCatalogEntryRequest(
           selectedProject.id,
           activeCatalogId,
           editingCatalogEntryId,
           catalogEntryDraft,
+          catalogFieldDefinitions,
         )
         setCatalogEntries((currentEntries) =>
           currentEntries.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)),
         )
+        setCatalogEntriesByCatalogId((currentEntries) => ({
+          ...currentEntries,
+          [activeCatalogId]: (currentEntries[activeCatalogId] ?? catalogEntries).map((entry) =>
+            entry.id === updatedEntry.id ? updatedEntry : entry,
+          ),
+        }))
         setActiveCatalogEntryId(updatedEntry.id)
+        setCatalogPanelPage('entry')
       }
 
       setCatalogEntryDraft(createEmptyCatalogEntryDraft())
@@ -1955,13 +2057,90 @@ function StoryDbApp() {
   const editCatalogEntry = (entry: CatalogEntry) => {
     setCatalogEntryDraft(toCatalogEntryDraft(entry))
     setEditingCatalogEntryId(entry.id)
-    setCatalogPanelPage(entry.entryGroupId === null ? 'catalog' : 'group')
+    setCatalogPanelPage('entryForm')
     setCatalogEntryGroupFilter(entry.entryGroupId === null ? '__all__' : String(entry.entryGroupId))
   }
 
   const cancelCatalogEntryEdit = () => {
+    const previousGroupId = catalogEntryDraft.entryGroupId
     setCatalogEntryDraft(createEmptyCatalogEntryDraft())
     setEditingCatalogEntryId(null)
+    setCatalogPanelPage(previousGroupId === '' ? 'catalog' : 'group')
+    setCatalogEntryGroupFilter(previousGroupId === '' ? '__all__' : previousGroupId)
+  }
+
+  const showCatalogEntryForm = () => {
+    setCatalogEntryDraft({
+      ...createEmptyCatalogEntryDraft(),
+      entryGroupId: activeCatalogEntryGroup?.id === undefined ? '' : String(activeCatalogEntryGroup.id),
+    })
+    setEditingCatalogEntryId(null)
+    setActiveCatalogEntryId(null)
+    setActiveCatalogEntryMenuId(null)
+    setCatalogPanelPage('entryForm')
+  }
+
+  const openReferencedCatalogEntry = (catalogId: number, entryId: number) => {
+    setWorkspaceTab('database')
+    setWorkspaceSection('catalogs')
+    setActiveCatalogId(catalogId)
+    setActiveCatalogEntryId(entryId)
+    setCatalogEntryGroupFilter('__all__')
+    setActiveCatalogEntryMenuId(null)
+    setCatalogPanelPage('entry')
+  }
+
+  const updateCatalogHierarchySettings = async (
+    catalog: Catalog,
+    supportsHierarchy: boolean,
+    hierarchyMode: CatalogHierarchyMode,
+  ) => {
+    if (selectedProject === null) {
+      return
+    }
+
+    try {
+      setApiError(null)
+      const updatedCatalog = await updateCatalogRequest(
+        selectedProject.id,
+        catalog.id,
+        catalog.name,
+        catalog.description ?? '',
+        supportsHierarchy,
+        hierarchyMode,
+      )
+      setCatalogs((currentCatalogs) =>
+        currentCatalogs.map((currentCatalog) =>
+          currentCatalog.id === updatedCatalog.id ? updatedCatalog : currentCatalog,
+        ),
+      )
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
+  }
+
+  const updateCatalogEntryGroupParents = async (group: CatalogEntryGroup, parentGroupIds: number[]) => {
+    if (selectedProject === null || activeCatalogId === null) {
+      return
+    }
+
+    try {
+      setApiError(null)
+      const updatedGroup = await updateCatalogEntryGroupRequest(
+        selectedProject.id,
+        activeCatalogId,
+        group.id,
+        group.name,
+        parentGroupIds,
+      )
+      setCatalogEntryGroups((currentGroups) =>
+        currentGroups.map((currentGroup) =>
+          currentGroup.id === updatedGroup.id ? updatedGroup : currentGroup,
+        ),
+      )
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
   }
 
   const saveCatalogFieldDefinition = async () => {
@@ -2897,6 +3076,7 @@ function StoryDbApp() {
                 activeCatalogEntry={activeCatalogEntry}
                 activeCatalogEntryGroup={activeCatalogEntryGroup}
                 catalogEntries={visibleCatalogEntries}
+                catalogEntriesByCatalogId={catalogEntriesByCatalogId}
                 catalogEntryGroups={catalogEntryGroups}
                 catalogEntryDraft={catalogEntryDraft}
                 catalogFieldDraft={catalogFieldDraft}
@@ -2930,6 +3110,12 @@ function StoryDbApp() {
                 onEditCatalogEntry={editCatalogEntry}
                 onEditCatalogField={editCatalogFieldDefinition}
                 onImageUploadError={() => setApiError(t.imageUploadFailed)}
+                onCatalogHierarchySettingsChange={(catalog, supportsHierarchy, hierarchyMode) =>
+                  void updateCatalogHierarchySettings(catalog, supportsHierarchy, hierarchyMode)
+                }
+                onCatalogEntryGroupParentsChange={(group, parentGroupIds) =>
+                  void updateCatalogEntryGroupParents(group, parentGroupIds)
+                }
                 onCatalogEntryMenuToggle={(entryId) =>
                   setActiveCatalogEntryMenuId((currentId) =>
                     currentId === entryId ? null : entryId,
@@ -2942,6 +3128,7 @@ function StoryDbApp() {
                   setCatalogPanelPage('entry')
                   setActiveCatalogEntryMenuId(null)
                 }}
+                onOpenReferencedCatalogEntry={openReferencedCatalogEntry}
                 onSaveNameEdit={() => void saveInlineNameEdit()}
                 onStartNameEdit={startInlineNameEdit}
                 onShowTemplate={() => {
@@ -2949,6 +3136,7 @@ function StoryDbApp() {
                   setActiveCatalogEntryId(null)
                   setActiveCatalogEntryMenuId(null)
                 }}
+                onShowEntryForm={showCatalogEntryForm}
               />
             )}
 

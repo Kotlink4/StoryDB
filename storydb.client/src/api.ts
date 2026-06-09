@@ -8,6 +8,7 @@ import type {
   CatalogEntryGroup,
   CatalogFieldDefinition,
   CatalogFieldDraft,
+  CatalogHierarchyMode,
   DraftAttribute,
   DraftHierarchySelection,
   HierarchyGroup,
@@ -115,6 +116,7 @@ export const createCatalogRequest = async (
   name: string,
   description: string,
   supportsHierarchy: boolean,
+  hierarchyMode: CatalogHierarchyMode = 'entries',
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/catalogs`, {
     method: 'POST',
@@ -123,6 +125,7 @@ export const createCatalogRequest = async (
       name,
       description: description.trim() || null,
       supportsHierarchy,
+      hierarchyMode,
     }),
   })
   ensureOk(response, 'Failed to create catalog.')
@@ -136,6 +139,7 @@ export const updateCatalogRequest = async (
   name: string,
   description: string,
   supportsHierarchy: boolean,
+  hierarchyMode: CatalogHierarchyMode = 'entries',
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}`, {
     method: 'PUT',
@@ -144,6 +148,7 @@ export const updateCatalogRequest = async (
       name,
       description: description.trim() || null,
       supportsHierarchy,
+      hierarchyMode,
     }),
   })
   ensureOk(response, 'Failed to update catalog.')
@@ -176,11 +181,12 @@ export const createCatalogEntryGroupRequest = async (
   projectId: number,
   catalogId: number,
   name: string,
+  parentGroupIds: number[] = [],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/entry-groups`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, parentGroupIds }),
   })
   ensureOk(response, 'Failed to create catalog entry group.')
 
@@ -192,13 +198,14 @@ export const updateCatalogEntryGroupRequest = async (
   catalogId: number,
   groupId: number,
   name: string,
+  parentGroupIds: number[] = [],
 ) => {
   const response = await fetch(
     `${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/entry-groups/${groupId}`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, parentGroupIds }),
     },
   )
   ensureOk(response, 'Failed to update catalog entry group.')
@@ -224,6 +231,7 @@ export const createCatalogEntryRequest = async (
   projectId: number,
   catalogId: number,
   draft: CatalogEntryDraft,
+  fieldDefinitions: CatalogFieldDefinition[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/entries`, {
     method: 'POST',
@@ -233,7 +241,8 @@ export const createCatalogEntryRequest = async (
       description: draft.description.trim() || null,
       imagePath: draft.imagePath,
       entryGroupId: draft.entryGroupId === '' ? null : Number(draft.entryGroupId),
-      fieldValues: toCatalogEntryFieldValueRequests(draft),
+      parentEntryIds: draft.parentEntryIds,
+      fieldValues: toCatalogEntryFieldValueRequests(draft, fieldDefinitions),
     }),
   })
   ensureOk(response, 'Failed to create catalog entry.')
@@ -246,6 +255,7 @@ export const updateCatalogEntryRequest = async (
   catalogId: number,
   entryId: number,
   draft: CatalogEntryDraft,
+  fieldDefinitions: CatalogFieldDefinition[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/entries/${entryId}`, {
     method: 'PUT',
@@ -255,7 +265,8 @@ export const updateCatalogEntryRequest = async (
       description: draft.description.trim() || null,
       imagePath: draft.imagePath,
       entryGroupId: draft.entryGroupId === '' ? null : Number(draft.entryGroupId),
-      fieldValues: toCatalogEntryFieldValueRequests(draft),
+      parentEntryIds: draft.parentEntryIds,
+      fieldValues: toCatalogEntryFieldValueRequests(draft, fieldDefinitions),
     }),
   })
   ensureOk(response, 'Failed to update catalog entry.')
@@ -344,14 +355,32 @@ const toCatalogFieldDefinitionPayload = (draft: CatalogFieldDraft) => ({
       : null,
 })
 
-const toCatalogEntryFieldValueRequests = (draft: CatalogEntryDraft) =>
+const toCatalogEntryFieldValueRequests = (
+  draft: CatalogEntryDraft,
+  fieldDefinitions: CatalogFieldDefinition[],
+) =>
   Object.entries(draft.fieldValues)
-    .map(([fieldDefinitionId, value]) => ({
-      fieldDefinitionId: Number(fieldDefinitionId),
-      value: value.trim() || null,
-      referencedEntryIds: [],
-    }))
-    .filter((fieldValue) => fieldValue.value !== null)
+    .map(([fieldDefinitionId, value]) => {
+      const definition = fieldDefinitions.find((field) => field.id === Number(fieldDefinitionId))
+      const isReference =
+        definition?.dataType === 'entryReference' || definition?.dataType === 'multipleEntryReference'
+      const referencedEntryIds = isReference
+        ? value
+            .split(',')
+            .map((entryId) => Number(entryId))
+            .filter((entryId) => Number.isInteger(entryId) && entryId > 0)
+        : []
+
+      return {
+        fieldDefinitionId: Number(fieldDefinitionId),
+        value: isReference ? null : value.trim() || null,
+        referencedEntryIds,
+      }
+    })
+    .filter(
+      (fieldValue) =>
+        fieldValue.value !== null || fieldValue.referencedEntryIds.length > 0,
+    )
 
 export const fetchCharacters = async (projectId: number) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects?typeKey=characters`)

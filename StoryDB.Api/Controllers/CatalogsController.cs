@@ -20,6 +20,13 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         "multipleEntryReference",
     };
 
+    private static readonly HashSet<string> SupportedHierarchyModes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "entries",
+        "entriesInGroup",
+        "groups",
+    };
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CatalogDto>>> GetCatalogs(int projectId)
     {
@@ -75,6 +82,7 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             Name = name,
             Description = NormalizeOptionalText(request.Description),
             SupportsHierarchy = request.SupportsHierarchy,
+            HierarchyMode = NormalizeHierarchyMode(request.HierarchyMode),
             IsSystem = false,
             SortOrder = sortOrder + 10,
             CreatedAt = now,
@@ -121,6 +129,7 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         catalog.Name = name;
         catalog.Description = NormalizeOptionalText(request.Description);
         catalog.SupportsHierarchy = request.SupportsHierarchy;
+        catalog.HierarchyMode = NormalizeHierarchyMode(request.HierarchyMode);
         catalog.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync();
@@ -159,6 +168,17 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
                     value.ReferencedEntryId != null && entryIds.Contains(value.ReferencedEntryId.Value)));
         }
 
+        var groupIds = await dbContext.CatalogEntryGroups
+            .Where(group => group.CatalogId == catalogId)
+            .Select(group => group.Id)
+            .ToListAsync();
+        if (groupIds.Count > 0)
+        {
+            dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
+                dbContext.CatalogEntryGroupHierarchyLinks.Where(link =>
+                    groupIds.Contains(link.ParentGroupId) || groupIds.Contains(link.ChildGroupId)));
+        }
+
         var referencingFields = await dbContext.CatalogFieldDefinitions
             .Where(definition => definition.ReferenceCatalogId == catalogId)
             .ToListAsync();
@@ -185,6 +205,7 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             .AsNoTracking()
             .Include(entry => entry.EntryGroup)
             .Include(entry => entry.FieldValues)
+            .Include(entry => entry.ParentLinks)
             .Where(entry => entry.CatalogId == catalogId)
             .OrderBy(entry => entry.SortOrder)
             .ThenBy(entry => entry.Name)
@@ -260,6 +281,16 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(fieldValidationError);
         }
 
+        var hierarchyValidationError = await ReplaceEntryHierarchyLinks(
+            catalogId,
+            entry.Id,
+            request.EntryGroupId,
+            request.ParentEntryIds);
+        if (hierarchyValidationError is not null)
+        {
+            return BadRequest(hierarchyValidationError);
+        }
+
         await dbContext.SaveChangesAsync();
         entry.EntryGroup = request.EntryGroupId is null
             ? null
@@ -267,6 +298,10 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         entry.FieldValues = await dbContext.CatalogEntryFieldValues
             .AsNoTracking()
             .Where(value => value.CatalogEntryId == entry.Id)
+            .ToListAsync();
+        entry.ParentLinks = await dbContext.CatalogEntryHierarchyLinks
+            .AsNoTracking()
+            .Where(link => link.ChildEntryId == entry.Id)
             .ToListAsync();
 
         return CreatedAtAction(nameof(GetEntries), new { projectId, catalogId }, ToDto(entry));
@@ -337,6 +372,16 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(fieldValidationError);
         }
 
+        var hierarchyValidationError = await ReplaceEntryHierarchyLinks(
+            catalogId,
+            entry.Id,
+            request.EntryGroupId,
+            request.ParentEntryIds);
+        if (hierarchyValidationError is not null)
+        {
+            return BadRequest(hierarchyValidationError);
+        }
+
         await dbContext.SaveChangesAsync();
 
         entry.EntryGroup = request.EntryGroupId is null
@@ -345,6 +390,10 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         entry.FieldValues = await dbContext.CatalogEntryFieldValues
             .AsNoTracking()
             .Where(value => value.CatalogEntryId == entry.Id)
+            .ToListAsync();
+        entry.ParentLinks = await dbContext.CatalogEntryHierarchyLinks
+            .AsNoTracking()
+            .Where(link => link.ChildEntryId == entry.Id)
             .ToListAsync();
 
         return Ok(ToDto(entry));
@@ -390,10 +439,14 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
 
         var groups = await dbContext.CatalogEntryGroups
             .AsNoTracking()
+            .Include(group => group.ParentLinks)
             .Where(group => group.CatalogId == catalogId)
             .OrderBy(group => group.SortOrder)
             .ThenBy(group => group.Name)
-            .Select(group => new CatalogEntryGroupDto(group.Id, group.Name))
+            .Select(group => new CatalogEntryGroupDto(
+                group.Id,
+                group.Name,
+                group.ParentLinks.Select(link => link.ParentGroupId).OrderBy(id => id).ToList()))
             .ToListAsync();
 
         return Ok(groups);
@@ -438,7 +491,18 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         dbContext.CatalogEntryGroups.Add(group);
         await dbContext.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetEntryGroups), new { projectId, catalogId }, new CatalogEntryGroupDto(group.Id, group.Name));
+        var groupHierarchyError = await ReplaceGroupHierarchyLinks(catalogId, group.Id, request.ParentGroupIds);
+        if (groupHierarchyError is not null)
+        {
+            return BadRequest(groupHierarchyError);
+        }
+
+        await dbContext.SaveChangesAsync();
+
+        return CreatedAtAction(
+            nameof(GetEntryGroups),
+            new { projectId, catalogId },
+            new CatalogEntryGroupDto(group.Id, group.Name, request.ParentGroupIds?.Distinct().OrderBy(id => id).ToList() ?? []));
     }
 
     [HttpPut("{catalogId:int}/entry-groups/{groupId:int}")]
@@ -479,9 +543,14 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         }
 
         group.Name = name;
+        var groupHierarchyError = await ReplaceGroupHierarchyLinks(catalogId, group.Id, request.ParentGroupIds);
+        if (groupHierarchyError is not null)
+        {
+            return BadRequest(groupHierarchyError);
+        }
         await dbContext.SaveChangesAsync();
 
-        return Ok(new CatalogEntryGroupDto(group.Id, group.Name));
+        return Ok(new CatalogEntryGroupDto(group.Id, group.Name, request.ParentGroupIds?.Distinct().OrderBy(id => id).ToList() ?? []));
     }
 
     [HttpDelete("{catalogId:int}/entry-groups/{groupId:int}")]
@@ -501,6 +570,9 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             return NotFound();
         }
 
+        dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
+            dbContext.CatalogEntryGroupHierarchyLinks.Where(link =>
+                link.ParentGroupId == groupId || link.ChildGroupId == groupId));
         dbContext.CatalogEntryGroups.Remove(group);
         await dbContext.SaveChangesAsync();
 
@@ -912,6 +984,87 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
         return null;
     }
 
+    private async Task<string?> ReplaceEntryHierarchyLinks(
+        int catalogId,
+        int entryId,
+        int? entryGroupId,
+        IReadOnlyList<int>? parentEntryIds)
+    {
+        var catalog = await dbContext.Catalogs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(currentCatalog => currentCatalog.Id == catalogId);
+        var parentIds = (parentEntryIds ?? [])
+            .Where(parentId => parentId != entryId)
+            .Distinct()
+            .ToList();
+
+        dbContext.CatalogEntryHierarchyLinks.RemoveRange(
+            dbContext.CatalogEntryHierarchyLinks.Where(link => link.ChildEntryId == entryId));
+
+        if (catalog is null || !catalog.SupportsHierarchy || catalog.HierarchyMode == "groups" || parentIds.Count == 0)
+        {
+            return null;
+        }
+
+        var parentEntries = await dbContext.CatalogEntries
+            .AsNoTracking()
+            .Where(entry => entry.CatalogId == catalogId && parentIds.Contains(entry.Id))
+            .Select(entry => new { entry.Id, entry.EntryGroupId })
+            .ToListAsync();
+        if (parentEntries.Count != parentIds.Count)
+        {
+            return "One or more parent entries were not found.";
+        }
+
+        if (catalog.HierarchyMode == "entriesInGroup" &&
+            parentEntries.Any(parent => parent.EntryGroupId != entryGroupId))
+        {
+            return "Parent entries must belong to the same group.";
+        }
+
+        dbContext.CatalogEntryHierarchyLinks.AddRange(parentIds.Select(parentId => new CatalogEntryHierarchyLink
+        {
+            ParentEntryId = parentId,
+            ChildEntryId = entryId,
+        }));
+
+        return null;
+    }
+
+    private async Task<string?> ReplaceGroupHierarchyLinks(
+        int catalogId,
+        int groupId,
+        IReadOnlyList<int>? parentGroupIds)
+    {
+        var parentIds = (parentGroupIds ?? [])
+            .Where(parentId => parentId != groupId)
+            .Distinct()
+            .ToList();
+
+        dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
+            dbContext.CatalogEntryGroupHierarchyLinks.Where(link => link.ChildGroupId == groupId));
+
+        if (parentIds.Count == 0)
+        {
+            return null;
+        }
+
+        var validParentCount = await dbContext.CatalogEntryGroups.CountAsync(group =>
+            group.CatalogId == catalogId && parentIds.Contains(group.Id));
+        if (validParentCount != parentIds.Count)
+        {
+            return "One or more parent groups were not found.";
+        }
+
+        dbContext.CatalogEntryGroupHierarchyLinks.AddRange(parentIds.Select(parentId => new CatalogEntryGroupHierarchyLink
+        {
+            ParentGroupId = parentId,
+            ChildGroupId = groupId,
+        }));
+
+        return null;
+    }
+
     private static string? ValidateCatalogRequest(CatalogRequest request)
     {
         var nameError = ValidateName(request.Name, "Catalog name");
@@ -925,7 +1078,17 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             return "Description must be 1000 characters or shorter.";
         }
 
+        if (!SupportedHierarchyModes.Contains(NormalizeHierarchyMode(request.HierarchyMode)))
+        {
+            return "Unsupported catalog hierarchy mode.";
+        }
+
         return null;
+    }
+
+    private static string NormalizeHierarchyMode(string? mode)
+    {
+        return string.IsNullOrWhiteSpace(mode) ? "entries" : mode.Trim();
     }
 
     private static string? ValidateName(string name, string fieldName)
@@ -996,7 +1159,8 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             catalog.Name,
             catalog.Description,
             catalog.IsSystem,
-            catalog.SupportsHierarchy);
+            catalog.SupportsHierarchy,
+            catalog.HierarchyMode);
     }
 
     private static CatalogEntryDto ToDto(CatalogEntry entry)
@@ -1020,6 +1184,10 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
             entry.ImagePath,
             entry.EntryGroupId,
             entry.EntryGroup?.Name,
+            entry.ParentLinks
+                .Select(link => link.ParentEntryId)
+                .OrderBy(id => id)
+                .ToList(),
             values);
     }
 
@@ -1044,13 +1212,15 @@ public class CatalogsController(StoryDbContext dbContext) : ControllerBase
 public record CatalogRequest(
     string Name,
     string? Description,
-    bool SupportsHierarchy);
+    bool SupportsHierarchy,
+    string? HierarchyMode);
 
 public record CatalogEntryRequest(
     string Name,
     string? Description,
     string? ImagePath,
     int? EntryGroupId,
+    IReadOnlyList<int>? ParentEntryIds,
     IReadOnlyList<CatalogEntryFieldValueRequest>? FieldValues);
 
 public record CatalogEntryFieldValueRequest(
@@ -1058,7 +1228,7 @@ public record CatalogEntryFieldValueRequest(
     string? Value,
     IReadOnlyList<int>? ReferencedEntryIds);
 
-public record CatalogEntryGroupRequest(string Name);
+public record CatalogEntryGroupRequest(string Name, IReadOnlyList<int>? ParentGroupIds);
 
 public record CatalogFieldGroupRequest(string Name);
 
@@ -1078,7 +1248,8 @@ public record CatalogDto(
     string Name,
     string? Description,
     bool IsSystem,
-    bool SupportsHierarchy);
+    bool SupportsHierarchy,
+    string HierarchyMode);
 
 public record CatalogEntryDto(
     int Id,
@@ -1087,6 +1258,7 @@ public record CatalogEntryDto(
     string? ImagePath,
     int? EntryGroupId,
     string? EntryGroupName,
+    IReadOnlyList<int> ParentEntryIds,
     IReadOnlyList<CatalogEntryFieldValueDto> FieldValues);
 
 public record CatalogEntryFieldValueDto(
@@ -1094,7 +1266,7 @@ public record CatalogEntryFieldValueDto(
     string? Value,
     IReadOnlyList<int> ReferencedEntryIds);
 
-public record CatalogEntryGroupDto(int Id, string Name);
+public record CatalogEntryGroupDto(int Id, string Name, IReadOnlyList<int> ParentGroupIds);
 
 public record CatalogFieldGroupDto(int Id, string Name);
 

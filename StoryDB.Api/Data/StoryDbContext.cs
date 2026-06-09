@@ -23,6 +23,7 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     public DbSet<CatalogFieldDefinition> CatalogFieldDefinitions => Set<CatalogFieldDefinition>();
     public DbSet<CatalogEntryFieldValue> CatalogEntryFieldValues => Set<CatalogEntryFieldValue>();
     public DbSet<CatalogEntryHierarchyLink> CatalogEntryHierarchyLinks => Set<CatalogEntryHierarchyLink>();
+    public DbSet<CatalogEntryGroupHierarchyLink> CatalogEntryGroupHierarchyLinks => Set<CatalogEntryGroupHierarchyLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -182,6 +183,11 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasForeignKey(catalog => catalog.ProjectId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<Catalog>()
+            .Property(catalog => catalog.HierarchyMode)
+            .HasMaxLength(40)
+            .HasDefaultValue("entries");
+
         modelBuilder.Entity<CatalogEntry>()
             .HasIndex(entry => new { entry.CatalogId, entry.Name })
             .IsUnique();
@@ -275,6 +281,21 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasOne(link => link.ChildEntry)
             .WithMany(entry => entry.ParentLinks)
             .HasForeignKey(link => link.ChildEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CatalogEntryGroupHierarchyLink>()
+            .HasKey(link => new { link.ParentGroupId, link.ChildGroupId });
+
+        modelBuilder.Entity<CatalogEntryGroupHierarchyLink>()
+            .HasOne(link => link.ParentGroup)
+            .WithMany(group => group.ChildLinks)
+            .HasForeignKey(link => link.ParentGroupId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CatalogEntryGroupHierarchyLink>()
+            .HasOne(link => link.ChildGroup)
+            .WithMany(group => group.ParentLinks)
+            .HasForeignKey(link => link.ChildGroupId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

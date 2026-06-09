@@ -19,7 +19,7 @@ export type WorkspaceSection = ObjectTypeKey | 'attributes' | 'catalogs'
 export type WorkspaceTab = 'database' | 'relations' | 'timeline'
 export type ModuleSubTab = 'cards' | 'attributes' | 'attributeGroup'
 export type LayoutMode = 'grid' | 'list'
-export type CatalogPanelPage = 'catalog' | 'group' | 'entry' | 'template'
+export type CatalogPanelPage = 'catalog' | 'group' | 'entry' | 'entryForm' | 'template'
 export type AttributeDataType = 'text' | 'number' | 'select'
 export type CatalogFieldDataType =
   | 'text'
@@ -153,7 +153,10 @@ export type Catalog = {
   description: string | null
   isSystem: boolean
   supportsHierarchy: boolean
+  hierarchyMode: CatalogHierarchyMode
 }
+
+export type CatalogHierarchyMode = 'entries' | 'entriesInGroup' | 'groups'
 
 export type CatalogEntry = {
   id: number
@@ -162,6 +165,7 @@ export type CatalogEntry = {
   imagePath: string | null
   entryGroupId: number | null
   entryGroupName: string | null
+  parentEntryIds: number[]
   fieldValues: CatalogEntryFieldValue[]
 }
 
@@ -174,6 +178,7 @@ export type CatalogEntryFieldValue = {
 export type CatalogEntryGroup = {
   id: number
   name: string
+  parentGroupIds: number[]
 }
 
 export type CatalogFieldDefinition = {
@@ -204,5 +209,6 @@ export type CatalogEntryDraft = {
   description: string
   imagePath: string | null
   entryGroupId: string
+  parentEntryIds: number[]
   fieldValues: Record<number, string>
 }

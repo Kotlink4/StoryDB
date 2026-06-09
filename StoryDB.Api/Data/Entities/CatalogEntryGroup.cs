@@ -9,4 +9,6 @@ public class CatalogEntryGroup
 
     public Catalog? Catalog { get; set; }
     public List<CatalogEntry> Entries { get; set; } = [];
+    public List<CatalogEntryGroupHierarchyLink> ParentLinks { get; set; } = [];
+    public List<CatalogEntryGroupHierarchyLink> ChildLinks { get; set; } = [];
 }

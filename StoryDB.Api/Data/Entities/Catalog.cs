@@ -9,6 +9,7 @@ public class Catalog
     public string? Description { get; set; }
     public bool IsSystem { get; set; }
     public bool SupportsHierarchy { get; set; }
+    public string HierarchyMode { get; set; } = "entries";
     public int SortOrder { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
