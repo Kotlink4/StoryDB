@@ -19,8 +19,8 @@ import type {
   StoryProject,
 } from './types'
 
-const apiBaseUrl = 'http://localhost:5282/api'
-export const assetBaseUrl = 'http://localhost:5282'
+const apiBaseUrl = '/api'
+export const assetBaseUrl = ''
 
 const ensureOk = (response: Response, message: string) => {
   if (!response.ok) {
