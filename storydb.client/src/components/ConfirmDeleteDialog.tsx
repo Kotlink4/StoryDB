@@ -24,6 +24,7 @@ export function ConfirmDeleteDialog({
     catalog: t.deleteCatalogTitle,
     catalogEntryGroup: t.deleteCatalogGroupTitle,
     catalogEntry: t.deleteCatalogEntryTitle,
+    timelineEvent: t.deleteTimelineEventTitle,
   }
   const messageByKind = {
     project: t.deleteProjectConfirm,
@@ -31,6 +32,7 @@ export function ConfirmDeleteDialog({
     catalog: t.deleteCatalogConfirm,
     catalogEntryGroup: t.deleteCatalogGroupConfirm,
     catalogEntry: t.deleteCatalogEntryConfirm,
+    timelineEvent: t.deleteTimelineEventConfirm,
   }
 
   return (

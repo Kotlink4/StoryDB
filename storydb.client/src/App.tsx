@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import {
+  Background,
+  Controls,
+  MarkerType,
+  Position,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+} from '@xyflow/react'
+import type { Edge, EdgeMouseHandler, Node, NodeMouseHandler } from '@xyflow/react'
 import { Check, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { BrowserRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -11,6 +21,7 @@ import {
   createCatalogRequest,
   createHierarchyGroupRequest,
   createHierarchyNodeRequest,
+  createTimelineEventRequest,
   deleteAttributeGroupRequest,
   deleteCatalogEntryGroupRequest,
   deleteCatalogEntryRequest,
@@ -18,6 +29,7 @@ import {
   deleteCatalogRequest,
   deleteHierarchyGroupRequest,
   deleteHierarchyNodeRequest,
+  deleteTimelineEventRequest,
   createObjectRequest,
   createProjectRequest,
   deleteAttributeDefinitionRequest,
@@ -33,6 +45,7 @@ import {
   fetchHierarchyGroups,
   fetchHierarchyNodes,
   fetchProjects,
+  fetchTimelineEvents,
   updateObjectRequest,
   updateCatalogEntryGroupRequest,
   updateCatalogEntryRequest,
@@ -40,6 +53,7 @@ import {
   updateCatalogFieldDefinitionRequest,
   updateHierarchyGroupRequest,
   updateHierarchyNodeRequest,
+  updateTimelineEventRequest,
   updateAttributeDefinitionRequest,
   updateAttributeGroupRequest,
   updateProjectRequest,
@@ -57,11 +71,13 @@ import type {
   CatalogEntryGroup,
   CatalogHierarchyMode,
   CatalogPanelPage,
+  CharacterRelationship,
   CatalogFieldDefinition,
   CatalogFieldDraft,
   Dialog,
   DraftAttribute,
   DraftCatalogSelection,
+  DraftCharacterRelationship,
   DraftHierarchySelection,
   HierarchyGroup,
   HierarchyNode,
@@ -77,6 +93,8 @@ import type {
   StoryObject,
   StoryProject,
   Theme,
+  TimelineEvent,
+  TimelineEventDraft,
   WorkspaceSection,
   WorkspaceTab,
 } from './types'
@@ -89,6 +107,7 @@ import { ImageDropzone } from './components/ImageDropzone'
 import { ObjectCard } from './components/ObjectCard'
 import { ProjectCard } from './components/ProjectCard'
 import { ReadySolutionsPanel } from './components/ReadySolutionsPanel'
+import '@xyflow/react/dist/style.css'
 import './App.css'
 
 const translations = {
@@ -135,6 +154,35 @@ const translations = {
     objectHierarchyParents: 'Hierarchy parents',
     objectHierarchyChildren: 'Hierarchy children',
     objectRelations: 'Object relations',
+    characterRelationships: 'Character relationships',
+    addCharacterRelationship: 'Add relationship',
+    relatedCharacter: 'Character',
+    relationshipType: 'Relationship type',
+    relationshipTypePlaceholder: 'Ally, conflict, family...',
+    relationshipStrength: 'Strength',
+    relationshipTension: 'Tension',
+    relationshipMutual: 'Mutual',
+    relationshipDescription: 'Relationship notes',
+    noCharacterRelationships: 'No character relationships yet',
+    relationGraphEmpty: 'Add character relationships to see the graph.',
+    relationGraphHint: 'Click a connection to inspect it.',
+    mainTab: 'Main',
+    linksTab: 'Relations',
+    timelineTab: 'Timeline',
+    timelineEmpty: 'Timeline will collect scenes and events later.',
+    timelineEvents: 'Timeline events',
+    newTimelineEvent: 'New event',
+    editTimelineEvent: 'Edit event',
+    eventTitle: 'Event title',
+    eventTitlePlaceholder: 'Name the event',
+    eventStartLabel: 'Start label',
+    eventEndLabel: 'End label',
+    eventStartValue: 'Start value',
+    eventEndValue: 'End value',
+    eventCategory: 'Category',
+    eventColor: 'Color',
+    eventPeriod: 'Period',
+    noTimelineEvents: 'No timeline events yet',
     addCatalogValue: 'Add catalog value',
     catalogValueType: 'Value type',
     newCatalog: 'New catalog',
@@ -273,11 +321,13 @@ const translations = {
     deleteCatalogTitle: 'Delete catalog',
     deleteCatalogGroupTitle: 'Delete catalog group',
     deleteCatalogEntryTitle: 'Delete entry',
+    deleteTimelineEventTitle: 'Delete timeline event',
     deleteProjectConfirm: 'Delete this project and all its data?',
     deleteObjectConfirm: 'Delete this object?',
     deleteCatalogConfirm: 'Delete this catalog and all entries inside it?',
     deleteCatalogGroupConfirm: 'Delete this group? Entries from it will stay in the catalog.',
     deleteCatalogEntryConfirm: 'Delete this catalog entry?',
+    deleteTimelineEventConfirm: 'Delete this timeline event?',
     dossier: 'Dossier',
   },
   ru: {
@@ -323,6 +373,35 @@ const translations = {
     objectHierarchyParents: 'Родители иерархии',
     objectHierarchyChildren: 'Дочерние элементы',
     objectRelations: 'Связи объектов',
+    characterRelationships: 'Связи персонажа',
+    addCharacterRelationship: 'Добавить связь',
+    relatedCharacter: 'Персонаж',
+    relationshipType: 'Тип связи',
+    relationshipTypePlaceholder: 'Союз, конфликт, семья...',
+    relationshipStrength: 'Сила связи',
+    relationshipTension: 'Напряжение',
+    relationshipMutual: 'Взаимная',
+    relationshipDescription: 'Заметки о связи',
+    noCharacterRelationships: 'Связей персонажа пока нет',
+    relationGraphEmpty: 'Добавь связи персонажей, чтобы увидеть граф.',
+    relationGraphHint: 'Нажми на линию, чтобы посмотреть детали.',
+    mainTab: 'Основная',
+    linksTab: 'Связи',
+    timelineTab: 'Таймлайн',
+    timelineEmpty: 'Здесь позже будут сцены и события таймлайна.',
+    timelineEvents: 'События таймлайна',
+    newTimelineEvent: 'Новое событие',
+    editTimelineEvent: 'Изменить событие',
+    eventTitle: 'Название события',
+    eventTitlePlaceholder: 'Назови событие',
+    eventStartLabel: 'Метка начала',
+    eventEndLabel: 'Метка конца',
+    eventStartValue: 'Число начала',
+    eventEndValue: 'Число конца',
+    eventCategory: 'Категория',
+    eventColor: 'Цвет',
+    eventPeriod: 'Период',
+    noTimelineEvents: 'Событий таймлайна пока нет',
     addCatalogValue: 'Добавить значение каталога',
     catalogValueType: 'Тип значения',
     newCatalog: 'Новый каталог',
@@ -459,11 +538,13 @@ const translations = {
     deleteCatalogTitle: 'Удалить каталог',
     deleteCatalogGroupTitle: 'Удалить группу каталога',
     deleteCatalogEntryTitle: 'Удалить запись',
+    deleteTimelineEventTitle: 'Удалить событие таймлайна',
     deleteProjectConfirm: 'Удалить этот проект и все его данные?',
     deleteObjectConfirm: 'Удалить этот объект?',
     deleteCatalogConfirm: 'Удалить этот каталог и все записи внутри него?',
     deleteCatalogGroupConfirm: 'Удалить эту группу? Записи из нее останутся в каталоге.',
     deleteCatalogEntryConfirm: 'Удалить эту запись каталога?',
+    deleteTimelineEventConfirm: 'Удалить это событие таймлайна?',
     dossier: 'Досье',
   },
 } satisfies Record<Language, Record<string, string>>
@@ -485,6 +566,7 @@ const defaultProjectObjectTypeKeys: ObjectTypeKey[] = [
   'places',
   'organizations',
 ]
+type ObjectDialogTab = 'main' | 'relations' | 'timeline'
 
 const readStoredSettings = (): StoredSettings => {
   const storedSettings = localStorage.getItem(settingsStorageKey)
@@ -544,6 +626,49 @@ const createEmptyDraftCatalogSelection = (): DraftCatalogSelection => ({
   catalogEntryId: '',
 })
 
+const createEmptyDraftCharacterRelationship = (): DraftCharacterRelationship => ({
+  targetCharacterId: '',
+  relationType: '',
+  strength: '50',
+  tension: '0',
+  isBidirectional: true,
+  description: '',
+})
+
+const createEmptyTimelineEventDraft = (): TimelineEventDraft => ({
+  title: '',
+  description: '',
+  startLabel: '',
+  endLabel: '',
+  startValue: '',
+  endValue: '',
+  category: '',
+  color: '#1f5b4f',
+})
+
+const toTimelineEventDraft = (event: TimelineEvent): TimelineEventDraft => ({
+  title: event.title,
+  description: event.description ?? '',
+  startLabel: event.startLabel ?? '',
+  endLabel: event.endLabel ?? '',
+  startValue: event.startValue === null ? '' : String(event.startValue),
+  endValue: event.endValue === null ? '' : String(event.endValue),
+  category: event.category ?? '',
+  color: event.color ?? '#1f5b4f',
+})
+
+const relationshipPalette = ['#2f9e44', '#d9480f', '#4263eb', '#7048e8', '#f08c00', '#0b7285']
+
+const getRelationshipColor = (relationType: string) => {
+  const normalizedType = relationType.trim().toLowerCase()
+  const hash = Array.from(normalizedType).reduce(
+    (currentHash, character) => currentHash + character.charCodeAt(0),
+    0,
+  )
+
+  return relationshipPalette[hash % relationshipPalette.length]
+}
+
 const toAttributeDefinitionDraft = (
   definition: AttributeDefinition,
 ): AttributeDefinitionDraft => ({
@@ -592,6 +717,8 @@ function StoryDbApp() {
   const [language, setLanguage] = useState<Language>(storedSettings.language ?? 'en')
   const [dialog, setDialog] = useState<Dialog>(null)
   const [newProjectTab, setNewProjectTab] = useState<NewProjectTab>('details')
+  const [dossierTab, setDossierTab] = useState<ObjectDialogTab>('main')
+  const [editorTab, setEditorTab] = useState<ObjectDialogTab>('main')
   const [theme, setTheme] = useState<Theme>(storedSettings.theme ?? 'light')
   const [accent, setAccent] = useState<Accent>(storedSettings.accent ?? 'forest')
   const [query, setQuery] = useState('')
@@ -670,6 +797,16 @@ function StoryDbApp() {
   const [draftTerritoryPlaceIds, setDraftTerritoryPlaceIds] = useState<number[]>([])
   const [draftOwnerOrganizationIds, setDraftOwnerOrganizationIds] = useState<number[]>([])
   const [draftParentObjectIds, setDraftParentObjectIds] = useState<number[]>([])
+  const [draftCharacterRelationships, setDraftCharacterRelationships] = useState<
+    DraftCharacterRelationship[]
+  >([])
+  const [selectedGraphRelationship, setSelectedGraphRelationship] =
+    useState<CharacterRelationship | null>(null)
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([])
+  const [activeTimelineEventId, setActiveTimelineEventId] = useState<number | null>(null)
+  const [editingTimelineEventId, setEditingTimelineEventId] = useState<number | null>(null)
+  const [timelineEventDraft, setTimelineEventDraft] =
+    useState<TimelineEventDraft>(createEmptyTimelineEventDraft)
   const [newHierarchySelectionGroupId, setNewHierarchySelectionGroupId] = useState('')
   const [isAttributePickerOpen, setIsAttributePickerOpen] = useState(false)
   const [newCharacterAttributeName, setNewCharacterAttributeName] = useState('')
@@ -864,6 +1001,168 @@ function StoryDbApp() {
       return left.name.localeCompare(right.name)
     })
   }, [attributeDefinitions, selectedCharacter, t.primaryAttributeGroup])
+  const characterGraphEdges = useMemo(
+    () => {
+      const rawEdges = ownershipCharacters.flatMap((character) =>
+        character.outgoingCharacterRelationships.map((relationship) => ({
+          ...relationship,
+          sourceCharacter: character,
+        })),
+      )
+      const pairCounts = new Map<string, number>()
+
+      rawEdges.forEach((relationship) => {
+        const pairKey = [relationship.sourceCharacter.id, relationship.character.id]
+          .sort((left, right) => left - right)
+          .join('-')
+        pairCounts.set(pairKey, (pairCounts.get(pairKey) ?? 0) + 1)
+      })
+
+      const pairIndexes = new Map<string, number>()
+
+      return rawEdges.map((relationship) => {
+        const pairKey = [relationship.sourceCharacter.id, relationship.character.id]
+          .sort((left, right) => left - right)
+          .join('-')
+        const pairIndex = pairIndexes.get(pairKey) ?? 0
+        const pairCount = pairCounts.get(pairKey) ?? 1
+        pairIndexes.set(pairKey, pairIndex + 1)
+
+        return {
+          ...relationship,
+          curveOffset: (pairIndex - (pairCount - 1) / 2) * 5,
+        }
+      })
+    },
+    [ownershipCharacters],
+  )
+  const characterGraphNodes = useMemo(() => {
+    const connectedIds = new Set<number>()
+    characterGraphEdges.forEach((relationship) => {
+      connectedIds.add(relationship.sourceCharacter.id)
+      connectedIds.add(relationship.character.id)
+    })
+
+    const visibleCharacters =
+      connectedIds.size === 0
+        ? ownershipCharacters
+        : ownershipCharacters.filter((character) => connectedIds.has(character.id))
+    const centerX = 380
+    const centerY = 270
+    const radius = Math.max(150, Math.min(260, visibleCharacters.length * 44))
+
+    return visibleCharacters.map((character, index) => {
+      const startAngle = visibleCharacters.length === 2 ? 0 : -Math.PI / 2
+      const angle = visibleCharacters.length <= 1
+        ? 0
+        : (Math.PI * 2 * index) / visibleCharacters.length + startAngle
+
+      return {
+        character,
+        x: visibleCharacters.length <= 1 ? centerX : centerX + Math.cos(angle) * radius,
+        y: visibleCharacters.length <= 1 ? centerY : centerY + Math.sin(angle) * radius,
+      }
+    })
+  }, [characterGraphEdges, ownershipCharacters])
+  const initialRelationshipNodes = useMemo<Node[]>(
+    () =>
+      characterGraphNodes.map((node) => ({
+        id: String(node.character.id),
+        type: 'default',
+        position: { x: node.x, y: node.y },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+        data: {
+          label: (
+            <span className="relationship-flow-label">
+              <span className="relationship-node-avatar">
+                {resolveAssetUrl(node.character.imagePath) === null ? (
+                  node.character.name[0]
+                ) : (
+                  <img src={resolveAssetUrl(node.character.imagePath) ?? undefined} alt="" />
+                )}
+              </span>
+              <strong>{node.character.name}</strong>
+            </span>
+          ),
+          storyObject: node.character,
+        },
+        className: 'relationship-flow-node',
+      })),
+    [characterGraphNodes],
+  )
+  const initialRelationshipEdges = useMemo<Edge[]>(
+    () =>
+      characterGraphEdges.map((relationship) => {
+        const color = getRelationshipColor(relationship.relationType)
+
+        return {
+          id: String(relationship.id),
+          source: String(relationship.sourceCharacter.id),
+          target: String(relationship.character.id),
+          type: 'smoothstep',
+          label: relationship.relationType,
+          animated: relationship.tension > 70,
+          markerEnd: relationship.isBidirectional
+            ? undefined
+            : {
+                type: MarkerType.ArrowClosed,
+                color,
+              },
+          data: { relationship },
+          style: {
+            stroke: color,
+            strokeWidth: Math.max(2, relationship.strength / 24),
+          },
+          labelStyle: {
+            fill: color,
+            fontWeight: 900,
+          },
+          labelBgStyle: {
+            fill: 'var(--surface)',
+            stroke: 'var(--border-soft)',
+          },
+          labelBgPadding: [8, 4],
+          labelBgBorderRadius: 999,
+        }
+      }),
+    [characterGraphEdges],
+  )
+  const [relationshipNodes, setRelationshipNodes, onRelationshipNodesChange] =
+    useNodesState<Node>([])
+  const [relationshipEdges, setRelationshipEdges, onRelationshipEdgesChange] =
+    useEdgesState<Edge>([])
+  const handleRelationshipNodeClick: NodeMouseHandler = (_, node) => {
+    const storyObject = node.data.storyObject as StoryObject | undefined
+    if (storyObject === undefined) {
+      return
+    }
+
+    setSelectedCharacter(storyObject)
+    setDossierTab('main')
+    setDialog('character')
+  }
+  const handleRelationshipEdgeClick: EdgeMouseHandler = (_, edge) => {
+    const relationship = edge.data?.relationship as CharacterRelationship | undefined
+    if (relationship !== undefined) {
+      setSelectedGraphRelationship(relationship)
+    }
+  }
+  const relationshipLegend = useMemo(
+    () =>
+      Array.from(new Set(characterGraphEdges.map((relationship) => relationship.relationType)))
+        .filter((relationType) => relationType.trim().length > 0)
+        .sort((left, right) => left.localeCompare(right)),
+    [characterGraphEdges],
+  )
+  useEffect(() => {
+    setRelationshipNodes(initialRelationshipNodes)
+  }, [initialRelationshipNodes, setRelationshipNodes])
+
+  useEffect(() => {
+    setRelationshipEdges(initialRelationshipEdges)
+  }, [initialRelationshipEdges, setRelationshipEdges])
+
   const draftHierarchySelectionsWithDetails = useMemo(
     () =>
       draftHierarchySelections
@@ -895,6 +1194,13 @@ function StoryDbApp() {
     const groupId = Number(catalogEntryGroupFilter)
     return catalogEntries.filter((entry) => entry.entryGroupId === groupId)
   }, [catalogEntries, catalogEntryGroupFilter])
+  const activeTimelineEvent = useMemo(
+    () =>
+      activeTimelineEventId === null
+        ? null
+        : timelineEvents.find((timelineEvent) => timelineEvent.id === activeTimelineEventId) ?? null,
+    [activeTimelineEventId, timelineEvents],
+  )
   useEffect(() => {
     let isActive = true
 
@@ -1048,6 +1354,35 @@ function StoryDbApp() {
       isActive = false
     }
   }, [isWorkspace, selectedProject, t.apiUnavailable])
+
+  useEffect(() => {
+    let isActive = true
+
+    if (!isWorkspace || selectedProject === null || workspaceTab !== 'timeline') {
+      return undefined
+    }
+
+    void fetchTimelineEvents(selectedProject.id)
+      .then((events) => {
+        if (isActive) {
+          setTimelineEvents(events)
+          setActiveTimelineEventId((currentId) =>
+            currentId !== null && events.some((event) => event.id === currentId)
+              ? currentId
+              : events[0]?.id ?? null,
+          )
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setApiError(t.apiUnavailable)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [isWorkspace, selectedProject, t.apiUnavailable, workspaceTab])
 
   useEffect(() => {
     let isActive = true
@@ -1243,7 +1578,10 @@ function StoryDbApp() {
 
     if (
       selectedProject === null ||
-      (dialog !== 'newCharacter' && dialog !== 'editCharacter' && dialog !== 'character')
+      (dialog !== 'newCharacter' &&
+        dialog !== 'editCharacter' &&
+        dialog !== 'character' &&
+        workspaceTab !== 'relations')
     ) {
       return undefined
     }
@@ -1271,7 +1609,7 @@ function StoryDbApp() {
     return () => {
       isActive = false
     }
-  }, [dialog, selectedProject, t.apiUnavailable])
+  }, [dialog, selectedProject, t.apiUnavailable, workspaceTab])
 
   useEffect(() => {
     let isActive = true
@@ -1356,6 +1694,7 @@ function StoryDbApp() {
     setActiveObjectMenuId(null)
     setSelectedCharacter(storyObject)
     setEditingCharacter(storyObject)
+    setEditorTab('main')
     setCharacterName(storyObject.name)
     setCharacterSurname(storyObject.surname ?? '')
     setCharacterDescription(storyObject.description ?? '')
@@ -1391,6 +1730,16 @@ function StoryDbApp() {
     setDraftTerritoryPlaceIds(storyObject.territoryPlaces.map((place) => place.id))
     setDraftOwnerOrganizationIds(storyObject.ownerOrganizations.map((organization) => organization.id))
     setDraftParentObjectIds(storyObject.hierarchyParents.map((parent) => parent.id))
+    setDraftCharacterRelationships(
+      storyObject.outgoingCharacterRelationships.map((relationship) => ({
+        targetCharacterId: String(relationship.character.id),
+        relationType: relationship.relationType,
+        strength: String(relationship.strength),
+        tension: String(relationship.tension),
+        isBidirectional: relationship.isBidirectional,
+        description: relationship.description ?? '',
+      })),
+    )
     setDraftAttributes(
       storyObject.attributes.length > 0
         ? storyObject.attributes.map((attribute) => ({
@@ -1781,6 +2130,85 @@ function StoryDbApp() {
     }
   }
 
+  const resetTimelineEventDraft = () => {
+    setEditingTimelineEventId(null)
+    setTimelineEventDraft(createEmptyTimelineEventDraft())
+  }
+
+  const editTimelineEvent = (timelineEvent: TimelineEvent) => {
+    setActiveTimelineEventId(timelineEvent.id)
+    setEditingTimelineEventId(timelineEvent.id)
+    setTimelineEventDraft(toTimelineEventDraft(timelineEvent))
+    setFormError(null)
+  }
+
+  const saveTimelineEvent = async (event: FormEvent) => {
+    event.preventDefault()
+    if (selectedProject === null) {
+      return
+    }
+
+    const titleError = validateName(timelineEventDraft.title)
+    if (titleError !== null) {
+      setFormError(titleError)
+      return
+    }
+
+    try {
+      setApiError(null)
+      setFormError(null)
+      const savedEvent =
+        editingTimelineEventId === null
+          ? await createTimelineEventRequest(selectedProject.id, timelineEventDraft)
+          : await updateTimelineEventRequest(
+              selectedProject.id,
+              editingTimelineEventId,
+              timelineEventDraft,
+            )
+
+      setTimelineEvents((currentEvents) => {
+        const hasEvent = currentEvents.some((currentEvent) => currentEvent.id === savedEvent.id)
+        const nextEvents = hasEvent
+          ? currentEvents.map((currentEvent) =>
+              currentEvent.id === savedEvent.id ? savedEvent : currentEvent,
+            )
+          : [...currentEvents, savedEvent]
+
+        return nextEvents.sort((left, right) => {
+          const leftValue = left.startValue ?? Number.MAX_SAFE_INTEGER
+          const rightValue = right.startValue ?? Number.MAX_SAFE_INTEGER
+          return leftValue - rightValue || left.title.localeCompare(right.title)
+        })
+      })
+      setActiveTimelineEventId(savedEvent.id)
+      resetTimelineEventDraft()
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
+  }
+
+  const deleteTimelineEvent = async (timelineEvent: TimelineEvent) => {
+    if (selectedProject === null) {
+      return
+    }
+
+    try {
+      setApiError(null)
+      await deleteTimelineEventRequest(selectedProject.id, timelineEvent.id)
+      const remainingEvents = timelineEvents.filter((event) => event.id !== timelineEvent.id)
+      setTimelineEvents(remainingEvents)
+      if (activeTimelineEventId === timelineEvent.id) {
+        setActiveTimelineEventId(remainingEvents[0]?.id ?? null)
+      }
+      if (editingTimelineEventId === timelineEvent.id) {
+        resetTimelineEventDraft()
+      }
+      setPendingDelete(null)
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
+  }
+
   const saveInlineNameEdit = async () => {
     if (selectedProject === null || inlineNameEdit === null) {
       return
@@ -1868,6 +2296,11 @@ function StoryDbApp() {
 
     if (pendingDelete.kind === 'catalogEntryGroup') {
       await deleteCatalogEntryGroup(pendingDelete.item)
+      return
+    }
+
+    if (pendingDelete.kind === 'timelineEvent') {
+      await deleteTimelineEvent(pendingDelete.item)
       return
     }
 
@@ -1979,6 +2412,7 @@ function StoryDbApp() {
         currentObjectTypeKey === 'places' || currentObjectTypeKey === 'organizations'
           ? draftParentObjectIds
           : [],
+        currentObjectTypeKey === 'characters' ? draftCharacterRelationships : [],
       )
       setCharacters((currentCharacters) => [...currentCharacters, createdCharacter])
       if (createdCharacter.typeKey === 'characters') {
@@ -2001,6 +2435,7 @@ function StoryDbApp() {
       setDraftTerritoryPlaceIds([])
       setDraftOwnerOrganizationIds([])
       setDraftParentObjectIds([])
+      setDraftCharacterRelationships([])
       closeDialog()
     } catch {
       setApiError(t.apiUnavailable)
@@ -2055,6 +2490,7 @@ function StoryDbApp() {
         editingCharacter.typeKey === 'places' || editingCharacter.typeKey === 'organizations'
           ? draftParentObjectIds
           : [],
+        editingCharacter.typeKey === 'characters' ? draftCharacterRelationships : [],
       )
       setCharacters((currentCharacters) =>
         currentCharacters.map((character) =>
@@ -2090,6 +2526,7 @@ function StoryDbApp() {
       setDraftTerritoryPlaceIds([])
       setDraftOwnerOrganizationIds([])
       setDraftParentObjectIds([])
+      setDraftCharacterRelationships([])
       closeDialog()
     } catch {
       setApiError(t.apiUnavailable)
@@ -2392,6 +2829,7 @@ function StoryDbApp() {
       const storyObject = objects.find((currentObject) => currentObject.id === objectId) ?? null
       if (storyObject !== null) {
         setSelectedCharacter(storyObject)
+        setDossierTab('main')
         setDialog('character')
       }
     } catch {
@@ -2999,6 +3437,30 @@ function StoryDbApp() {
     )
   }
 
+  const addDraftCharacterRelationship = () => {
+    setDraftCharacterRelationships((currentRelationships) => [
+      ...currentRelationships,
+      createEmptyDraftCharacterRelationship(),
+    ])
+  }
+
+  const updateDraftCharacterRelationship = (
+    index: number,
+    relationship: DraftCharacterRelationship,
+  ) => {
+    setDraftCharacterRelationships((currentRelationships) =>
+      currentRelationships.map((currentRelationship, currentIndex) =>
+        currentIndex === index ? relationship : currentRelationship,
+      ),
+    )
+  }
+
+  const removeDraftCharacterRelationship = (index: number) => {
+    setDraftCharacterRelationships((currentRelationships) =>
+      currentRelationships.filter((_, currentIndex) => currentIndex !== index),
+    )
+  }
+
   const openCatalogSelection = (selection: StoryObject['catalogSelections'][number]) => {
     setDialog(null)
     setWorkspaceTab('database')
@@ -3323,6 +3785,7 @@ function StoryDbApp() {
                     type="button"
                     onClick={() => {
                       setEditingCharacter(null)
+                      setEditorTab('main')
                       setCharacterName('')
                       setCharacterSurname('')
                       setCharacterDescription('')
@@ -3339,6 +3802,7 @@ function StoryDbApp() {
                       setDraftTerritoryPlaceIds([])
                       setDraftOwnerOrganizationIds([])
                       setDraftParentObjectIds([])
+                      setDraftCharacterRelationships([])
                       setNewHierarchySelectionGroupId('')
                       setNewCharacterAttributeName('')
                       setNewCharacterAttributeValue('')
@@ -3353,22 +3817,24 @@ function StoryDbApp() {
                     {`${t.newCharacter}: ${currentObjectTypeLabel}`}
                   </button>
                 )}
-                <div className="layout-toggle" role="group" aria-label="Layout">
-                  <button
-                    className={layoutMode === 'grid' ? 'layout-button is-active' : 'layout-button'}
-                    type="button"
-                    onClick={() => setLayoutMode('grid')}
-                  >
-                    {t.gridView}
-                  </button>
-                  <button
-                    className={layoutMode === 'list' ? 'layout-button is-active' : 'layout-button'}
-                    type="button"
-                    onClick={() => setLayoutMode('list')}
-                  >
-                    {t.listView}
-                  </button>
-                </div>
+                {workspaceTab === 'database' && (
+                  <div className="layout-toggle" role="group" aria-label="Layout">
+                    <button
+                      className={layoutMode === 'grid' ? 'layout-button is-active' : 'layout-button'}
+                      type="button"
+                      onClick={() => setLayoutMode('grid')}
+                    >
+                      {t.gridView}
+                    </button>
+                    <button
+                      className={layoutMode === 'list' ? 'layout-button is-active' : 'layout-button'}
+                      type="button"
+                      onClick={() => setLayoutMode('list')}
+                    >
+                      {t.listView}
+                    </button>
+                  </div>
+                )}
               </div>
             </header>
 
@@ -3505,7 +3971,291 @@ function StoryDbApp() {
               />
             )}
 
-            {moduleSubTab === 'cards' && isObjectWorkspaceSection && (
+            {workspaceTab === 'relations' && (
+              <section className="relationships-workspace">
+                <aside className="relationships-legend">
+                  <h3>{t.relations}</h3>
+                  {relationshipLegend.length === 0 ? (
+                    <p className="empty-state compact">{t.relationGraphEmpty}</p>
+                  ) : (
+                    relationshipLegend.map((relationType) => (
+                      <div className="legend-row" key={relationType}>
+                        <span
+                          className="legend-line"
+                          style={{ background: getRelationshipColor(relationType) }}
+                        />
+                        <span>{relationType}</span>
+                      </div>
+                    ))
+                  )}
+                  <p className="relationship-hint">{t.relationGraphHint}</p>
+                </aside>
+                <div className="relationships-canvas" aria-label={t.relations}>
+                  <ReactFlow
+                    nodes={relationshipNodes}
+                    edges={relationshipEdges}
+                    onNodesChange={onRelationshipNodesChange}
+                    onEdgesChange={onRelationshipEdgesChange}
+                    onNodeClick={handleRelationshipNodeClick}
+                    onEdgeClick={handleRelationshipEdgeClick}
+                    fitView
+                    fitViewOptions={{ padding: 0.24 }}
+                    minZoom={0.35}
+                    maxZoom={1.8}
+                    nodesDraggable
+                    panOnDrag
+                    zoomOnScroll
+                  >
+                    <Background color="var(--page-grid)" gap={24} />
+                    <Controls showInteractive={false} />
+                  </ReactFlow>
+                </div>
+                <aside className="relationships-details">
+                  {selectedGraphRelationship === null ? (
+                    <p className="empty-state compact">{t.relationGraphHint}</p>
+                  ) : (
+                    <article className="relationship-detail-card">
+                      <h3>{selectedGraphRelationship.relationType}</h3>
+                      <button
+                        className="inline-link-button"
+                        type="button"
+                        onClick={() =>
+                          void openObjectReference(
+                            'characters',
+                            selectedGraphRelationship.character.id,
+                          )
+                        }
+                      >
+                        {selectedGraphRelationship.character.name}
+                      </button>
+                      <div className="relationship-meter-row">
+                        <span>{t.relationshipStrength}</span>
+                        <meter min={0} max={100} value={selectedGraphRelationship.strength} />
+                        <b>{selectedGraphRelationship.strength}%</b>
+                      </div>
+                      <div className="relationship-meter-row">
+                        <span>{t.relationshipTension}</span>
+                        <meter min={0} max={100} value={selectedGraphRelationship.tension} />
+                        <b>{selectedGraphRelationship.tension}%</b>
+                      </div>
+                      {selectedGraphRelationship.description !== null && (
+                        <p>{selectedGraphRelationship.description}</p>
+                      )}
+                    </article>
+                  )}
+                </aside>
+              </section>
+            )}
+
+            {workspaceTab === 'timeline' && (
+              <section className="timeline-workspace">
+                <div className="timeline-events-panel">
+                  <div className="timeline-panel-header">
+                    <div>
+                      <h3>{t.timelineEvents}</h3>
+                      <p>{timelineEvents.length}</p>
+                    </div>
+                    <button
+                      className="secondary-action compact"
+                      type="button"
+                      onClick={resetTimelineEventDraft}
+                    >
+                      {t.newTimelineEvent}
+                    </button>
+                  </div>
+                  {timelineEvents.length === 0 ? (
+                    <p className="empty-state compact">{t.noTimelineEvents}</p>
+                  ) : (
+                    <div className="timeline-event-list">
+                      {timelineEvents.map((timelineEvent) => (
+                        <button
+                          className={
+                            activeTimelineEventId === timelineEvent.id
+                              ? 'timeline-event-card is-active'
+                              : 'timeline-event-card'
+                          }
+                          key={timelineEvent.id}
+                          type="button"
+                          onClick={() => setActiveTimelineEventId(timelineEvent.id)}
+                        >
+                          <span
+                            className="timeline-event-color"
+                            style={{ background: timelineEvent.color ?? 'var(--accent)' }}
+                          />
+                          <strong>{timelineEvent.title}</strong>
+                          <small>
+                            {[timelineEvent.startLabel, timelineEvent.endLabel]
+                              .filter(Boolean)
+                              .join(' - ') || t.eventPeriod}
+                          </small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <form className="timeline-editor-panel" onSubmit={saveTimelineEvent}>
+                  <div className="timeline-panel-header">
+                    <div>
+                      <h3>
+                        {editingTimelineEventId === null
+                          ? t.newTimelineEvent
+                          : t.editTimelineEvent}
+                      </h3>
+                      {activeTimelineEvent !== null && (
+                        <p>{activeTimelineEvent.title}</p>
+                      )}
+                    </div>
+                    {activeTimelineEvent !== null && (
+                      <div className="timeline-editor-actions">
+                        <button
+                          className="secondary-action compact"
+                          type="button"
+                          onClick={() => editTimelineEvent(activeTimelineEvent)}
+                        >
+                          {t.edit}
+                        </button>
+                        <button
+                          className="secondary-action compact danger-action"
+                          type="button"
+                          onClick={() =>
+                            setPendingDelete({ kind: 'timelineEvent', item: activeTimelineEvent })
+                          }
+                        >
+                          {t.delete}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {formError !== null && (
+                    <div className="form-error" role="alert">
+                      {formError}
+                    </div>
+                  )}
+
+                  <div className="timeline-form-grid">
+                    <label className="project-name-field">
+                      <span>{t.eventTitle}</span>
+                      <input
+                        type="text"
+                        value={timelineEventDraft.title}
+                        onChange={(event) =>
+                          setTimelineEventDraft((draft) => ({
+                            ...draft,
+                            title: event.target.value,
+                          }))
+                        }
+                        placeholder={t.eventTitlePlaceholder}
+                      />
+                    </label>
+                    <label className="project-name-field">
+                      <span>{t.eventCategory}</span>
+                      <input
+                        type="text"
+                        value={timelineEventDraft.category}
+                        onChange={(event) =>
+                          setTimelineEventDraft((draft) => ({
+                            ...draft,
+                            category: event.target.value,
+                          }))
+                        }
+                        placeholder={t.eventCategory}
+                      />
+                    </label>
+                    <label className="project-name-field">
+                      <span>{t.eventStartLabel}</span>
+                      <input
+                        type="text"
+                        value={timelineEventDraft.startLabel}
+                        onChange={(event) =>
+                          setTimelineEventDraft((draft) => ({
+                            ...draft,
+                            startLabel: event.target.value,
+                          }))
+                        }
+                        placeholder="Глава 1"
+                      />
+                    </label>
+                    <label className="project-name-field">
+                      <span>{t.eventEndLabel}</span>
+                      <input
+                        type="text"
+                        value={timelineEventDraft.endLabel}
+                        onChange={(event) =>
+                          setTimelineEventDraft((draft) => ({
+                            ...draft,
+                            endLabel: event.target.value,
+                          }))
+                        }
+                        placeholder="Глава 2"
+                      />
+                    </label>
+                    <label className="project-name-field">
+                      <span>{t.eventStartValue}</span>
+                      <input
+                        type="number"
+                        value={timelineEventDraft.startValue}
+                        onChange={(event) =>
+                          setTimelineEventDraft((draft) => ({
+                            ...draft,
+                            startValue: event.target.value,
+                          }))
+                        }
+                        placeholder="1"
+                      />
+                    </label>
+                    <label className="project-name-field">
+                      <span>{t.eventEndValue}</span>
+                      <input
+                        type="number"
+                        value={timelineEventDraft.endValue}
+                        onChange={(event) =>
+                          setTimelineEventDraft((draft) => ({
+                            ...draft,
+                            endValue: event.target.value,
+                          }))
+                        }
+                        placeholder="2"
+                      />
+                    </label>
+                    <label className="project-name-field">
+                      <span>{t.eventColor}</span>
+                      <input
+                        type="color"
+                        value={timelineEventDraft.color}
+                        onChange={(event) =>
+                          setTimelineEventDraft((draft) => ({
+                            ...draft,
+                            color: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <label className="project-name-field character-description-field">
+                    <span>{t.description}</span>
+                    <textarea
+                      value={timelineEventDraft.description}
+                      onChange={(event) =>
+                        setTimelineEventDraft((draft) => ({
+                          ...draft,
+                          description: event.target.value,
+                        }))
+                      }
+                      placeholder={t.descriptionPlaceholder}
+                    />
+                  </label>
+
+                  <button className="primary-action" type="submit">
+                    {editingTimelineEventId === null ? t.newTimelineEvent : t.save}
+                  </button>
+                </form>
+              </section>
+            )}
+
+            {workspaceTab === 'database' && moduleSubTab === 'cards' && isObjectWorkspaceSection && (
               <div className={layoutMode === 'grid' ? 'folder-view grid' : 'folder-view list'}>
               {workspaceTab === 'database' &&
                 characters.map((character) => (
@@ -3523,6 +4273,7 @@ function StoryDbApp() {
                     }
                     onOpen={(storyObject) => {
                       setSelectedCharacter(storyObject)
+                      setDossierTab('main')
                       setDialog('character')
                     }}
                   />
@@ -3729,7 +4480,25 @@ function StoryDbApp() {
                     <p className="setting-label">{t.description}</p>
                     <p>{selectedCharacter.description}</p>
                   </div>
+                  <div className="modal-tabs object-dialog-tabs" role="group" aria-label={t.dossier}>
+                    {([
+                      ['main', t.mainTab],
+                      ['relations', t.linksTab],
+                      ['timeline', t.timelineTab],
+                    ] as const).map(([tabKey, label]) => (
+                      <button
+                        className={dossierTab === tabKey ? 'modal-tab is-active' : 'modal-tab'}
+                        key={tabKey}
+                        type="button"
+                        onClick={() => setDossierTab(tabKey)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <div className="dossier-data-blocks">
+                  {dossierTab === 'main' && (
+                    <>
                   {dossierAttributeGroups.length > 0 && (
                     <section className="dossier-attributes-section">
                       <h4>{t.attributes}</h4>
@@ -3808,6 +4577,49 @@ function StoryDbApp() {
                       </div>
                     </section>
                   )}
+                    </>
+                  )}
+                  {dossierTab === 'relations' && (
+                    <>
+                  {selectedCharacter.typeKey === 'characters' &&
+                    (selectedCharacter.outgoingCharacterRelationships.length > 0 ||
+                      selectedCharacter.incomingCharacterRelationships.length > 0) && (
+                      <section className="dossier-attributes-section">
+                        <h4>{t.characterRelationships}</h4>
+                        <div className="relationship-summary-list">
+                          {[
+                            ...selectedCharacter.outgoingCharacterRelationships,
+                            ...selectedCharacter.incomingCharacterRelationships,
+                          ].map((relationship) => (
+                            <article className="relationship-summary-card" key={`${relationship.direction}-${relationship.id}`}>
+                              <button
+                                className="inline-link-button"
+                                type="button"
+                                onClick={() =>
+                                  void openObjectReference('characters', relationship.character.id)
+                                }
+                              >
+                                {relationship.character.name}
+                              </button>
+                              <strong>{relationship.relationType}</strong>
+                              <div className="relationship-meter-row">
+                                <span>{t.relationshipStrength}</span>
+                                <meter min={0} max={100} value={relationship.strength} />
+                                <b>{relationship.strength}%</b>
+                              </div>
+                              <div className="relationship-meter-row">
+                                <span>{t.relationshipTension}</span>
+                                <meter min={0} max={100} value={relationship.tension} />
+                                <b>{relationship.tension}%</b>
+                              </div>
+                              {relationship.description !== null && (
+                                <p>{relationship.description}</p>
+                              )}
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    )}
                   {selectedCharacter.ownedItems.length > 0 && (
                     <section className="dossier-attributes-section">
                       <h4>{t.ownedItems}</h4>
@@ -3873,6 +4685,14 @@ function StoryDbApp() {
                         </div>
                       </section>
                     ))}
+                    </>
+                  )}
+                  {dossierTab === 'timeline' && (
+                    <section className="dossier-attributes-section">
+                      <h4>{t.timelineTab}</h4>
+                      <p className="empty-state compact">{t.timelineEmpty}</p>
+                    </section>
+                  )}
                   </div>
                 </div>
               </section>
@@ -3883,6 +4703,24 @@ function StoryDbApp() {
                 className="new-project-details"
                 onSubmit={dialog === 'editCharacter' ? updateCharacter : createCharacter}
               >
+                <div className="modal-tabs object-dialog-tabs" role="group" aria-label={t.newCharacter}>
+                  {([
+                    ['main', t.mainTab],
+                    ['relations', t.linksTab],
+                    ['timeline', t.timelineTab],
+                  ] as const).map(([tabKey, label]) => (
+                    <button
+                      className={editorTab === tabKey ? 'modal-tab is-active' : 'modal-tab'}
+                      key={tabKey}
+                      type="button"
+                      onClick={() => setEditorTab(tabKey)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {editorTab === 'main' && (
+                  <>
                 <ImageDropzone
                   imagePath={characterImagePath}
                   label={t.cover}
@@ -3949,8 +4787,11 @@ function StoryDbApp() {
                     placeholder={t.descriptionPlaceholder}
                   />
                 </label>
+                  </>
+                )}
 
                 <div className="character-data-blocks">
+                {editorTab === 'main' && (
                 <section className="attribute-editor collapsible-block">
                   <div className="attribute-editor-header">
                     <button
@@ -4154,7 +4995,8 @@ function StoryDbApp() {
                     </div>
                   )}
                 </section>
-                {isHierarchyModuleEnabled && (
+                )}
+                {editorTab === 'main' && isHierarchyModuleEnabled && (
                   <section className="attribute-editor collapsible-block">
                     <div className="attribute-editor-header">
                       <button
@@ -4236,7 +5078,8 @@ function StoryDbApp() {
                     )}
                   </section>
                 )}
-                {(dialogObjectTypeKey === 'characters' || dialogObjectTypeKey === 'items') && (
+                {editorTab === 'relations' &&
+                  (dialogObjectTypeKey === 'characters' || dialogObjectTypeKey === 'items') && (
                   <section className="attribute-editor collapsible-block">
                     <div className="attribute-editor-header">
                       <div className="collapse-heading static-heading">
@@ -4291,7 +5134,131 @@ function StoryDbApp() {
                     </div>
                   </section>
                 )}
-                {(dialogObjectTypeKey === 'places' || dialogObjectTypeKey === 'organizations') && (
+                {editorTab === 'relations' && dialogObjectTypeKey === 'characters' && (
+                  <section className="attribute-editor collapsible-block">
+                    <div className="attribute-editor-header">
+                      <div className="collapse-heading static-heading">{t.characterRelationships}</div>
+                      <button
+                        className="secondary-action compact"
+                        type="button"
+                        onClick={addDraftCharacterRelationship}
+                      >
+                        {t.addCharacterRelationship}
+                      </button>
+                    </div>
+                    <div className="attribute-editor-body">
+                      {draftCharacterRelationships.length === 0 && (
+                        <p className="empty-state compact">{t.noCharacterRelationships}</p>
+                      )}
+                      {draftCharacterRelationships.map((relationship, index) => (
+                        <section className="relationship-editor-card" key={index}>
+                          <div className="relationship-editor-grid">
+                            <label className="project-name-field">
+                              <span>{t.relatedCharacter}</span>
+                              <select
+                                value={relationship.targetCharacterId}
+                                onChange={(event) =>
+                                  updateDraftCharacterRelationship(index, {
+                                    ...relationship,
+                                    targetCharacterId: event.target.value,
+                                  })
+                                }
+                              >
+                                <option value="">{t.relatedCharacter}</option>
+                                {ownershipCharacters
+                                  .filter((character) => character.id !== editingCharacter?.id)
+                                  .map((character) => (
+                                    <option key={character.id} value={character.id}>
+                                      {character.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </label>
+                            <label className="project-name-field">
+                              <span>{t.relationshipType}</span>
+                              <input
+                                type="text"
+                                value={relationship.relationType}
+                                onChange={(event) =>
+                                  updateDraftCharacterRelationship(index, {
+                                    ...relationship,
+                                    relationType: event.target.value,
+                                  })
+                                }
+                                placeholder={t.relationshipTypePlaceholder}
+                              />
+                            </label>
+                            <label className="project-name-field">
+                              <span>{t.relationshipStrength}</span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={relationship.strength}
+                                onChange={(event) =>
+                                  updateDraftCharacterRelationship(index, {
+                                    ...relationship,
+                                    strength: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                            <label className="project-name-field">
+                              <span>{t.relationshipTension}</span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={relationship.tension}
+                                onChange={(event) =>
+                                  updateDraftCharacterRelationship(index, {
+                                    ...relationship,
+                                    tension: event.target.value,
+                                  })
+                                }
+                              />
+                            </label>
+                          </div>
+                          <label className="checkbox-row">
+                            <input
+                              type="checkbox"
+                              checked={relationship.isBidirectional}
+                              onChange={(event) =>
+                                updateDraftCharacterRelationship(index, {
+                                  ...relationship,
+                                  isBidirectional: event.target.checked,
+                                })
+                              }
+                            />
+                            <span>{t.relationshipMutual}</span>
+                          </label>
+                          <label className="project-name-field character-description-field">
+                            <span>{t.relationshipDescription}</span>
+                            <textarea
+                              value={relationship.description}
+                              onChange={(event) =>
+                                updateDraftCharacterRelationship(index, {
+                                  ...relationship,
+                                  description: event.target.value,
+                                })
+                              }
+                              placeholder={t.relationshipDescription}
+                            />
+                          </label>
+                          <button
+                            className="secondary-action compact danger-action"
+                            type="button"
+                            onClick={() => removeDraftCharacterRelationship(index)}
+                          >
+                            {t.delete}
+                          </button>
+                        </section>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                {editorTab === 'relations' &&
+                  (dialogObjectTypeKey === 'places' || dialogObjectTypeKey === 'organizations') && (
                   <section className="attribute-editor collapsible-block">
                     <div className="attribute-editor-header">
                       <div className="collapse-heading static-heading">{t.objectRelations}</div>
@@ -4366,6 +5333,7 @@ function StoryDbApp() {
                     </div>
                   </section>
                 )}
+                {editorTab === 'main' && (
                 <section className="attribute-editor collapsible-block">
                   <div className="attribute-editor-header">
                     <div className="collapse-heading static-heading">{t.catalogValues}</div>
@@ -4483,6 +5451,13 @@ function StoryDbApp() {
                     })}
                   </div>
                 </section>
+                )}
+                {editorTab === 'timeline' && (
+                  <section className="dossier-attributes-section">
+                    <h4>{t.timelineTab}</h4>
+                    <p className="empty-state compact">{t.timelineEmpty}</p>
+                  </section>
+                )}
                 </div>
                 <button className="primary-action" type="submit">
                   {dialog === 'editCharacter' ? t.save : t.createCharacter}

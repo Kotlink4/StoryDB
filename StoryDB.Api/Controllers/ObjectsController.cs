@@ -42,6 +42,12 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .Include(storyObject => storyObject.IncomingRelations)
             .ThenInclude(relation => relation.SourceObject)
             .ThenInclude(source => source!.ObjectType)
+            .Include(storyObject => storyObject.OutgoingCharacterRelationships)
+            .ThenInclude(relationship => relationship.TargetCharacter)
+            .ThenInclude(target => target!.ObjectType)
+            .Include(storyObject => storyObject.IncomingCharacterRelationships)
+            .ThenInclude(relationship => relationship.SourceCharacter)
+            .ThenInclude(source => source!.ObjectType)
             .Where(storyObject =>
                 storyObject.ProjectId == projectId &&
                 storyObject.ObjectType != null &&
@@ -119,6 +125,15 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(relationResult.Error);
         }
 
+        var characterRelationshipsResult = await GetValidatedCharacterRelationships(
+            projectId,
+            objectType.Key,
+            request.CharacterRelationships);
+        if (characterRelationshipsResult.Error is not null)
+        {
+            return BadRequest(characterRelationshipsResult.Error);
+        }
+
         var now = DateTime.UtcNow;
         var storyObject = new StoryObject
         {
@@ -152,6 +167,9 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             relationResult.TerritoryPlaceIds,
             relationResult.OwnerOrganizationIds,
             relationResult.ParentObjectIds);
+        storyObject.OutgoingCharacterRelationships = objectType.Key == "characters"
+            ? ToCharacterRelationships(storyObject.Id, characterRelationshipsResult.Relationships)
+            : [];
         await dbContext.SaveChangesAsync();
 
         var dto = await GetObjectDto(projectId, storyObject.Id);
@@ -179,6 +197,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .Include(storyObject => storyObject.OwnedItems)
             .Include(storyObject => storyObject.Owners)
             .Include(storyObject => storyObject.OutgoingRelations)
+            .Include(storyObject => storyObject.OutgoingCharacterRelationships)
             .FirstOrDefaultAsync(storyObject => storyObject.ProjectId == projectId && storyObject.Id == objectId);
 
         if (storyObject is null)
@@ -226,6 +245,16 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(relationResult.Error);
         }
 
+        var characterRelationshipsResult = await GetValidatedCharacterRelationships(
+            projectId,
+            storyObject.ObjectType.Key,
+            request.CharacterRelationships,
+            storyObject.Id);
+        if (characterRelationshipsResult.Error is not null)
+        {
+            return BadRequest(characterRelationshipsResult.Error);
+        }
+
         storyObject.Name = request.Name.Trim();
         storyObject.Surname = NormalizeOptionalText(request.Surname);
         storyObject.Description = NormalizeOptionalText(request.Description);
@@ -255,6 +284,10 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             relationResult.TerritoryPlaceIds,
             relationResult.OwnerOrganizationIds,
             relationResult.ParentObjectIds);
+        dbContext.CharacterRelationships.RemoveRange(storyObject.OutgoingCharacterRelationships);
+        storyObject.OutgoingCharacterRelationships = storyObject.ObjectType.Key == "characters"
+            ? ToCharacterRelationships(storyObject.Id, characterRelationshipsResult.Relationships)
+            : [];
 
         await dbContext.SaveChangesAsync();
 
@@ -651,6 +684,12 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .Include(currentObject => currentObject.IncomingRelations)
             .ThenInclude(relation => relation.SourceObject)
             .ThenInclude(source => source!.ObjectType)
+            .Include(currentObject => currentObject.OutgoingCharacterRelationships)
+            .ThenInclude(relationship => relationship.TargetCharacter)
+            .ThenInclude(target => target!.ObjectType)
+            .Include(currentObject => currentObject.IncomingCharacterRelationships)
+            .ThenInclude(relationship => relationship.SourceCharacter)
+            .ThenInclude(source => source!.ObjectType)
             .FirstAsync(currentObject => currentObject.ProjectId == projectId && currentObject.Id == objectId);
 
         return ToDto(storyObject);
@@ -727,9 +766,37 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             ToRelationReferences(storyObject.OutgoingRelations, "territoryOwner", true),
             ToRelationReferences(storyObject.IncomingRelations, "territoryOwner", false),
             ToRelationReferences(storyObject.OutgoingRelations, "hierarchyParent", true),
-            ToRelationReferences(storyObject.IncomingRelations, "hierarchyParent", false)
+            ToRelationReferences(storyObject.IncomingRelations, "hierarchyParent", false),
+            storyObject.OutgoingCharacterRelationships
+                .Where(relationship => relationship.TargetCharacter is not null)
+                .OrderBy(relationship => relationship.SortOrder)
+                .Select(relationship => ToCharacterRelationshipDto(relationship, relationship.TargetCharacter!, "outgoing"))
+                .ToList(),
+            storyObject.IncomingCharacterRelationships
+                .Where(relationship => relationship.SourceCharacter is not null)
+                .OrderBy(relationship => relationship.SortOrder)
+                .Select(relationship => ToCharacterRelationshipDto(relationship, relationship.SourceCharacter!, "incoming"))
+                .ToList()
         );
     }
+
+    private static CharacterRelationshipDto ToCharacterRelationshipDto(
+        CharacterRelationship relationship,
+        StoryObject relatedCharacter,
+        string direction) =>
+        new(
+            relationship.Id,
+            new ObjectReferenceDto(
+                relatedCharacter.Id,
+                relatedCharacter.Name,
+                relatedCharacter.ImagePath,
+                relatedCharacter.ObjectType?.Key ?? "characters"),
+            relationship.RelationType,
+            relationship.Strength,
+            relationship.Tension,
+            relationship.IsBidirectional,
+            relationship.Description,
+            direction);
 
     private static IReadOnlyList<ObjectReferenceDto> ToRelationReferences(
         IEnumerable<ObjectRelation> relations,
@@ -822,6 +889,70 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             {
                 OwnerCharacterId = ownerCharacterId,
                 ItemObjectId = itemObjectId,
+                SortOrder = index,
+            })
+            .ToList();
+
+    private async Task<CharacterRelationshipsValidationResult> GetValidatedCharacterRelationships(
+        int projectId,
+        string typeKey,
+        IReadOnlyList<CharacterRelationshipRequest> relationships,
+        int? currentCharacterId = null)
+    {
+        var normalizedRelationships = relationships
+            .Select((relationship, index) => new CharacterRelationshipSelection(
+                relationship.TargetCharacterId,
+                relationship.RelationType.Trim(),
+                Math.Clamp(relationship.Strength, 0, 100),
+                Math.Clamp(relationship.Tension, 0, 100),
+                relationship.IsBidirectional,
+                NormalizeOptionalText(relationship.Description),
+                index))
+            .Where(relationship =>
+                relationship.TargetCharacterId > 0 &&
+                relationship.TargetCharacterId != currentCharacterId &&
+                relationship.RelationType.Length > 0)
+            .ToList();
+
+        if (typeKey != "characters" && normalizedRelationships.Count > 0)
+        {
+            return new CharacterRelationshipsValidationResult("Only characters can have character relationships.", []);
+        }
+
+        if (normalizedRelationships.Any(relationship => relationship.RelationType.Length > 80))
+        {
+            return new CharacterRelationshipsValidationResult("Relationship type is too long.", []);
+        }
+
+        if (normalizedRelationships.Any(relationship => relationship.Description?.Length > 1000))
+        {
+            return new CharacterRelationshipsValidationResult("Relationship description is too long.", []);
+        }
+
+        if (!await AllObjectsMatchType(
+            projectId,
+            normalizedRelationships.Select(relationship => relationship.TargetCharacterId).Distinct().ToList(),
+            ["characters"]))
+        {
+            return new CharacterRelationshipsValidationResult("One or more related characters were not found.", []);
+        }
+
+        return new CharacterRelationshipsValidationResult(null, normalizedRelationships);
+    }
+
+    private static List<CharacterRelationship> ToCharacterRelationships(
+        int sourceCharacterId,
+        IReadOnlyList<CharacterRelationshipSelection> relationships) =>
+        relationships
+            .Select((relationship, index) => new CharacterRelationship
+            {
+                SourceCharacterId = sourceCharacterId,
+                TargetCharacterId = relationship.TargetCharacterId,
+                RelationType = relationship.RelationType,
+                Strength = relationship.Strength,
+                Tension = relationship.Tension,
+                IsBidirectional = relationship.IsBidirectional,
+                Description = relationship.Description,
                 SortOrder = index,
             })
             .ToList();
@@ -954,7 +1085,8 @@ public record CreateStoryObjectRequest(
     IReadOnlyList<int> OwnerCharacterIds,
     IReadOnlyList<int> TerritoryPlaceIds,
     IReadOnlyList<int> OwnerOrganizationIds,
-    IReadOnlyList<int> ParentObjectIds);
+    IReadOnlyList<int> ParentObjectIds,
+    IReadOnlyList<CharacterRelationshipRequest> CharacterRelationships);
 
 public record CreateObjectAttributeRequest(string Name, string? Value);
 
@@ -980,7 +1112,8 @@ public record UpdateStoryObjectRequest(
     IReadOnlyList<int> OwnerCharacterIds,
     IReadOnlyList<int> TerritoryPlaceIds,
     IReadOnlyList<int> OwnerOrganizationIds,
-    IReadOnlyList<int> ParentObjectIds);
+    IReadOnlyList<int> ParentObjectIds,
+    IReadOnlyList<CharacterRelationshipRequest> CharacterRelationships);
 
 public record StoryObjectDto(
     int Id,
@@ -1001,9 +1134,29 @@ public record StoryObjectDto(
     IReadOnlyList<ObjectReferenceDto> OwnerOrganizations,
     IReadOnlyList<ObjectReferenceDto> OwnedTerritories,
     IReadOnlyList<ObjectReferenceDto> HierarchyParents,
-    IReadOnlyList<ObjectReferenceDto> HierarchyChildren);
+    IReadOnlyList<ObjectReferenceDto> HierarchyChildren,
+    IReadOnlyList<CharacterRelationshipDto> OutgoingCharacterRelationships,
+    IReadOnlyList<CharacterRelationshipDto> IncomingCharacterRelationships);
 
 public record ObjectReferenceDto(int Id, string Name, string? ImagePath, string TypeKey);
+
+public record CharacterRelationshipRequest(
+    int TargetCharacterId,
+    string RelationType,
+    int Strength,
+    int Tension,
+    bool IsBidirectional,
+    string? Description);
+
+public record CharacterRelationshipDto(
+    int Id,
+    ObjectReferenceDto Character,
+    string RelationType,
+    int Strength,
+    int Tension,
+    bool IsBidirectional,
+    string? Description,
+    string Direction);
 
 public record ObjectAttributeDto(int Id, int AttributeDefinitionId, string Name, string? Value);
 
@@ -1041,3 +1194,16 @@ public record ObjectRelationsValidationResult(
     IReadOnlyList<int> TerritoryPlaceIds,
     IReadOnlyList<int> OwnerOrganizationIds,
     IReadOnlyList<int> ParentObjectIds);
+
+public record CharacterRelationshipSelection(
+    int TargetCharacterId,
+    string RelationType,
+    int Strength,
+    int Tension,
+    bool IsBidirectional,
+    string? Description,
+    int SortOrder);
+
+public record CharacterRelationshipsValidationResult(
+    string? Error,
+    IReadOnlyList<CharacterRelationshipSelection> Relationships);

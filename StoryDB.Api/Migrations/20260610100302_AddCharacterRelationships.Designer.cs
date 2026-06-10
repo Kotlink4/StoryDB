@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using StoryDB.Api.Data;
@@ -11,9 +12,11 @@ using StoryDB.Api.Data;
 namespace StoryDB.Api.Migrations
 {
     [DbContext(typeof(StoryDbContext))]
-    partial class StoryDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260610100302_AddCharacterRelationships")]
+    partial class AddCharacterRelationships
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -434,7 +437,8 @@ namespace StoryDB.Api.Migrations
 
                     b.HasIndex("TargetCharacterId");
 
-                    b.HasIndex("SourceCharacterId", "TargetCharacterId", "RelationType");
+                    b.HasIndex("SourceCharacterId", "TargetCharacterId", "RelationType")
+                        .IsUnique();
 
                     b.ToTable("CharacterRelationships");
                 });
@@ -785,165 +789,6 @@ namespace StoryDB.Api.Migrations
                     b.HasIndex("HierarchyNodeId");
 
                     b.ToTable("StoryObjectHierarchySelections");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineChange", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ChangeType")
-                        .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
-                    b.Property<string>("EffectiveFromLabel")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<decimal?>("EffectiveFromValue")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("EffectiveToLabel")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<decimal?>("EffectiveToValue")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("FieldKey")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<string>("FieldName")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("NewValueJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("OldValueJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TargetId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("TargetType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<int>("TimelineEventId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TimelineEventId", "TargetType", "TargetId");
-
-                    b.ToTable("TimelineChanges");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEvent", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<string>("Color")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("EndLabel")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<decimal?>("EndValue")
-                        .HasColumnType("numeric");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("StartLabel")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<decimal?>("StartValue")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId", "StartValue", "SortOrder");
-
-                    b.ToTable("TimelineEvents");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineParticipant", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Role")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TargetId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("TargetType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<int>("TimelineEventId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TimelineEventId", "TargetType", "TargetId");
-
-                    b.ToTable("TimelineParticipants");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.AttributeDefinition", b =>
@@ -1349,39 +1194,6 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("StoryObject");
                 });
 
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineChange", b =>
-                {
-                    b.HasOne("StoryDB.Api.Data.Entities.TimelineEvent", "TimelineEvent")
-                        .WithMany("Changes")
-                        .HasForeignKey("TimelineEventId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("TimelineEvent");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEvent", b =>
-                {
-                    b.HasOne("StoryDB.Api.Data.Entities.Project", "Project")
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Project");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineParticipant", b =>
-                {
-                    b.HasOne("StoryDB.Api.Data.Entities.TimelineEvent", "TimelineEvent")
-                        .WithMany("Participants")
-                        .HasForeignKey("TimelineEventId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("TimelineEvent");
-                });
-
             modelBuilder.Entity("StoryDB.Api.Data.Entities.AppUser", b =>
                 {
                     b.Navigation("Projects");
@@ -1479,13 +1291,6 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("OwnedItems");
 
                     b.Navigation("Owners");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEvent", b =>
-                {
-                    b.Navigation("Changes");
-
-                    b.Navigation("Participants");
                 });
 #pragma warning restore 612, 618
         }

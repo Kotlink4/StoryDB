@@ -68,6 +68,8 @@ export type StoryObject = {
   ownedTerritories: ObjectReference[]
   hierarchyParents: ObjectReference[]
   hierarchyChildren: ObjectReference[]
+  outgoingCharacterRelationships: CharacterRelationship[]
+  incomingCharacterRelationships: CharacterRelationship[]
 }
 
 export type ObjectReference = {
@@ -75,6 +77,26 @@ export type ObjectReference = {
   name: string
   imagePath: string | null
   typeKey: string
+}
+
+export type CharacterRelationship = {
+  id: number
+  character: ObjectReference
+  relationType: string
+  strength: number
+  tension: number
+  isBidirectional: boolean
+  description: string | null
+  direction: 'outgoing' | 'incoming'
+}
+
+export type DraftCharacterRelationship = {
+  targetCharacterId: string
+  relationType: string
+  strength: string
+  tension: string
+  isBidirectional: boolean
+  description: string
 }
 
 export type ObjectAttribute = {
@@ -158,6 +180,7 @@ export type PendingDelete =
   | { kind: 'catalog'; item: Catalog }
   | { kind: 'catalogEntryGroup'; item: CatalogEntryGroup }
   | { kind: 'catalogEntry'; item: CatalogEntry }
+  | { kind: 'timelineEvent'; item: TimelineEvent }
   | null
 
 export type StoredSettings = {
@@ -246,4 +269,52 @@ export type CatalogEntryDraft = {
   entryGroupId: string
   parentEntryIds: number[]
   fieldValues: Record<number, string>
+}
+
+export type TimelineEvent = {
+  id: number
+  title: string
+  description: string | null
+  startLabel: string | null
+  endLabel: string | null
+  startValue: number | null
+  endValue: number | null
+  category: string | null
+  color: string | null
+  participants: TimelineParticipant[]
+  changes: TimelineChange[]
+}
+
+export type TimelineParticipant = {
+  id: number
+  targetType: string
+  targetId: number
+  role: string | null
+}
+
+export type TimelineChange = {
+  id: number
+  changeType: string
+  targetType: string
+  targetId: number
+  fieldKey: string | null
+  fieldName: string | null
+  oldValueJson: string | null
+  newValueJson: string | null
+  effectiveFromLabel: string | null
+  effectiveToLabel: string | null
+  effectiveFromValue: number | null
+  effectiveToValue: number | null
+  notes: string | null
+}
+
+export type TimelineEventDraft = {
+  title: string
+  description: string
+  startLabel: string
+  endLabel: string
+  startValue: string
+  endValue: string
+  category: string
+  color: string
 }

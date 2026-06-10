@@ -19,6 +19,10 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     public DbSet<StoryObjectCatalogSelection> StoryObjectCatalogSelections => Set<StoryObjectCatalogSelection>();
     public DbSet<ObjectOwnership> ObjectOwnerships => Set<ObjectOwnership>();
     public DbSet<ObjectRelation> ObjectRelations => Set<ObjectRelation>();
+    public DbSet<CharacterRelationship> CharacterRelationships => Set<CharacterRelationship>();
+    public DbSet<TimelineEvent> TimelineEvents => Set<TimelineEvent>();
+    public DbSet<TimelineParticipant> TimelineParticipants => Set<TimelineParticipant>();
+    public DbSet<TimelineChange> TimelineChanges => Set<TimelineChange>();
     public DbSet<Catalog> Catalogs => Set<Catalog>();
     public DbSet<CatalogEntry> CatalogEntries => Set<CatalogEntry>();
     public DbSet<CatalogEntryGroup> CatalogEntryGroups => Set<CatalogEntryGroup>();
@@ -244,6 +248,129 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasOne(relation => relation.TargetObject)
             .WithMany(storyObject => storyObject.IncomingRelations)
             .HasForeignKey(relation => relation.TargetObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CharacterRelationship>()
+            .HasIndex(relationship => new
+            {
+                relationship.SourceCharacterId,
+                relationship.TargetCharacterId,
+                relationship.RelationType,
+            });
+
+        modelBuilder.Entity<CharacterRelationship>()
+            .Property(relationship => relationship.RelationType)
+            .HasMaxLength(80);
+
+        modelBuilder.Entity<CharacterRelationship>()
+            .Property(relationship => relationship.Description)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<CharacterRelationship>()
+            .HasOne(relationship => relationship.SourceCharacter)
+            .WithMany(storyObject => storyObject.OutgoingCharacterRelationships)
+            .HasForeignKey(relationship => relationship.SourceCharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CharacterRelationship>()
+            .HasOne(relationship => relationship.TargetCharacter)
+            .WithMany(storyObject => storyObject.IncomingCharacterRelationships)
+            .HasForeignKey(relationship => relationship.TargetCharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .HasIndex(timelineEvent => new { timelineEvent.ProjectId, timelineEvent.StartValue, timelineEvent.SortOrder });
+
+        modelBuilder.Entity<TimelineEvent>()
+            .Property(timelineEvent => timelineEvent.Title)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .Property(timelineEvent => timelineEvent.Description)
+            .HasMaxLength(4000);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .Property(timelineEvent => timelineEvent.StartLabel)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .Property(timelineEvent => timelineEvent.EndLabel)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .Property(timelineEvent => timelineEvent.Category)
+            .HasMaxLength(80);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .Property(timelineEvent => timelineEvent.Color)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .HasOne(timelineEvent => timelineEvent.Project)
+            .WithMany()
+            .HasForeignKey(timelineEvent => timelineEvent.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineParticipant>()
+            .HasIndex(participant => new { participant.TimelineEventId, participant.TargetType, participant.TargetId });
+
+        modelBuilder.Entity<TimelineParticipant>()
+            .Property(participant => participant.TargetType)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<TimelineParticipant>()
+            .Property(participant => participant.Role)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<TimelineParticipant>()
+            .HasOne(participant => participant.TimelineEvent)
+            .WithMany(timelineEvent => timelineEvent.Participants)
+            .HasForeignKey(participant => participant.TimelineEventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineChange>()
+            .HasIndex(change => new { change.TimelineEventId, change.TargetType, change.TargetId });
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.ChangeType)
+            .HasMaxLength(60);
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.TargetType)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.FieldKey)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.FieldName)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.OldValueJson)
+            .HasMaxLength(4000);
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.NewValueJson)
+            .HasMaxLength(4000);
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.EffectiveFromLabel)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.EffectiveToLabel)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<TimelineChange>()
+            .Property(change => change.Notes)
+            .HasMaxLength(2000);
+
+        modelBuilder.Entity<TimelineChange>()
+            .HasOne(change => change.TimelineEvent)
+            .WithMany(timelineEvent => timelineEvent.Changes)
+            .HasForeignKey(change => change.TimelineEventId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Catalog>()

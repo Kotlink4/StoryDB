@@ -10,6 +10,7 @@ import type {
   CatalogFieldDraft,
   CatalogHierarchyMode,
   DraftCatalogSelection,
+  DraftCharacterRelationship,
   DraftAttribute,
   DraftHierarchySelection,
   HierarchyGroup,
@@ -17,6 +18,8 @@ import type {
   ObjectTypeKey,
   StoryObject,
   StoryProject,
+  TimelineEvent,
+  TimelineEventDraft,
 } from './types'
 
 const apiBaseUrl = 'http://localhost:5282/api'
@@ -43,6 +46,23 @@ const normalizeHierarchySelections = (selections: DraftHierarchySelection[]) =>
       nodeIds: Array.from(new Set(selection.nodeIds)),
     }))
     .filter((selection) => selection.groupId > 0 && selection.nodeIds.length > 0)
+
+const normalizeCharacterRelationships = (relationships: DraftCharacterRelationship[]) =>
+  relationships
+    .map((relationship) => ({
+      targetCharacterId: Number(relationship.targetCharacterId),
+      relationType: relationship.relationType.trim(),
+      strength: Number(relationship.strength),
+      tension: Number(relationship.tension),
+      isBidirectional: relationship.isBidirectional,
+      description: relationship.description.trim() || null,
+    }))
+    .filter(
+      (relationship) =>
+        Number.isInteger(relationship.targetCharacterId) &&
+        relationship.targetCharacterId > 0 &&
+        relationship.relationType.length > 0,
+    )
 
 const normalizeCatalogSelections = (selections: DraftCatalogSelection[]) =>
   selections
@@ -73,6 +93,29 @@ const normalizeCatalogSelections = (selections: DraftCatalogSelection[]) =>
 
       return true
     })
+
+const normalizeTimelineNumber = (value: string) => {
+  const normalizedValue = value.trim()
+  if (normalizedValue.length === 0) {
+    return null
+  }
+
+  const parsedValue = Number(normalizedValue)
+  return Number.isFinite(parsedValue) ? parsedValue : null
+}
+
+const toTimelinePayload = (draft: TimelineEventDraft) => ({
+  title: draft.title.trim(),
+  description: draft.description.trim() || null,
+  startLabel: draft.startLabel.trim() || null,
+  endLabel: draft.endLabel.trim() || null,
+  startValue: normalizeTimelineNumber(draft.startValue),
+  endValue: normalizeTimelineNumber(draft.endValue),
+  category: draft.category.trim() || null,
+  color: draft.color.trim() || null,
+  participants: [],
+  changes: [],
+})
 
 export const fetchProjects = async () => {
   const response = await fetch(`${apiBaseUrl}/projects`)
@@ -441,6 +484,7 @@ export const createObjectRequest = async (
   territoryPlaceIds: number[],
   ownerOrganizationIds: number[],
   parentObjectIds: number[],
+  characterRelationships: DraftCharacterRelationship[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects`, {
     method: 'POST',
@@ -461,6 +505,7 @@ export const createObjectRequest = async (
       territoryPlaceIds,
       ownerOrganizationIds,
       parentObjectIds,
+      characterRelationships: normalizeCharacterRelationships(characterRelationships),
     }),
   })
   ensureOk(response, 'Failed to create object.')
@@ -497,6 +542,7 @@ export const createCharacterRequest = (
     [],
     [],
     [],
+    [],
   )
 
 export const updateObjectRequest = async (
@@ -516,6 +562,7 @@ export const updateObjectRequest = async (
   territoryPlaceIds: number[],
   ownerOrganizationIds: number[],
   parentObjectIds: number[],
+  characterRelationships: DraftCharacterRelationship[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects/${objectId}`, {
     method: 'PUT',
@@ -535,6 +582,7 @@ export const updateObjectRequest = async (
       territoryPlaceIds,
       ownerOrganizationIds,
       parentObjectIds,
+      characterRelationships: normalizeCharacterRelationships(characterRelationships),
     }),
   })
   ensureOk(response, 'Failed to update object.')
@@ -572,7 +620,51 @@ export const updateCharacterRequest = (
     [],
     [],
     [],
+    [],
   )
+
+export const fetchTimelineEvents = async (projectId: number) => {
+  const response = await fetch(`${apiBaseUrl}/projects/${projectId}/timeline/events`)
+  ensureOk(response, 'Failed to load timeline events.')
+
+  return (await response.json()) as TimelineEvent[]
+}
+
+export const createTimelineEventRequest = async (
+  projectId: number,
+  draft: TimelineEventDraft,
+) => {
+  const response = await fetch(`${apiBaseUrl}/projects/${projectId}/timeline/events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(toTimelinePayload(draft)),
+  })
+  ensureOk(response, 'Failed to create timeline event.')
+
+  return (await response.json()) as TimelineEvent
+}
+
+export const updateTimelineEventRequest = async (
+  projectId: number,
+  eventId: number,
+  draft: TimelineEventDraft,
+) => {
+  const response = await fetch(`${apiBaseUrl}/projects/${projectId}/timeline/events/${eventId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(toTimelinePayload(draft)),
+  })
+  ensureOk(response, 'Failed to update timeline event.')
+
+  return (await response.json()) as TimelineEvent
+}
+
+export const deleteTimelineEventRequest = async (projectId: number, eventId: number) => {
+  const response = await fetch(`${apiBaseUrl}/projects/${projectId}/timeline/events/${eventId}`, {
+    method: 'DELETE',
+  })
+  ensureOk(response, 'Failed to delete timeline event.')
+}
 
 export const deleteObjectRequest = async (projectId: number, objectId: number) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects/${objectId}`, {

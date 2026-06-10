@@ -498,6 +498,7 @@
 
 .modal-backdrop {
   position: fixed;
+  z-index: 100;
   inset: 0;
   display: grid;
   place-items: center;
@@ -680,6 +681,11 @@
 .new-project-details {
   display: grid;
   gap: 16px;
+}
+
+.object-dialog-tabs {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .project-name-field {
@@ -1880,6 +1886,303 @@
 .attribute-editor-body {
   display: grid;
   gap: 10px;
+}
+
+.relationship-summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.relationship-summary-card,
+.relationship-detail-card,
+.relationship-editor-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface);
+}
+
+.relationship-summary-card strong,
+.relationship-detail-card h3 {
+  margin: 0;
+  color: var(--heading);
+}
+
+.relationship-meter-row {
+  display: grid;
+  grid-template-columns: 110px minmax(80px, 1fr) 44px;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.relationship-meter-row meter {
+  width: 100%;
+}
+
+.relationship-meter-row b {
+  color: var(--text);
+  text-align: right;
+}
+
+.relationship-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-strong);
+  font-weight: 800;
+}
+
+.relationships-workspace {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 240px;
+  gap: 14px;
+  min-height: 620px;
+}
+
+.relationships-legend,
+.relationships-details {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+.relationships-legend h3 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 16px;
+}
+
+.legend-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.legend-line {
+  height: 3px;
+  border-radius: 999px;
+}
+
+.relationship-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.relationships-canvas {
+  position: relative;
+  min-height: 620px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, var(--page-grid) 1px, transparent 1px),
+    linear-gradient(var(--page-grid) 1px, transparent 1px),
+    color-mix(in srgb, var(--surface) 86%, transparent);
+  background-size: 24px 24px;
+}
+
+.relationships-canvas .react-flow {
+  color: var(--text);
+  background: transparent;
+}
+
+.relationships-canvas .react-flow__node {
+  width: 150px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 12px 26px var(--shadow);
+  font: inherit;
+}
+
+.relationships-canvas .react-flow__node-default {
+  width: 150px;
+}
+
+.relationship-flow-label {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+}
+
+.relationship-flow-label strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relationship-node-avatar {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #fffaf1;
+  background: var(--accent);
+  font-weight: 900;
+}
+
+.relationship-node-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.relationships-canvas .react-flow__edge-textbg {
+  fill: var(--surface);
+  stroke: var(--border-soft);
+}
+
+.relationships-canvas .react-flow__edge-text {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.relationships-canvas .react-flow__controls {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 12px 26px var(--shadow);
+}
+
+.relationships-canvas .react-flow__controls-button {
+  border-color: var(--border-soft);
+  background: var(--surface);
+  fill: var(--text);
+}
+
+.timeline-workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.timeline-events-panel,
+.timeline-editor-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+.timeline-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timeline-panel-header h3,
+.timeline-panel-header p {
+  margin: 0;
+}
+
+.timeline-panel-header h3 {
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.timeline-panel-header p {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.timeline-event-list {
+  display: grid;
+  gap: 10px;
+}
+
+.timeline-event-card {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 11px;
+  color: var(--text);
+  background: var(--surface-soft);
+  text-align: left;
+  cursor: pointer;
+}
+
+.timeline-event-card.is-active {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.timeline-event-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  margin-top: 3px;
+}
+
+.timeline-event-card strong,
+.timeline-event-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-event-card small {
+  grid-column: 2;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.timeline-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timeline-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.timeline-form-grid input[type='color'] {
+  min-height: 42px;
+  padding: 4px;
 }
 
 .character-attribute-group {
