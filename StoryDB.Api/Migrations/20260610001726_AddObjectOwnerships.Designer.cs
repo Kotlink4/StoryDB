@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using StoryDB.Api.Data;
@@ -11,9 +12,11 @@ using StoryDB.Api.Data;
 namespace StoryDB.Api.Migrations
 {
     [DbContext(typeof(StoryDbContext))]
-    partial class StoryDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260610001726_AddObjectOwnerships")]
+    partial class AddObjectOwnerships
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -525,38 +528,6 @@ namespace StoryDB.Api.Migrations
                     b.ToTable("ObjectOwnerships");
                 });
 
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.ObjectRelation", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("RelationType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SourceObjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TargetObjectId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TargetObjectId");
-
-                    b.HasIndex("SourceObjectId", "RelationType", "TargetObjectId")
-                        .IsUnique();
-
-                    b.ToTable("ObjectRelations");
-                });
-
             modelBuilder.Entity("StoryDB.Api.Data.Entities.ObjectType", b =>
                 {
                     b.Property<int>("Id")
@@ -1007,25 +978,6 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("OwnerCharacter");
                 });
 
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.ObjectRelation", b =>
-                {
-                    b.HasOne("StoryDB.Api.Data.Entities.StoryObject", "SourceObject")
-                        .WithMany("OutgoingRelations")
-                        .HasForeignKey("SourceObjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("StoryDB.Api.Data.Entities.StoryObject", "TargetObject")
-                        .WithMany("IncomingRelations")
-                        .HasForeignKey("TargetObjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SourceObject");
-
-                    b.Navigation("TargetObject");
-                });
-
             modelBuilder.Entity("StoryDB.Api.Data.Entities.ObjectType", b =>
                 {
                     b.HasOne("StoryDB.Api.Data.Entities.Project", "Project")
@@ -1212,10 +1164,6 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("CatalogSelections");
 
                     b.Navigation("HierarchySelections");
-
-                    b.Navigation("IncomingRelations");
-
-                    b.Navigation("OutgoingRelations");
 
                     b.Navigation("OwnedItems");
 

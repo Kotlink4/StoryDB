@@ -17,6 +17,8 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     public DbSet<HierarchyLink> HierarchyLinks => Set<HierarchyLink>();
     public DbSet<StoryObjectHierarchySelection> StoryObjectHierarchySelections => Set<StoryObjectHierarchySelection>();
     public DbSet<StoryObjectCatalogSelection> StoryObjectCatalogSelections => Set<StoryObjectCatalogSelection>();
+    public DbSet<ObjectOwnership> ObjectOwnerships => Set<ObjectOwnership>();
+    public DbSet<ObjectRelation> ObjectRelations => Set<ObjectRelation>();
     public DbSet<Catalog> Catalogs => Set<Catalog>();
     public DbSet<CatalogEntry> CatalogEntries => Set<CatalogEntry>();
     public DbSet<CatalogEntryGroup> CatalogEntryGroups => Set<CatalogEntryGroup>();
@@ -208,6 +210,41 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .WithMany()
             .HasForeignKey(selection => selection.CatalogEntryId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ObjectOwnership>()
+            .HasKey(ownership => new { ownership.OwnerCharacterId, ownership.ItemObjectId });
+
+        modelBuilder.Entity<ObjectOwnership>()
+            .HasOne(ownership => ownership.OwnerCharacter)
+            .WithMany(storyObject => storyObject.OwnedItems)
+            .HasForeignKey(ownership => ownership.OwnerCharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ObjectOwnership>()
+            .HasOne(ownership => ownership.ItemObject)
+            .WithMany(storyObject => storyObject.Owners)
+            .HasForeignKey(ownership => ownership.ItemObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ObjectRelation>()
+            .HasIndex(relation => new { relation.SourceObjectId, relation.RelationType, relation.TargetObjectId })
+            .IsUnique();
+
+        modelBuilder.Entity<ObjectRelation>()
+            .Property(relation => relation.RelationType)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<ObjectRelation>()
+            .HasOne(relation => relation.SourceObject)
+            .WithMany(storyObject => storyObject.OutgoingRelations)
+            .HasForeignKey(relation => relation.SourceObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ObjectRelation>()
+            .HasOne(relation => relation.TargetObject)
+            .WithMany(storyObject => storyObject.IncomingRelations)
+            .HasForeignKey(relation => relation.TargetObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Catalog>()
             .HasIndex(catalog => new { catalog.ProjectId, catalog.Key })

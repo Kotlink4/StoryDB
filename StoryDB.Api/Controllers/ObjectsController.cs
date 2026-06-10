@@ -30,6 +30,18 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .ThenInclude(selection => selection.CatalogEntryGroup)
             .Include(storyObject => storyObject.CatalogSelections)
             .ThenInclude(selection => selection.CatalogEntry)
+            .Include(storyObject => storyObject.OwnedItems)
+            .ThenInclude(ownership => ownership.ItemObject)
+            .ThenInclude(item => item!.ObjectType)
+            .Include(storyObject => storyObject.Owners)
+            .ThenInclude(ownership => ownership.OwnerCharacter)
+            .ThenInclude(owner => owner!.ObjectType)
+            .Include(storyObject => storyObject.OutgoingRelations)
+            .ThenInclude(relation => relation.TargetObject)
+            .ThenInclude(target => target!.ObjectType)
+            .Include(storyObject => storyObject.IncomingRelations)
+            .ThenInclude(relation => relation.SourceObject)
+            .ThenInclude(source => source!.ObjectType)
             .Where(storyObject =>
                 storyObject.ProjectId == projectId &&
                 storyObject.ObjectType != null &&
@@ -86,6 +98,27 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(catalogSelectionsResult.Error);
         }
 
+        var ownershipResult = await GetValidatedOwnershipSelections(
+            projectId,
+            objectType.Key,
+            request.OwnedItemIds,
+            request.OwnerCharacterIds);
+        if (ownershipResult.Error is not null)
+        {
+            return BadRequest(ownershipResult.Error);
+        }
+
+        var relationResult = await GetValidatedObjectRelations(
+            projectId,
+            objectType.Key,
+            request.TerritoryPlaceIds,
+            request.OwnerOrganizationIds,
+            request.ParentObjectIds);
+        if (relationResult.Error is not null)
+        {
+            return BadRequest(relationResult.Error);
+        }
+
         var now = DateTime.UtcNow;
         var storyObject = new StoryObject
         {
@@ -105,6 +138,20 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         };
 
         dbContext.Objects.Add(storyObject);
+        await dbContext.SaveChangesAsync();
+
+        storyObject.OwnedItems = objectType.Key == "characters"
+            ? ToOwnedItemLinks(storyObject.Id, ownershipResult.OwnedItemIds)
+            : [];
+        storyObject.Owners = objectType.Key == "items"
+            ? ToOwnerLinks(storyObject.Id, ownershipResult.OwnerCharacterIds)
+            : [];
+        storyObject.OutgoingRelations = ToObjectRelations(
+            storyObject.Id,
+            objectType.Key,
+            relationResult.TerritoryPlaceIds,
+            relationResult.OwnerOrganizationIds,
+            relationResult.ParentObjectIds);
         await dbContext.SaveChangesAsync();
 
         var dto = await GetObjectDto(projectId, storyObject.Id);
@@ -129,6 +176,9 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .Include(storyObject => storyObject.Attributes)
             .Include(storyObject => storyObject.HierarchySelections)
             .Include(storyObject => storyObject.CatalogSelections)
+            .Include(storyObject => storyObject.OwnedItems)
+            .Include(storyObject => storyObject.Owners)
+            .Include(storyObject => storyObject.OutgoingRelations)
             .FirstOrDefaultAsync(storyObject => storyObject.ProjectId == projectId && storyObject.Id == objectId);
 
         if (storyObject is null)
@@ -154,6 +204,28 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(catalogSelectionsResult.Error);
         }
 
+        var ownershipResult = await GetValidatedOwnershipSelections(
+            projectId,
+            storyObject.ObjectType!.Key,
+            request.OwnedItemIds,
+            request.OwnerCharacterIds);
+        if (ownershipResult.Error is not null)
+        {
+            return BadRequest(ownershipResult.Error);
+        }
+
+        var relationResult = await GetValidatedObjectRelations(
+            projectId,
+            storyObject.ObjectType.Key,
+            request.TerritoryPlaceIds,
+            request.OwnerOrganizationIds,
+            request.ParentObjectIds,
+            storyObject.Id);
+        if (relationResult.Error is not null)
+        {
+            return BadRequest(relationResult.Error);
+        }
+
         storyObject.Name = request.Name.Trim();
         storyObject.Surname = NormalizeOptionalText(request.Surname);
         storyObject.Description = NormalizeOptionalText(request.Description);
@@ -168,6 +240,21 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         storyObject.HierarchySelections = ToHierarchySelections(request.HierarchySelections);
         dbContext.StoryObjectCatalogSelections.RemoveRange(storyObject.CatalogSelections);
         storyObject.CatalogSelections = ToCatalogSelections(request.CatalogSelections);
+        dbContext.ObjectOwnerships.RemoveRange(storyObject.OwnedItems);
+        dbContext.ObjectOwnerships.RemoveRange(storyObject.Owners);
+        storyObject.OwnedItems = storyObject.ObjectType.Key == "characters"
+            ? ToOwnedItemLinks(storyObject.Id, ownershipResult.OwnedItemIds)
+            : [];
+        storyObject.Owners = storyObject.ObjectType.Key == "items"
+            ? ToOwnerLinks(storyObject.Id, ownershipResult.OwnerCharacterIds)
+            : [];
+        dbContext.ObjectRelations.RemoveRange(storyObject.OutgoingRelations);
+        storyObject.OutgoingRelations = ToObjectRelations(
+            storyObject.Id,
+            storyObject.ObjectType.Key,
+            relationResult.TerritoryPlaceIds,
+            relationResult.OwnerOrganizationIds,
+            relationResult.ParentObjectIds);
 
         await dbContext.SaveChangesAsync();
 
@@ -552,6 +639,18 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .ThenInclude(selection => selection.CatalogEntryGroup)
             .Include(currentObject => currentObject.CatalogSelections)
             .ThenInclude(selection => selection.CatalogEntry)
+            .Include(currentObject => currentObject.OwnedItems)
+            .ThenInclude(ownership => ownership.ItemObject)
+            .ThenInclude(item => item!.ObjectType)
+            .Include(currentObject => currentObject.Owners)
+            .ThenInclude(ownership => ownership.OwnerCharacter)
+            .ThenInclude(owner => owner!.ObjectType)
+            .Include(currentObject => currentObject.OutgoingRelations)
+            .ThenInclude(relation => relation.TargetObject)
+            .ThenInclude(target => target!.ObjectType)
+            .Include(currentObject => currentObject.IncomingRelations)
+            .ThenInclude(relation => relation.SourceObject)
+            .ThenInclude(source => source!.ObjectType)
             .FirstAsync(currentObject => currentObject.ProjectId == projectId && currentObject.Id == objectId);
 
         return ToDto(storyObject);
@@ -604,8 +703,240 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
                     selection.CatalogEntryGroup?.Name,
                     selection.CatalogEntryId,
                     selection.CatalogEntry?.Name))
-                .ToList());
+                .ToList(),
+            storyObject.OwnedItems
+                .Where(ownership => ownership.ItemObject is not null)
+                .OrderBy(ownership => ownership.SortOrder)
+                .Select(ownership => new ObjectReferenceDto(
+                    ownership.ItemObjectId,
+                    ownership.ItemObject!.Name,
+                    ownership.ItemObject.ImagePath,
+                    ownership.ItemObject.ObjectType?.Key ?? "items"))
+                .ToList(),
+            storyObject.Owners
+                .Where(ownership => ownership.OwnerCharacter is not null)
+                .OrderBy(ownership => ownership.SortOrder)
+                .Select(ownership => new ObjectReferenceDto(
+                    ownership.OwnerCharacterId,
+                    ownership.OwnerCharacter!.Name,
+                    ownership.OwnerCharacter.ImagePath,
+                    ownership.OwnerCharacter.ObjectType?.Key ?? "characters"))
+                .ToList(),
+            ToRelationReferences(storyObject.OutgoingRelations, "locatedOnTerritory", true),
+            ToRelationReferences(storyObject.IncomingRelations, "locatedOnTerritory", false),
+            ToRelationReferences(storyObject.OutgoingRelations, "territoryOwner", true),
+            ToRelationReferences(storyObject.IncomingRelations, "territoryOwner", false),
+            ToRelationReferences(storyObject.OutgoingRelations, "hierarchyParent", true),
+            ToRelationReferences(storyObject.IncomingRelations, "hierarchyParent", false)
+        );
     }
+
+    private static IReadOnlyList<ObjectReferenceDto> ToRelationReferences(
+        IEnumerable<ObjectRelation> relations,
+        string relationType,
+        bool useTargetObject)
+    {
+        return relations
+            .Where(relation => relation.RelationType == relationType)
+            .OrderBy(relation => relation.SortOrder)
+            .Select(relation => useTargetObject ? relation.TargetObject : relation.SourceObject)
+            .Where(storyObject => storyObject is not null)
+            .Select(storyObject => new ObjectReferenceDto(
+                storyObject!.Id,
+                storyObject.Name,
+                storyObject.ImagePath,
+                storyObject.ObjectType?.Key ?? string.Empty))
+            .ToList();
+    }
+
+    private async Task<OwnershipSelectionsValidationResult> GetValidatedOwnershipSelections(
+        int projectId,
+        string typeKey,
+        IReadOnlyList<int> ownedItemIds,
+        IReadOnlyList<int> ownerCharacterIds)
+    {
+        var normalizedOwnedItemIds = ownedItemIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+        var normalizedOwnerCharacterIds = ownerCharacterIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+
+        if (typeKey != "characters" && normalizedOwnedItemIds.Count > 0)
+        {
+            return new OwnershipSelectionsValidationResult("Only characters can own items.", [], []);
+        }
+
+        if (typeKey != "items" && normalizedOwnerCharacterIds.Count > 0)
+        {
+            return new OwnershipSelectionsValidationResult("Only items can have owners.", [], []);
+        }
+
+        if (normalizedOwnedItemIds.Count > 0)
+        {
+            var validItemCount = await dbContext.Objects.CountAsync(storyObject =>
+                storyObject.ProjectId == projectId &&
+                storyObject.ObjectType != null &&
+                storyObject.ObjectType.Key == "items" &&
+                normalizedOwnedItemIds.Contains(storyObject.Id));
+            if (validItemCount != normalizedOwnedItemIds.Count)
+            {
+                return new OwnershipSelectionsValidationResult("One or more owned items were not found.", [], []);
+            }
+        }
+
+        if (normalizedOwnerCharacterIds.Count > 0)
+        {
+            var validOwnerCount = await dbContext.Objects.CountAsync(storyObject =>
+                storyObject.ProjectId == projectId &&
+                storyObject.ObjectType != null &&
+                storyObject.ObjectType.Key == "characters" &&
+                normalizedOwnerCharacterIds.Contains(storyObject.Id));
+            if (validOwnerCount != normalizedOwnerCharacterIds.Count)
+            {
+                return new OwnershipSelectionsValidationResult("One or more owners were not found.", [], []);
+            }
+        }
+
+        return new OwnershipSelectionsValidationResult(
+            null,
+            normalizedOwnedItemIds,
+            normalizedOwnerCharacterIds);
+    }
+
+    private static List<ObjectOwnership> ToOwnedItemLinks(int ownerCharacterId, IReadOnlyList<int> itemIds) =>
+        itemIds
+            .Select((itemId, index) => new ObjectOwnership
+            {
+                OwnerCharacterId = ownerCharacterId,
+                ItemObjectId = itemId,
+                SortOrder = index,
+            })
+            .ToList();
+
+    private static List<ObjectOwnership> ToOwnerLinks(int itemObjectId, IReadOnlyList<int> ownerCharacterIds) =>
+        ownerCharacterIds
+            .Select((ownerCharacterId, index) => new ObjectOwnership
+            {
+                OwnerCharacterId = ownerCharacterId,
+                ItemObjectId = itemObjectId,
+                SortOrder = index,
+            })
+            .ToList();
+
+    private async Task<ObjectRelationsValidationResult> GetValidatedObjectRelations(
+        int projectId,
+        string typeKey,
+        IReadOnlyList<int> territoryPlaceIds,
+        IReadOnlyList<int> ownerOrganizationIds,
+        IReadOnlyList<int> parentObjectIds,
+        int? currentObjectId = null)
+    {
+        var normalizedTerritoryPlaceIds = NormalizeIds(territoryPlaceIds, currentObjectId);
+        var normalizedOwnerOrganizationIds = NormalizeIds(ownerOrganizationIds, currentObjectId);
+        var normalizedParentObjectIds = NormalizeIds(parentObjectIds, currentObjectId);
+
+        if (typeKey != "organizations" && normalizedTerritoryPlaceIds.Count > 0)
+        {
+            return new ObjectRelationsValidationResult("Only organizations can be placed on territories.", [], [], []);
+        }
+
+        if (typeKey != "places" && normalizedOwnerOrganizationIds.Count > 0)
+        {
+            return new ObjectRelationsValidationResult("Only places can belong to organizations.", [], [], []);
+        }
+
+        if (typeKey != "places" && typeKey != "organizations" && normalizedParentObjectIds.Count > 0)
+        {
+            return new ObjectRelationsValidationResult("Hierarchy is available only for places and organizations.", [], [], []);
+        }
+
+        if (!await AllObjectsMatchType(projectId, normalizedTerritoryPlaceIds, ["places"]))
+        {
+            return new ObjectRelationsValidationResult("One or more territories were not found.", [], [], []);
+        }
+
+        if (!await AllObjectsMatchType(projectId, normalizedOwnerOrganizationIds, ["organizations"]))
+        {
+            return new ObjectRelationsValidationResult("One or more owner organizations were not found.", [], [], []);
+        }
+
+        if (!await AllObjectsMatchType(projectId, normalizedParentObjectIds, ["places", "organizations"]))
+        {
+            return new ObjectRelationsValidationResult("One or more hierarchy parents were not found.", [], [], []);
+        }
+
+        return new ObjectRelationsValidationResult(
+            null,
+            normalizedTerritoryPlaceIds,
+            normalizedOwnerOrganizationIds,
+            normalizedParentObjectIds);
+    }
+
+    private async Task<bool> AllObjectsMatchType(
+        int projectId,
+        IReadOnlyList<int> objectIds,
+        IReadOnlyList<string> typeKeys)
+    {
+        if (objectIds.Count == 0)
+        {
+            return true;
+        }
+
+        var validCount = await dbContext.Objects.CountAsync(storyObject =>
+            storyObject.ProjectId == projectId &&
+            storyObject.ObjectType != null &&
+            typeKeys.Contains(storyObject.ObjectType.Key) &&
+            objectIds.Contains(storyObject.Id));
+
+        return validCount == objectIds.Count;
+    }
+
+    private static IReadOnlyList<int> NormalizeIds(IReadOnlyList<int> ids, int? excludedId = null) =>
+        ids
+            .Where(id => id > 0 && id != excludedId)
+            .Distinct()
+            .ToList();
+
+    private static List<ObjectRelation> ToObjectRelations(
+        int sourceObjectId,
+        string typeKey,
+        IReadOnlyList<int> territoryPlaceIds,
+        IReadOnlyList<int> ownerOrganizationIds,
+        IReadOnlyList<int> parentObjectIds)
+    {
+        var relations = new List<ObjectRelation>();
+        if (typeKey == "organizations")
+        {
+            relations.AddRange(ToObjectRelations(sourceObjectId, "locatedOnTerritory", territoryPlaceIds));
+        }
+
+        if (typeKey == "places")
+        {
+            relations.AddRange(ToObjectRelations(sourceObjectId, "territoryOwner", ownerOrganizationIds));
+        }
+
+        if (typeKey == "places" || typeKey == "organizations")
+        {
+            relations.AddRange(ToObjectRelations(sourceObjectId, "hierarchyParent", parentObjectIds));
+        }
+
+        return relations;
+    }
+
+    private static IEnumerable<ObjectRelation> ToObjectRelations(
+        int sourceObjectId,
+        string relationType,
+        IReadOnlyList<int> targetObjectIds) =>
+        targetObjectIds.Select((targetObjectId, index) => new ObjectRelation
+        {
+            SourceObjectId = sourceObjectId,
+            TargetObjectId = targetObjectId,
+            RelationType = relationType,
+            SortOrder = index,
+        });
 }
 
 public record CreateStoryObjectRequest(
@@ -618,7 +949,12 @@ public record CreateStoryObjectRequest(
     string? ImagePath,
     IReadOnlyList<CreateObjectAttributeRequest> Attributes,
     IReadOnlyList<ObjectHierarchySelectionRequest> HierarchySelections,
-    IReadOnlyList<ObjectCatalogSelectionRequest> CatalogSelections);
+    IReadOnlyList<ObjectCatalogSelectionRequest> CatalogSelections,
+    IReadOnlyList<int> OwnedItemIds,
+    IReadOnlyList<int> OwnerCharacterIds,
+    IReadOnlyList<int> TerritoryPlaceIds,
+    IReadOnlyList<int> OwnerOrganizationIds,
+    IReadOnlyList<int> ParentObjectIds);
 
 public record CreateObjectAttributeRequest(string Name, string? Value);
 
@@ -639,7 +975,12 @@ public record UpdateStoryObjectRequest(
     string? ImagePath,
     IReadOnlyList<CreateObjectAttributeRequest> Attributes,
     IReadOnlyList<ObjectHierarchySelectionRequest> HierarchySelections,
-    IReadOnlyList<ObjectCatalogSelectionRequest> CatalogSelections);
+    IReadOnlyList<ObjectCatalogSelectionRequest> CatalogSelections,
+    IReadOnlyList<int> OwnedItemIds,
+    IReadOnlyList<int> OwnerCharacterIds,
+    IReadOnlyList<int> TerritoryPlaceIds,
+    IReadOnlyList<int> OwnerOrganizationIds,
+    IReadOnlyList<int> ParentObjectIds);
 
 public record StoryObjectDto(
     int Id,
@@ -652,7 +993,17 @@ public record StoryObjectDto(
     string TypeKey,
     IReadOnlyList<ObjectAttributeDto> Attributes,
     IReadOnlyList<ObjectHierarchySelectionDto> HierarchySelections,
-    IReadOnlyList<ObjectCatalogSelectionDto> CatalogSelections);
+    IReadOnlyList<ObjectCatalogSelectionDto> CatalogSelections,
+    IReadOnlyList<ObjectReferenceDto> OwnedItems,
+    IReadOnlyList<ObjectReferenceDto> Owners,
+    IReadOnlyList<ObjectReferenceDto> TerritoryPlaces,
+    IReadOnlyList<ObjectReferenceDto> OrganizationsOnTerritory,
+    IReadOnlyList<ObjectReferenceDto> OwnerOrganizations,
+    IReadOnlyList<ObjectReferenceDto> OwnedTerritories,
+    IReadOnlyList<ObjectReferenceDto> HierarchyParents,
+    IReadOnlyList<ObjectReferenceDto> HierarchyChildren);
+
+public record ObjectReferenceDto(int Id, string Name, string? ImagePath, string TypeKey);
 
 public record ObjectAttributeDto(int Id, int AttributeDefinitionId, string Name, string? Value);
 
@@ -679,3 +1030,14 @@ public record AttributeDefinitionsValidationResult(
 public record HierarchySelectionsValidationResult(string? Error);
 
 public record CatalogSelectionsValidationResult(string? Error);
+
+public record OwnershipSelectionsValidationResult(
+    string? Error,
+    IReadOnlyList<int> OwnedItemIds,
+    IReadOnlyList<int> OwnerCharacterIds);
+
+public record ObjectRelationsValidationResult(
+    string? Error,
+    IReadOnlyList<int> TerritoryPlaceIds,
+    IReadOnlyList<int> OwnerOrganizationIds,
+    IReadOnlyList<int> ParentObjectIds);

@@ -18,7 +18,7 @@ import {
   deleteCatalogRequest,
   deleteHierarchyGroupRequest,
   deleteHierarchyNodeRequest,
-  createCharacterRequest,
+  createObjectRequest,
   createProjectRequest,
   deleteAttributeDefinitionRequest,
   deleteObjectRequest,
@@ -29,11 +29,11 @@ import {
   fetchCatalogEntryGroups,
   fetchCatalogFieldDefinitions,
   fetchCatalogs,
-  fetchCharacters,
+  fetchObjects,
   fetchHierarchyGroups,
   fetchHierarchyNodes,
   fetchProjects,
-  updateCharacterRequest,
+  updateObjectRequest,
   updateCatalogEntryGroupRequest,
   updateCatalogEntryRequest,
   updateCatalogRequest,
@@ -84,11 +84,11 @@ import { AttributeDefinitionsPanel } from './components/AttributeDefinitionsPane
 import { CatalogPanel } from './components/CatalogPanel'
 import { CatalogSidebarSection } from './components/CatalogSidebarSection'
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog'
-import { DatabaseModulesPanel } from './components/DatabaseModulesPanel'
 import { HierarchyPanel } from './components/HierarchyPanel'
 import { ImageDropzone } from './components/ImageDropzone'
 import { ObjectCard } from './components/ObjectCard'
 import { ProjectCard } from './components/ProjectCard'
+import { ReadySolutionsPanel } from './components/ReadySolutionsPanel'
 import './App.css'
 
 const translations = {
@@ -102,7 +102,19 @@ const translations = {
     cover: 'Cover',
     coverDropzone: 'Drag and drop a cover image here',
     projectDetails: 'Details',
-    databaseModules: 'Database modules',
+    databaseModules: 'Ready solutions',
+    readySolutions: 'Ready solutions',
+    readySolutionsHint: 'Choose prepared catalogs and characteristic groups to add to this project.',
+    presetKindAttributes: 'Characteristics',
+    presetKindCatalogs: 'Catalogs',
+    presetCharacterBasics: 'Character basics',
+    presetCharacterBasicsDescription: 'Origin, race, status, and short dossier fields for characters.',
+    presetBodyAttributes: 'Body',
+    presetBodyAttributesDescription: 'Height, weight, build, eyes, hair, and similar character details.',
+    presetWorldCatalogs: 'World reference',
+    presetWorldCatalogsDescription: 'Races, cultures, factions, locations, and artifacts catalogs.',
+    presetMagicSkillsCatalogs: 'Magic and skills',
+    presetMagicSkillsCatalogsDescription: 'Catalogs for magic schools, spells, skills, and abilities.',
     projects: 'Projects',
     settings: 'Settings',
     auth: 'Account',
@@ -114,6 +126,15 @@ const translations = {
     organizations: 'Organizations',
     catalogs: 'Catalogs',
     catalogValues: 'Catalog values',
+    ownedItems: 'Owned items',
+    itemOwners: 'Owners',
+    territoryPlaces: 'Territories',
+    organizationsOnTerritory: 'Organizations on this territory',
+    ownerOrganizations: 'Owner organizations',
+    ownedTerritories: 'Owned territories',
+    objectHierarchyParents: 'Hierarchy parents',
+    objectHierarchyChildren: 'Hierarchy children',
+    objectRelations: 'Object relations',
     addCatalogValue: 'Add catalog value',
     catalogValueType: 'Value type',
     newCatalog: 'New catalog',
@@ -155,6 +176,7 @@ const translations = {
     listView: 'List',
     newCharacter: 'New character',
     createCharacter: 'Create character',
+    objectName: 'Name',
     characterName: 'Character name',
     characterNamePlaceholder: 'Name the character',
     characterSurname: 'Surname',
@@ -268,7 +290,19 @@ const translations = {
     cover: 'Обложка',
     coverDropzone: 'Перетащи изображение обложки сюда',
     projectDetails: 'Детали',
-    databaseModules: 'Модули БД',
+    databaseModules: 'Готовые решения',
+    readySolutions: 'Готовые решения',
+    readySolutionsHint: 'Выбери готовые справочники и группы характеристик, которые нужно добавить в проект.',
+    presetKindAttributes: 'Характеристики',
+    presetKindCatalogs: 'Справочники',
+    presetCharacterBasics: 'Основы персонажа',
+    presetCharacterBasicsDescription: 'Происхождение, раса, статус и короткие поля для досье персонажей.',
+    presetBodyAttributes: 'Тело',
+    presetBodyAttributesDescription: 'Рост, вес, телосложение, глаза, волосы и похожие детали персонажа.',
+    presetWorldCatalogs: 'Справочник мира',
+    presetWorldCatalogsDescription: 'Справочники рас, культур, фракций, локаций и артефактов.',
+    presetMagicSkillsCatalogs: 'Магия и навыки',
+    presetMagicSkillsCatalogsDescription: 'Справочники школ магии, заклинаний, навыков и способностей.',
     projects: 'Проекты',
     settings: 'Настройки',
     auth: 'Аккаунт',
@@ -280,6 +314,15 @@ const translations = {
     organizations: 'Организации',
     catalogs: 'Каталоги',
     catalogValues: 'Значения каталогов',
+    ownedItems: 'Предметы во владении',
+    itemOwners: 'Владельцы',
+    territoryPlaces: 'Территории',
+    organizationsOnTerritory: 'Организации на территории',
+    ownerOrganizations: 'Организации-владельцы',
+    ownedTerritories: 'Территории во владении',
+    objectHierarchyParents: 'Родители иерархии',
+    objectHierarchyChildren: 'Дочерние элементы',
+    objectRelations: 'Связи объектов',
     addCatalogValue: 'Добавить значение каталога',
     catalogValueType: 'Тип значения',
     newCatalog: 'Новый каталог',
@@ -320,6 +363,7 @@ const translations = {
     listView: 'Список',
     newCharacter: 'Новый персонаж',
     createCharacter: 'Создать персонажа',
+    objectName: 'Название',
     characterName: 'Имя персонажа',
     characterNamePlaceholder: 'Назови персонажа',
     characterSurname: 'Фамилия',
@@ -435,6 +479,12 @@ const allObjectTypeKeys: ObjectTypeKey[] = [
   'hierarchy',
 ]
 const attributeScopeKeys: ObjectTypeKey[] = ['characters', 'items', 'places', 'organizations']
+const defaultProjectObjectTypeKeys: ObjectTypeKey[] = [
+  'characters',
+  'items',
+  'places',
+  'organizations',
+]
 
 const readStoredSettings = (): StoredSettings => {
   const storedSettings = localStorage.getItem(settingsStorageKey)
@@ -553,6 +603,10 @@ function StoryDbApp() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('grid')
   const [projects, setProjects] = useState<StoryProject[]>([])
   const [characters, setCharacters] = useState<StoryObject[]>([])
+  const [ownershipCharacters, setOwnershipCharacters] = useState<StoryObject[]>([])
+  const [ownershipItems, setOwnershipItems] = useState<StoryObject[]>([])
+  const [relationPlaces, setRelationPlaces] = useState<StoryObject[]>([])
+  const [relationOrganizations, setRelationOrganizations] = useState<StoryObject[]>([])
   const [attributeDefinitions, setAttributeDefinitions] = useState<AttributeDefinition[]>([])
   const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([])
   const [activeAttributeGroupId, setActiveAttributeGroupId] = useState<number | null>(null)
@@ -597,8 +651,9 @@ function StoryDbApp() {
   const [projectName, setProjectName] = useState('')
   const [projectCoverImagePath, setProjectCoverImagePath] = useState<string | null>(null)
   const [enabledObjectTypeKeys, setEnabledObjectTypeKeys] = useState<ObjectTypeKey[]>([
-    'characters',
+    ...defaultProjectObjectTypeKeys,
   ])
+  const [selectedProjectPresetKeys, setSelectedProjectPresetKeys] = useState<string[]>([])
   const [characterName, setCharacterName] = useState('')
   const [characterSurname, setCharacterSurname] = useState('')
   const [characterAge, setCharacterAge] = useState('')
@@ -610,6 +665,11 @@ function StoryDbApp() {
   ])
   const [draftHierarchySelections, setDraftHierarchySelections] = useState<DraftHierarchySelection[]>([])
   const [draftCatalogSelections, setDraftCatalogSelections] = useState<DraftCatalogSelection[]>([])
+  const [draftOwnedItemIds, setDraftOwnedItemIds] = useState<number[]>([])
+  const [draftOwnerCharacterIds, setDraftOwnerCharacterIds] = useState<number[]>([])
+  const [draftTerritoryPlaceIds, setDraftTerritoryPlaceIds] = useState<number[]>([])
+  const [draftOwnerOrganizationIds, setDraftOwnerOrganizationIds] = useState<number[]>([])
+  const [draftParentObjectIds, setDraftParentObjectIds] = useState<number[]>([])
   const [newHierarchySelectionGroupId, setNewHierarchySelectionGroupId] = useState('')
   const [isAttributePickerOpen, setIsAttributePickerOpen] = useState(false)
   const [newCharacterAttributeName, setNewCharacterAttributeName] = useState('')
@@ -684,6 +744,12 @@ function StoryDbApp() {
   const effectiveAttributeScope = enabledAttributeScopes.includes(attributeScope)
     ? attributeScope
     : enabledAttributeScopes[0] ?? 'characters'
+  const currentObjectTypeKey = attributeScopeKeys.includes(workspaceSection as ObjectTypeKey)
+    ? (workspaceSection as ObjectTypeKey)
+    : 'characters'
+  const currentObjectTypeLabel = t[currentObjectTypeKey] ?? t.characters
+  const isObjectWorkspaceSection = attributeScopeKeys.includes(workspaceSection as ObjectTypeKey)
+  const dialogObjectTypeKey = (editingCharacter?.typeKey as ObjectTypeKey | undefined) ?? currentObjectTypeKey
   const activeAttributeGroup = useMemo(
     () =>
       activeAttributeGroupId === null
@@ -861,7 +927,11 @@ function StoryDbApp() {
       return undefined
     }
 
-    void fetchCharacters(selectedProject.id)
+    if (!isObjectWorkspaceSection) {
+      return undefined
+    }
+
+    void fetchObjects(selectedProject.id, currentObjectTypeKey)
       .then((data) => {
         if (isActive) {
           setCharacters(data)
@@ -876,7 +946,13 @@ function StoryDbApp() {
     return () => {
       isActive = false
     }
-  }, [isWorkspace, selectedProject, t.apiUnavailable])
+  }, [
+    currentObjectTypeKey,
+    isObjectWorkspaceSection,
+    isWorkspace,
+    selectedProject,
+    t.apiUnavailable,
+  ])
 
   useEffect(() => {
     let isActive = true
@@ -884,12 +960,12 @@ function StoryDbApp() {
     if (
       !isWorkspace ||
       selectedProject === null ||
-      (workspaceSection !== 'attributes' && workspaceSection !== 'characters')
+      (workspaceSection !== 'attributes' && !isObjectWorkspaceSection)
     ) {
       return undefined
     }
 
-    const typeKey = workspaceSection === 'attributes' ? effectiveAttributeScope : 'characters'
+    const typeKey = workspaceSection === 'attributes' ? effectiveAttributeScope : currentObjectTypeKey
 
     void Promise.all([
       fetchAttributeDefinitions(selectedProject.id, typeKey),
@@ -910,7 +986,15 @@ function StoryDbApp() {
     return () => {
       isActive = false
     }
-  }, [effectiveAttributeScope, isWorkspace, selectedProject, t.apiUnavailable, workspaceSection])
+  }, [
+    currentObjectTypeKey,
+    effectiveAttributeScope,
+    isObjectWorkspaceSection,
+    isWorkspace,
+    selectedProject,
+    t.apiUnavailable,
+    workspaceSection,
+  ])
 
   useEffect(() => {
     let isActive = true
@@ -1158,6 +1242,41 @@ function StoryDbApp() {
     let isActive = true
 
     if (
+      selectedProject === null ||
+      (dialog !== 'newCharacter' && dialog !== 'editCharacter' && dialog !== 'character')
+    ) {
+      return undefined
+    }
+
+    void Promise.all([
+      fetchObjects(selectedProject.id, 'characters'),
+      fetchObjects(selectedProject.id, 'items'),
+      fetchObjects(selectedProject.id, 'places'),
+      fetchObjects(selectedProject.id, 'organizations'),
+    ])
+      .then(([loadedCharacters, loadedItems, loadedPlaces, loadedOrganizations]) => {
+        if (isActive) {
+          setOwnershipCharacters(loadedCharacters)
+          setOwnershipItems(loadedItems)
+          setRelationPlaces(loadedPlaces)
+          setRelationOrganizations(loadedOrganizations)
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setApiError(t.apiUnavailable)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [dialog, selectedProject, t.apiUnavailable])
+
+  useEffect(() => {
+    let isActive = true
+
+    if (
       !isWorkspace ||
       selectedProject === null ||
       workspaceSection !== 'hierarchy' ||
@@ -1202,6 +1321,11 @@ function StoryDbApp() {
     setIsCharacterHierarchyExpanded(true)
     setDraftHierarchySelections([])
     setDraftCatalogSelections([])
+    setDraftOwnedItemIds([])
+    setDraftOwnerCharacterIds([])
+    setDraftTerritoryPlaceIds([])
+    setDraftOwnerOrganizationIds([])
+    setDraftParentObjectIds([])
     setNewHierarchySelectionGroupId('')
     setNewCharacterAttributeName('')
     setNewCharacterAttributeValue('')
@@ -1224,6 +1348,7 @@ function StoryDbApp() {
       ),
     )
     setNewProjectTab('details')
+    setSelectedProjectPresetKeys([])
     setDialog('editProject')
   }
 
@@ -1261,6 +1386,11 @@ function StoryDbApp() {
         catalogEntryId: selection.catalogEntryId === null ? '' : String(selection.catalogEntryId),
       })),
     )
+    setDraftOwnedItemIds(storyObject.ownedItems.map((item) => item.id))
+    setDraftOwnerCharacterIds(storyObject.owners.map((owner) => owner.id))
+    setDraftTerritoryPlaceIds(storyObject.territoryPlaces.map((place) => place.id))
+    setDraftOwnerOrganizationIds(storyObject.ownerOrganizations.map((organization) => organization.id))
+    setDraftParentObjectIds(storyObject.hierarchyParents.map((parent) => parent.id))
     setDraftAttributes(
       storyObject.attributes.length > 0
         ? storyObject.attributes.map((attribute) => ({
@@ -1440,10 +1570,12 @@ function StoryDbApp() {
         trimmedName,
         projectCoverImagePath,
         normalizeObjectTypeKeys(enabledObjectTypeKeys),
+        selectedProjectPresetKeys,
       )
       setProjectName('')
       setProjectCoverImagePath(null)
-      setEnabledObjectTypeKeys(['characters'])
+      setEnabledObjectTypeKeys([...defaultProjectObjectTypeKeys])
+      setSelectedProjectPresetKeys([])
       closeDialog()
       setProjects((currentProjects) => [createdProject, ...currentProjects])
     } catch {
@@ -1468,6 +1600,7 @@ function StoryDbApp() {
         trimmedName,
         projectCoverImagePath,
         normalizeObjectTypeKeys(enabledObjectTypeKeys),
+        selectedProjectPresetKeys,
       )
       setProjects((currentProjects) =>
         currentProjects.map((project) =>
@@ -1485,7 +1618,8 @@ function StoryDbApp() {
 
       setProjectName('')
       setProjectCoverImagePath(null)
-      setEnabledObjectTypeKeys(['characters'])
+      setEnabledObjectTypeKeys([...defaultProjectObjectTypeKeys])
+      setSelectedProjectPresetKeys([])
       closeDialog()
     } catch {
       setApiError(t.apiUnavailable)
@@ -1530,6 +1664,12 @@ function StoryDbApp() {
 
       setCharacters((currentCharacters) =>
         currentCharacters.filter((currentCharacter) => currentCharacter.id !== storyObject.id),
+      )
+      setOwnershipCharacters((currentObjects) =>
+        currentObjects.filter((currentObject) => currentObject.id !== storyObject.id),
+      )
+      setOwnershipItems((currentObjects) =>
+        currentObjects.filter((currentObject) => currentObject.id !== storyObject.id),
       )
 
       if (selectedCharacter?.id === storyObject.id) {
@@ -1778,7 +1918,7 @@ function StoryDbApp() {
 
       const createdDefinition = await createAttributeDefinitionRequest(
         selectedProject.id,
-        'characters',
+        currentObjectTypeKey,
         {
           ...createEmptyAttributeDefinitionDraft(),
           name: attributeName,
@@ -1808,7 +1948,10 @@ function StoryDbApp() {
       setFormError(t.validationDescriptionTooLong)
       return
     }
-    if (characterSurname.length > 120 || characterAge.length > 120 || characterRole.length > 120) {
+    if (
+      currentObjectTypeKey === 'characters' &&
+      (characterSurname.length > 120 || characterAge.length > 120 || characterRole.length > 120)
+    ) {
       setFormError(t.validationCharacterDetailTooLong)
       return
     }
@@ -1817,19 +1960,33 @@ function StoryDbApp() {
       setApiError(null)
       setFormError(null)
       await ensureDraftAttributeDefinitions()
-      const createdCharacter = await createCharacterRequest(
+      const createdCharacter = await createObjectRequest(
         selectedProject.id,
+        currentObjectTypeKey,
         characterName.trim(),
-        characterSurname,
+        currentObjectTypeKey === 'characters' ? characterSurname : '',
         characterDescription,
-        characterAge,
-        characterRole,
+        currentObjectTypeKey === 'characters' ? characterAge : '',
+        currentObjectTypeKey === 'characters' ? characterRole : '',
         characterImagePath,
         draftAttributes,
         draftHierarchySelections,
         draftCatalogSelections,
+        currentObjectTypeKey === 'characters' ? draftOwnedItemIds : [],
+        currentObjectTypeKey === 'items' ? draftOwnerCharacterIds : [],
+        currentObjectTypeKey === 'organizations' ? draftTerritoryPlaceIds : [],
+        currentObjectTypeKey === 'places' ? draftOwnerOrganizationIds : [],
+        currentObjectTypeKey === 'places' || currentObjectTypeKey === 'organizations'
+          ? draftParentObjectIds
+          : [],
       )
       setCharacters((currentCharacters) => [...currentCharacters, createdCharacter])
+      if (createdCharacter.typeKey === 'characters') {
+        setOwnershipCharacters((currentObjects) => [...currentObjects, createdCharacter])
+      }
+      if (createdCharacter.typeKey === 'items') {
+        setOwnershipItems((currentObjects) => [...currentObjects, createdCharacter])
+      }
       setCharacterName('')
       setCharacterSurname('')
       setCharacterDescription('')
@@ -1839,6 +1996,11 @@ function StoryDbApp() {
       setDraftAttributes([{ name: '', value: '' }])
       setDraftHierarchySelections([])
       setDraftCatalogSelections([])
+      setDraftOwnedItemIds([])
+      setDraftOwnerCharacterIds([])
+      setDraftTerritoryPlaceIds([])
+      setDraftOwnerOrganizationIds([])
+      setDraftParentObjectIds([])
       closeDialog()
     } catch {
       setApiError(t.apiUnavailable)
@@ -1862,7 +2024,10 @@ function StoryDbApp() {
       setFormError(t.validationDescriptionTooLong)
       return
     }
-    if (characterSurname.length > 120 || characterAge.length > 120 || characterRole.length > 120) {
+    if (
+      editingCharacter.typeKey === 'characters' &&
+      (characterSurname.length > 120 || characterAge.length > 120 || characterRole.length > 120)
+    ) {
       setFormError(t.validationCharacterDetailTooLong)
       return
     }
@@ -1871,24 +2036,45 @@ function StoryDbApp() {
       setApiError(null)
       setFormError(null)
       await ensureDraftAttributeDefinitions()
-      const updatedCharacter = await updateCharacterRequest(
+      const updatedCharacter = await updateObjectRequest(
         selectedProject.id,
         editingCharacter.id,
         characterName.trim(),
-        characterSurname,
+        editingCharacter.typeKey === 'characters' ? characterSurname : '',
         characterDescription,
-        characterAge,
-        characterRole,
+        editingCharacter.typeKey === 'characters' ? characterAge : '',
+        editingCharacter.typeKey === 'characters' ? characterRole : '',
         characterImagePath,
         draftAttributes,
         draftHierarchySelections,
         draftCatalogSelections,
+        editingCharacter.typeKey === 'characters' ? draftOwnedItemIds : [],
+        editingCharacter.typeKey === 'items' ? draftOwnerCharacterIds : [],
+        editingCharacter.typeKey === 'organizations' ? draftTerritoryPlaceIds : [],
+        editingCharacter.typeKey === 'places' ? draftOwnerOrganizationIds : [],
+        editingCharacter.typeKey === 'places' || editingCharacter.typeKey === 'organizations'
+          ? draftParentObjectIds
+          : [],
       )
       setCharacters((currentCharacters) =>
         currentCharacters.map((character) =>
           character.id === updatedCharacter.id ? updatedCharacter : character,
         ),
       )
+      if (updatedCharacter.typeKey === 'characters') {
+        setOwnershipCharacters((currentObjects) =>
+          currentObjects.map((storyObject) =>
+            storyObject.id === updatedCharacter.id ? updatedCharacter : storyObject,
+          ),
+        )
+      }
+      if (updatedCharacter.typeKey === 'items') {
+        setOwnershipItems((currentObjects) =>
+          currentObjects.map((storyObject) =>
+            storyObject.id === updatedCharacter.id ? updatedCharacter : storyObject,
+          ),
+        )
+      }
       setSelectedCharacter(updatedCharacter)
       setCharacterName('')
       setCharacterSurname('')
@@ -1899,6 +2085,11 @@ function StoryDbApp() {
       setDraftAttributes([{ name: '', value: '' }])
       setDraftHierarchySelections([])
       setDraftCatalogSelections([])
+      setDraftOwnedItemIds([])
+      setDraftOwnerCharacterIds([])
+      setDraftTerritoryPlaceIds([])
+      setDraftOwnerOrganizationIds([])
+      setDraftParentObjectIds([])
       closeDialog()
     } catch {
       setApiError(t.apiUnavailable)
@@ -1972,8 +2163,8 @@ function StoryDbApp() {
       setAttributeDefinitions((currentDefinitions) =>
         currentDefinitions.filter((currentDefinition) => currentDefinition.id !== definition.id),
       )
-      if (definition.typeKey === 'characters') {
-        const updatedCharacters = await fetchCharacters(selectedProject.id)
+      if (attributeScopeKeys.includes(definition.typeKey)) {
+        const updatedCharacters = await fetchObjects(selectedProject.id, definition.typeKey)
         setCharacters(updatedCharacters)
         setSelectedCharacter((currentCharacter) =>
           currentCharacter === null
@@ -2186,6 +2377,28 @@ function StoryDbApp() {
     setCatalogPanelPage('entry')
   }
 
+  const openObjectReference = async (typeKey: ObjectTypeKey, objectId: number) => {
+    if (selectedProject === null) {
+      return
+    }
+
+    try {
+      setApiError(null)
+      const objects = await fetchObjects(selectedProject.id, typeKey)
+      setWorkspaceTab('database')
+      setWorkspaceSection(typeKey)
+      setModuleSubTab('cards')
+      setCharacters(objects)
+      const storyObject = objects.find((currentObject) => currentObject.id === objectId) ?? null
+      if (storyObject !== null) {
+        setSelectedCharacter(storyObject)
+        setDialog('character')
+      }
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
+  }
+
   const updateCatalogHierarchySettings = async (
     catalog: Catalog,
     supportsHierarchy: boolean,
@@ -2387,9 +2600,9 @@ function StoryDbApp() {
       setAttributeDefinitions((currentDefinitions) =>
         currentDefinitions.filter((definition) => definition.groupName !== group.name),
       )
-      if (group.typeKey === 'characters') {
+      if (attributeScopeKeys.includes(group.typeKey)) {
         const removedNames = new Set(removedDefinitionNames)
-        const updatedCharacters = await fetchCharacters(selectedProject.id)
+        const updatedCharacters = await fetchObjects(selectedProject.id, group.typeKey)
         setCharacters(updatedCharacters)
         setSelectedCharacter((currentCharacter) =>
           currentCharacter === null
@@ -2877,7 +3090,8 @@ function StoryDbApp() {
                 setEditingProject(null)
                 setProjectName('')
                 setProjectCoverImagePath(null)
-                setEnabledObjectTypeKeys(['characters'])
+                setEnabledObjectTypeKeys([...defaultProjectObjectTypeKeys])
+                setSelectedProjectPresetKeys([])
                 setNewProjectTab('details')
                 setDialog('newProject')
               }}
@@ -3102,7 +3316,7 @@ function StoryDbApp() {
             <header className="workspace-toolbar">
               <div className="workspace-actions">
                 {workspaceTab === 'database' &&
-                  workspaceSection === 'characters' &&
+                  isObjectWorkspaceSection &&
                   moduleSubTab === 'cards' && (
                   <button
                     className="primary-action compact"
@@ -3120,6 +3334,11 @@ function StoryDbApp() {
                       setIsCharacterHierarchyExpanded(true)
                       setDraftHierarchySelections([])
                       setDraftCatalogSelections([])
+                      setDraftOwnedItemIds([])
+                      setDraftOwnerCharacterIds([])
+                      setDraftTerritoryPlaceIds([])
+                      setDraftOwnerOrganizationIds([])
+                      setDraftParentObjectIds([])
                       setNewHierarchySelectionGroupId('')
                       setNewCharacterAttributeName('')
                       setNewCharacterAttributeValue('')
@@ -3131,7 +3350,7 @@ function StoryDbApp() {
                       setDialog('newCharacter')
                     }}
                   >
-                    {t.newCharacter}
+                    {`${t.newCharacter}: ${currentObjectTypeLabel}`}
                   </button>
                 )}
                 <div className="layout-toggle" role="group" aria-label="Layout">
@@ -3286,10 +3505,9 @@ function StoryDbApp() {
               />
             )}
 
-            {moduleSubTab === 'cards' && workspaceSection !== 'hierarchy' && workspaceSection !== 'catalogs' && (
+            {moduleSubTab === 'cards' && isObjectWorkspaceSection && (
               <div className={layoutMode === 'grid' ? 'folder-view grid' : 'folder-view list'}>
               {workspaceTab === 'database' &&
-                workspaceSection === 'characters' &&
                 characters.map((character) => (
                   <ObjectCard
                     activeMenuId={activeObjectMenuId}
@@ -3485,7 +3703,9 @@ function StoryDbApp() {
                 )}
                 <div className="dossier-fields">
                   <div>
-                    <p className="setting-label">{t.characters}</p>
+                    <p className="setting-label">
+                      {t[selectedCharacter.typeKey as ObjectTypeKey] ?? selectedCharacter.typeKey}
+                    </p>
                     <h3>
                       {selectedCharacter.name}
                       {selectedCharacter.surname !== null && (
@@ -3493,16 +3713,18 @@ function StoryDbApp() {
                       )}
                     </h3>
                   </div>
-                  <dl className="character-detail-summary">
-                    <div>
-                      <dt>{t.characterAge}</dt>
-                      <dd>{selectedCharacter.age ?? '-'}</dd>
-                    </div>
-                    <div>
-                      <dt>{t.characterRole}</dt>
-                      <dd>{selectedCharacter.role ?? '-'}</dd>
-                    </div>
-                  </dl>
+                  {selectedCharacter.typeKey === 'characters' && (
+                    <dl className="character-detail-summary">
+                      <div>
+                        <dt>{t.characterAge}</dt>
+                        <dd>{selectedCharacter.age ?? '-'}</dd>
+                      </div>
+                      <div>
+                        <dt>{t.characterRole}</dt>
+                        <dd>{selectedCharacter.role ?? '-'}</dd>
+                      </div>
+                    </dl>
+                  )}
                   <div>
                     <p className="setting-label">{t.description}</p>
                     <p>{selectedCharacter.description}</p>
@@ -3586,6 +3808,71 @@ function StoryDbApp() {
                       </div>
                     </section>
                   )}
+                  {selectedCharacter.ownedItems.length > 0 && (
+                    <section className="dossier-attributes-section">
+                      <h4>{t.ownedItems}</h4>
+                      <div className="catalog-reference-values">
+                        {selectedCharacter.ownedItems.map((item) => (
+                          <button
+                            className="inline-link-button"
+                            key={item.id}
+                            type="button"
+                            onClick={() => void openObjectReference('items', item.id)}
+                          >
+                            {item.name}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {selectedCharacter.owners.length > 0 && (
+                    <section className="dossier-attributes-section">
+                      <h4>{t.itemOwners}</h4>
+                      <div className="catalog-reference-values">
+                        {selectedCharacter.owners.map((owner) => (
+                          <button
+                            className="inline-link-button"
+                            key={owner.id}
+                            type="button"
+                            onClick={() => void openObjectReference('characters', owner.id)}
+                          >
+                            {owner.name}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {[
+                    { title: t.territoryPlaces, values: selectedCharacter.territoryPlaces },
+                    { title: t.organizationsOnTerritory, values: selectedCharacter.organizationsOnTerritory },
+                    { title: t.ownerOrganizations, values: selectedCharacter.ownerOrganizations },
+                    { title: t.ownedTerritories, values: selectedCharacter.ownedTerritories },
+                    { title: t.objectHierarchyParents, values: selectedCharacter.hierarchyParents },
+                    { title: t.objectHierarchyChildren, values: selectedCharacter.hierarchyChildren },
+                  ]
+                    .filter((group) => group.values.length > 0)
+                    .map((group) => (
+                      <section className="dossier-attributes-section" key={group.title}>
+                        <h4>{group.title}</h4>
+                        <div className="catalog-reference-values">
+                          {group.values.map((objectReference) => (
+                            <button
+                              className="inline-link-button"
+                              key={`${group.title}-${objectReference.id}`}
+                              type="button"
+                              onClick={() =>
+                                void openObjectReference(
+                                  objectReference.typeKey as ObjectTypeKey,
+                                  objectReference.id,
+                                )
+                              }
+                            >
+                              {objectReference.name}
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
                   </div>
                 </div>
               </section>
@@ -3606,44 +3893,52 @@ function StoryDbApp() {
 
                 <div className="character-detail-fields">
                   <label className="project-name-field">
-                    <span>{t.characterName}</span>
+                    <span>{dialogObjectTypeKey === 'characters' ? t.characterName : t.objectName}</span>
                     <input
                       type="text"
                       value={characterName}
                       onChange={(event) => setCharacterName(event.target.value)}
-                      placeholder={t.characterNamePlaceholder}
+                      placeholder={
+                        dialogObjectTypeKey === 'characters'
+                          ? t.characterNamePlaceholder
+                          : t.objectName
+                      }
                     />
                   </label>
 
-                  <label className="project-name-field">
-                    <span>{t.characterSurname}</span>
-                    <input
-                      type="text"
-                      value={characterSurname}
-                      onChange={(event) => setCharacterSurname(event.target.value)}
-                      placeholder={t.characterSurnamePlaceholder}
-                    />
-                  </label>
+                  {dialogObjectTypeKey === 'characters' && (
+                    <>
+                      <label className="project-name-field">
+                        <span>{t.characterSurname}</span>
+                        <input
+                          type="text"
+                          value={characterSurname}
+                          onChange={(event) => setCharacterSurname(event.target.value)}
+                          placeholder={t.characterSurnamePlaceholder}
+                        />
+                      </label>
 
-                  <label className="project-name-field">
-                    <span>{t.characterAge}</span>
-                    <input
-                      type="text"
-                      value={characterAge}
-                      onChange={(event) => setCharacterAge(event.target.value)}
-                      placeholder={t.characterAgePlaceholder}
-                    />
-                  </label>
+                      <label className="project-name-field">
+                        <span>{t.characterAge}</span>
+                        <input
+                          type="text"
+                          value={characterAge}
+                          onChange={(event) => setCharacterAge(event.target.value)}
+                          placeholder={t.characterAgePlaceholder}
+                        />
+                      </label>
 
-                  <label className="project-name-field">
-                    <span>{t.characterRole}</span>
-                    <input
-                      type="text"
-                      value={characterRole}
-                      onChange={(event) => setCharacterRole(event.target.value)}
-                      placeholder={t.characterRolePlaceholder}
-                    />
-                  </label>
+                      <label className="project-name-field">
+                        <span>{t.characterRole}</span>
+                        <input
+                          type="text"
+                          value={characterRole}
+                          onChange={(event) => setCharacterRole(event.target.value)}
+                          placeholder={t.characterRolePlaceholder}
+                        />
+                      </label>
+                    </>
+                  )}
                 </div>
 
                 <label className="project-name-field character-description-field">
@@ -3941,6 +4236,136 @@ function StoryDbApp() {
                     )}
                   </section>
                 )}
+                {(dialogObjectTypeKey === 'characters' || dialogObjectTypeKey === 'items') && (
+                  <section className="attribute-editor collapsible-block">
+                    <div className="attribute-editor-header">
+                      <div className="collapse-heading static-heading">
+                        {dialogObjectTypeKey === 'characters' ? t.ownedItems : t.itemOwners}
+                      </div>
+                    </div>
+                    <div className="attribute-editor-body">
+                      {dialogObjectTypeKey === 'characters' && (
+                        <label className="hierarchy-selection-field">
+                          <span>{t.ownedItems}</span>
+                          <select
+                            multiple
+                            value={draftOwnedItemIds.map(String)}
+                            onChange={(event) =>
+                              setDraftOwnedItemIds(
+                                Array.from(event.target.selectedOptions).map((option) =>
+                                  Number(option.value),
+                                ),
+                              )
+                            }
+                          >
+                            {ownershipItems.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {dialogObjectTypeKey === 'items' && (
+                        <label className="hierarchy-selection-field">
+                          <span>{t.itemOwners}</span>
+                          <select
+                            multiple
+                            value={draftOwnerCharacterIds.map(String)}
+                            onChange={(event) =>
+                              setDraftOwnerCharacterIds(
+                                Array.from(event.target.selectedOptions).map((option) =>
+                                  Number(option.value),
+                                ),
+                              )
+                            }
+                          >
+                            {ownershipCharacters.map((character) => (
+                              <option key={character.id} value={character.id}>
+                                {character.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                  </section>
+                )}
+                {(dialogObjectTypeKey === 'places' || dialogObjectTypeKey === 'organizations') && (
+                  <section className="attribute-editor collapsible-block">
+                    <div className="attribute-editor-header">
+                      <div className="collapse-heading static-heading">{t.objectRelations}</div>
+                    </div>
+                    <div className="attribute-editor-body">
+                      {dialogObjectTypeKey === 'organizations' && (
+                        <label className="hierarchy-selection-field">
+                          <span>{t.territoryPlaces}</span>
+                          <select
+                            multiple
+                            value={draftTerritoryPlaceIds.map(String)}
+                            onChange={(event) =>
+                              setDraftTerritoryPlaceIds(
+                                Array.from(event.target.selectedOptions).map((option) =>
+                                  Number(option.value),
+                                ),
+                              )
+                            }
+                          >
+                            {relationPlaces.map((place) => (
+                              <option key={place.id} value={place.id}>
+                                {place.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {dialogObjectTypeKey === 'places' && (
+                        <label className="hierarchy-selection-field">
+                          <span>{t.ownerOrganizations}</span>
+                          <select
+                            multiple
+                            value={draftOwnerOrganizationIds.map(String)}
+                            onChange={(event) =>
+                              setDraftOwnerOrganizationIds(
+                                Array.from(event.target.selectedOptions).map((option) =>
+                                  Number(option.value),
+                                ),
+                              )
+                            }
+                          >
+                            {relationOrganizations.map((organization) => (
+                              <option key={organization.id} value={organization.id}>
+                                {organization.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      <label className="hierarchy-selection-field">
+                        <span>{t.objectHierarchyParents}</span>
+                        <select
+                          multiple
+                          value={draftParentObjectIds.map(String)}
+                          onChange={(event) =>
+                            setDraftParentObjectIds(
+                              Array.from(event.target.selectedOptions).map((option) =>
+                                Number(option.value),
+                              ),
+                            )
+                          }
+                        >
+                          {[...relationPlaces, ...relationOrganizations]
+                            .filter((storyObject) => storyObject.id !== editingCharacter?.id)
+                            .map((storyObject) => (
+                              <option key={`${storyObject.typeKey}-${storyObject.id}`} value={storyObject.id}>
+                                {storyObject.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    </div>
+                  </section>
+                )}
                 <section className="attribute-editor collapsible-block">
                   <div className="attribute-editor-header">
                     <div className="collapse-heading static-heading">{t.catalogValues}</div>
@@ -4082,10 +4507,10 @@ function StoryDbApp() {
                   </button>
                   <button
                     className={
-                      newProjectTab === 'modules' ? 'modal-tab is-active' : 'modal-tab'
+                      newProjectTab === 'presets' ? 'modal-tab is-active' : 'modal-tab'
                     }
                     type="button"
-                    onClick={() => setNewProjectTab('modules')}
+                    onClick={() => setNewProjectTab('presets')}
                   >
                     {t.databaseModules}
                   </button>
@@ -4113,11 +4538,11 @@ function StoryDbApp() {
                   </section>
                 )}
 
-                {newProjectTab === 'modules' && (
-                  <DatabaseModulesPanel
-                    enabledKeys={enabledObjectTypeKeys}
+                {newProjectTab === 'presets' && (
+                  <ReadySolutionsPanel
+                    selectedKeys={selectedProjectPresetKeys}
                     t={t}
-                    onChange={(keys) => setEnabledObjectTypeKeys(normalizeObjectTypeKeys(keys))}
+                    onChange={setSelectedProjectPresetKeys}
                   />
                 )}
                 <button className="primary-action" type="submit">

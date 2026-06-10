@@ -20,4 +20,8 @@ public class StoryObject
     public List<ObjectAttribute> Attributes { get; set; } = [];
     public List<StoryObjectHierarchySelection> HierarchySelections { get; set; } = [];
     public List<StoryObjectCatalogSelection> CatalogSelections { get; set; } = [];
+    public List<ObjectOwnership> OwnedItems { get; set; } = [];
+    public List<ObjectOwnership> Owners { get; set; } = [];
+    public List<ObjectRelation> OutgoingRelations { get; set; } = [];
+    public List<ObjectRelation> IncomingRelations { get; set; } = [];
 }

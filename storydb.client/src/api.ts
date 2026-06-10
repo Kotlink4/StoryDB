@@ -101,11 +101,12 @@ export const createProjectRequest = async (
   name: string,
   coverImagePath: string | null,
   enabledObjectTypeKeys: ObjectTypeKey[],
+  presetKeys: string[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys }),
+    body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys, presetKeys }),
   })
   ensureOk(response, 'Failed to create project.')
 
@@ -117,11 +118,12 @@ export const updateProjectRequest = async (
   name: string,
   coverImagePath: string | null,
   enabledObjectTypeKeys: ObjectTypeKey[],
+  presetKeys: string[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${project.id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys }),
+    body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys, presetKeys }),
   })
   ensureOk(response, 'Failed to update project.')
 
@@ -413,15 +415,18 @@ const toCatalogEntryFieldValueRequests = (
         fieldValue.value !== null || fieldValue.referencedEntryIds.length > 0,
     )
 
-export const fetchCharacters = async (projectId: number) => {
-  const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects?typeKey=characters`)
-  ensureOk(response, 'Failed to load characters.')
+export const fetchObjects = async (projectId: number, typeKey: ObjectTypeKey) => {
+  const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects?typeKey=${typeKey}`)
+  ensureOk(response, 'Failed to load objects.')
 
   return (await response.json()) as StoryObject[]
 }
 
-export const createCharacterRequest = async (
+export const fetchCharacters = (projectId: number) => fetchObjects(projectId, 'characters')
+
+export const createObjectRequest = async (
   projectId: number,
+  typeKey: ObjectTypeKey,
   name: string,
   surname: string,
   description: string,
@@ -431,12 +436,17 @@ export const createCharacterRequest = async (
   draftAttributes: DraftAttribute[],
   draftHierarchySelections: DraftHierarchySelection[],
   draftCatalogSelections: DraftCatalogSelection[],
+  ownedItemIds: number[],
+  ownerCharacterIds: number[],
+  territoryPlaceIds: number[],
+  ownerOrganizationIds: number[],
+  parentObjectIds: number[],
 ) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      typeKey: 'characters',
+      typeKey,
       name,
       surname: surname.trim() || null,
       description: description.trim() || null,
@@ -446,16 +456,20 @@ export const createCharacterRequest = async (
       attributes: normalizeAttributes(draftAttributes),
       hierarchySelections: normalizeHierarchySelections(draftHierarchySelections),
       catalogSelections: normalizeCatalogSelections(draftCatalogSelections),
+      ownedItemIds,
+      ownerCharacterIds,
+      territoryPlaceIds,
+      ownerOrganizationIds,
+      parentObjectIds,
     }),
   })
-  ensureOk(response, 'Failed to create character.')
+  ensureOk(response, 'Failed to create object.')
 
   return (await response.json()) as StoryObject
 }
 
-export const updateCharacterRequest = async (
+export const createCharacterRequest = (
   projectId: number,
-  characterId: number,
   name: string,
   surname: string,
   description: string,
@@ -465,8 +479,45 @@ export const updateCharacterRequest = async (
   draftAttributes: DraftAttribute[],
   draftHierarchySelections: DraftHierarchySelection[],
   draftCatalogSelections: DraftCatalogSelection[],
+) =>
+  createObjectRequest(
+    projectId,
+    'characters',
+    name,
+    surname,
+    description,
+    age,
+    role,
+    imagePath,
+    draftAttributes,
+    draftHierarchySelections,
+    draftCatalogSelections,
+    [],
+    [],
+    [],
+    [],
+    [],
+  )
+
+export const updateObjectRequest = async (
+  projectId: number,
+  objectId: number,
+  name: string,
+  surname: string,
+  description: string,
+  age: string,
+  role: string,
+  imagePath: string | null,
+  draftAttributes: DraftAttribute[],
+  draftHierarchySelections: DraftHierarchySelection[],
+  draftCatalogSelections: DraftCatalogSelection[],
+  ownedItemIds: number[],
+  ownerCharacterIds: number[],
+  territoryPlaceIds: number[],
+  ownerOrganizationIds: number[],
+  parentObjectIds: number[],
 ) => {
-  const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects/${characterId}`, {
+  const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects/${objectId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -479,12 +530,49 @@ export const updateCharacterRequest = async (
       attributes: normalizeAttributes(draftAttributes),
       hierarchySelections: normalizeHierarchySelections(draftHierarchySelections),
       catalogSelections: normalizeCatalogSelections(draftCatalogSelections),
+      ownedItemIds,
+      ownerCharacterIds,
+      territoryPlaceIds,
+      ownerOrganizationIds,
+      parentObjectIds,
     }),
   })
-  ensureOk(response, 'Failed to update character.')
+  ensureOk(response, 'Failed to update object.')
 
   return (await response.json()) as StoryObject
 }
+
+export const updateCharacterRequest = (
+  projectId: number,
+  characterId: number,
+  name: string,
+  surname: string,
+  description: string,
+  age: string,
+  role: string,
+  imagePath: string | null,
+  draftAttributes: DraftAttribute[],
+  draftHierarchySelections: DraftHierarchySelection[],
+  draftCatalogSelections: DraftCatalogSelection[],
+) =>
+  updateObjectRequest(
+    projectId,
+    characterId,
+    name,
+    surname,
+    description,
+    age,
+    role,
+    imagePath,
+    draftAttributes,
+    draftHierarchySelections,
+    draftCatalogSelections,
+    [],
+    [],
+    [],
+    [],
+    [],
+  )
 
 export const deleteObjectRequest = async (projectId: number, objectId: number) => {
   const response = await fetch(`${apiBaseUrl}/projects/${projectId}/objects/${objectId}`, {

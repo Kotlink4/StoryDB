@@ -10,7 +10,7 @@ export type Dialog =
   | 'editCharacter'
   | null
 
-export type NewProjectTab = 'details' | 'modules'
+export type NewProjectTab = 'details' | 'presets'
 export type Theme = 'light' | 'dark'
 export type Accent = 'forest' | 'ember' | 'indigo'
 export type ProjectStatus = 'Active' | 'Draft' | 'Archived'
@@ -60,6 +60,21 @@ export type StoryObject = {
   attributes: ObjectAttribute[]
   hierarchySelections: ObjectHierarchySelection[]
   catalogSelections: ObjectCatalogSelection[]
+  ownedItems: ObjectReference[]
+  owners: ObjectReference[]
+  territoryPlaces: ObjectReference[]
+  organizationsOnTerritory: ObjectReference[]
+  ownerOrganizations: ObjectReference[]
+  ownedTerritories: ObjectReference[]
+  hierarchyParents: ObjectReference[]
+  hierarchyChildren: ObjectReference[]
+}
+
+export type ObjectReference = {
+  id: number
+  name: string
+  imagePath: string | null
+  typeKey: string
 }
 
 export type ObjectAttribute = {
