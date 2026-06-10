@@ -26,4 +26,5 @@ public class StoryObject
     public List<ObjectRelation> IncomingRelations { get; set; } = [];
     public List<CharacterRelationship> OutgoingCharacterRelationships { get; set; } = [];
     public List<CharacterRelationship> IncomingCharacterRelationships { get; set; } = [];
+    public List<ObjectGalleryImage> GalleryImages { get; set; } = [];
 }

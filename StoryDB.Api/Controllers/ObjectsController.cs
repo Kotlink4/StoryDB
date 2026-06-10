@@ -18,6 +18,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         var query = dbContext.Objects
             .AsNoTracking()
             .Include(storyObject => storyObject.ObjectType)
+            .Include(storyObject => storyObject.GalleryImages)
             .Include(storyObject => storyObject.Attributes)
             .ThenInclude(attribute => attribute.AttributeDefinition)
             .Include(storyObject => storyObject.HierarchySelections)
@@ -191,6 +192,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
 
         var storyObject = await dbContext.Objects
             .Include(storyObject => storyObject.ObjectType)
+            .Include(storyObject => storyObject.GalleryImages)
             .Include(storyObject => storyObject.Attributes)
             .Include(storyObject => storyObject.HierarchySelections)
             .Include(storyObject => storyObject.CatalogSelections)
@@ -313,6 +315,125 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("{objectId:int}/gallery")]
+    public async Task<ActionResult<IReadOnlyList<ObjectGalleryImageDto>>> GetGalleryImages(
+        int projectId,
+        int objectId)
+    {
+        if (!await ObjectExists(projectId, objectId))
+        {
+            return NotFound();
+        }
+
+        var images = await dbContext.ObjectGalleryImages
+            .AsNoTracking()
+            .Where(image => image.StoryObjectId == objectId)
+            .OrderBy(image => image.SortOrder)
+            .ThenBy(image => image.Id)
+            .Select(image => new ObjectGalleryImageDto(
+                image.Id,
+                image.ImagePath,
+                image.Caption,
+                image.SortOrder))
+            .ToListAsync();
+
+        return Ok(images);
+    }
+
+    [HttpPost("{objectId:int}/gallery")]
+    public async Task<ActionResult<StoryObjectDto>> AddGalleryImage(
+        int projectId,
+        int objectId,
+        ObjectGalleryImageRequest request)
+    {
+        var validationError = ValidateGalleryImageRequest(request);
+        if (validationError is not null)
+        {
+            return BadRequest(validationError);
+        }
+
+        if (!await ObjectExists(projectId, objectId))
+        {
+            return NotFound();
+        }
+
+        var sortOrder = await dbContext.ObjectGalleryImages
+            .Where(image => image.StoryObjectId == objectId)
+            .Select(image => (int?)image.SortOrder)
+            .MaxAsync() ?? 0;
+        var now = DateTime.UtcNow;
+
+        dbContext.ObjectGalleryImages.Add(new ObjectGalleryImage
+        {
+            StoryObjectId = objectId,
+            ImagePath = request.ImagePath.Trim(),
+            Caption = NormalizeOptionalText(request.Caption),
+            SortOrder = sortOrder + 10,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+        await dbContext.SaveChangesAsync();
+
+        return Ok(await GetObjectDto(projectId, objectId));
+    }
+
+    [HttpPut("{objectId:int}/gallery/{imageId:int}")]
+    public async Task<ActionResult<StoryObjectDto>> UpdateGalleryImage(
+        int projectId,
+        int objectId,
+        int imageId,
+        ObjectGalleryImageRequest request)
+    {
+        var validationError = ValidateGalleryImageRequest(request);
+        if (validationError is not null)
+        {
+            return BadRequest(validationError);
+        }
+
+        var image = await dbContext.ObjectGalleryImages
+            .Include(currentImage => currentImage.StoryObject)
+            .FirstOrDefaultAsync(currentImage =>
+                currentImage.Id == imageId &&
+                currentImage.StoryObjectId == objectId &&
+                currentImage.StoryObject != null &&
+                currentImage.StoryObject.ProjectId == projectId);
+        if (image is null)
+        {
+            return NotFound();
+        }
+
+        image.ImagePath = request.ImagePath.Trim();
+        image.Caption = NormalizeOptionalText(request.Caption);
+        image.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync();
+
+        return Ok(await GetObjectDto(projectId, objectId));
+    }
+
+    [HttpDelete("{objectId:int}/gallery/{imageId:int}")]
+    public async Task<ActionResult<StoryObjectDto>> DeleteGalleryImage(
+        int projectId,
+        int objectId,
+        int imageId)
+    {
+        var image = await dbContext.ObjectGalleryImages
+            .Include(currentImage => currentImage.StoryObject)
+            .FirstOrDefaultAsync(currentImage =>
+                currentImage.Id == imageId &&
+                currentImage.StoryObjectId == objectId &&
+                currentImage.StoryObject != null &&
+                currentImage.StoryObject.ProjectId == projectId);
+        if (image is null)
+        {
+            return NotFound();
+        }
+
+        dbContext.ObjectGalleryImages.Remove(image);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(await GetObjectDto(projectId, objectId));
+    }
+
     private static string? ValidateStoryObjectRequest(string name, string? surname, string? description, string? age, string? role)
     {
         var nameError = ValidateName(name, "Object name");
@@ -343,6 +464,31 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
 
         return null;
     }
+
+    private static string? ValidateGalleryImageRequest(ObjectGalleryImageRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ImagePath))
+        {
+            return "Gallery image path is required.";
+        }
+
+        if (!request.ImagePath.Trim().StartsWith("/uploads/images/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Gallery image path must reference an uploaded image.";
+        }
+
+        if (request.Caption?.Trim().Length > 240)
+        {
+            return "Gallery image caption must be 240 characters or shorter.";
+        }
+
+        return null;
+    }
+
+    private Task<bool> ObjectExists(int projectId, int objectId) =>
+        dbContext.Objects.AnyAsync(storyObject =>
+            storyObject.ProjectId == projectId &&
+            storyObject.Id == objectId);
 
     private static string? NormalizeOptionalText(string? value)
     {
@@ -660,6 +806,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         var storyObject = await dbContext.Objects
             .AsNoTracking()
             .Include(currentObject => currentObject.ObjectType)
+            .Include(currentObject => currentObject.GalleryImages)
             .Include(currentObject => currentObject.Attributes)
             .ThenInclude(attribute => attribute.AttributeDefinition)
             .Include(currentObject => currentObject.HierarchySelections)
@@ -767,6 +914,15 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             ToRelationReferences(storyObject.IncomingRelations, "territoryOwner", false),
             ToRelationReferences(storyObject.OutgoingRelations, "hierarchyParent", true),
             ToRelationReferences(storyObject.IncomingRelations, "hierarchyParent", false),
+            storyObject.GalleryImages
+                .OrderBy(image => image.SortOrder)
+                .ThenBy(image => image.Id)
+                .Select(image => new ObjectGalleryImageDto(
+                    image.Id,
+                    image.ImagePath,
+                    image.Caption,
+                    image.SortOrder))
+                .ToList(),
             storyObject.OutgoingCharacterRelationships
                 .Where(relationship => relationship.TargetCharacter is not null)
                 .OrderBy(relationship => relationship.SortOrder)
@@ -1135,10 +1291,15 @@ public record StoryObjectDto(
     IReadOnlyList<ObjectReferenceDto> OwnedTerritories,
     IReadOnlyList<ObjectReferenceDto> HierarchyParents,
     IReadOnlyList<ObjectReferenceDto> HierarchyChildren,
+    IReadOnlyList<ObjectGalleryImageDto> GalleryImages,
     IReadOnlyList<CharacterRelationshipDto> OutgoingCharacterRelationships,
     IReadOnlyList<CharacterRelationshipDto> IncomingCharacterRelationships);
 
 public record ObjectReferenceDto(int Id, string Name, string? ImagePath, string TypeKey);
+
+public record ObjectGalleryImageRequest(string ImagePath, string? Caption);
+
+public record ObjectGalleryImageDto(int Id, string ImagePath, string? Caption, int SortOrder);
 
 public record CharacterRelationshipRequest(
     int TargetCharacterId,

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data;
@@ -7,10 +9,10 @@ using StoryDB.Api.Data.Entities;
 namespace StoryDB.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/projects")]
 public class ProjectsController(StoryDbContext dbContext) : ControllerBase
 {
-    private const int LocalUserId = 1;
     private static readonly ObjectTypeTemplate[] ObjectTypeTemplates =
     [
         new("characters", "Characters", "user", "#1f5b4f", 10, true),
@@ -23,10 +25,11 @@ public class ProjectsController(StoryDbContext dbContext) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ProjectListItemDto>>> GetProjects()
     {
+        var userId = GetCurrentUserId();
         var projects = await dbContext.Projects
             .Include(project => project.Objects)
             .Include(project => project.ObjectTypes)
-            .Where(project => project.OwnerUserId == LocalUserId)
+            .Where(project => project.OwnerUserId == userId)
             .OrderByDescending(project => project.UpdatedAt)
             .ToListAsync();
 
@@ -55,13 +58,13 @@ public class ProjectsController(StoryDbContext dbContext) : ControllerBase
             return BadRequest(nameError);
         }
 
-        await EnsureLocalUserExists();
+        var userId = GetCurrentUserId();
 
         var enabledKeys = NormalizeEnabledObjectTypeKeys(request.EnabledObjectTypeKeys);
         var now = DateTime.UtcNow;
         var project = new Project
         {
-            OwnerUserId = LocalUserId,
+            OwnerUserId = userId,
             Name = request.Name.Trim(),
             CoverImagePath = request.CoverImagePath,
             CreatedAt = now,
@@ -100,7 +103,7 @@ public class ProjectsController(StoryDbContext dbContext) : ControllerBase
         var project = await dbContext.Projects
             .Include(project => project.Objects)
             .Include(project => project.ObjectTypes)
-            .FirstOrDefaultAsync(project => project.Id == id && project.OwnerUserId == LocalUserId);
+            .FirstOrDefaultAsync(project => project.Id == id && project.OwnerUserId == GetCurrentUserId());
 
         if (project is null)
         {
@@ -133,7 +136,7 @@ public class ProjectsController(StoryDbContext dbContext) : ControllerBase
     public async Task<IActionResult> DeleteProject(int id)
     {
         var project = await dbContext.Projects
-            .FirstOrDefaultAsync(project => project.Id == id && project.OwnerUserId == LocalUserId);
+            .FirstOrDefaultAsync(project => project.Id == id && project.OwnerUserId == GetCurrentUserId());
 
         if (project is null)
         {
@@ -192,20 +195,10 @@ public class ProjectsController(StoryDbContext dbContext) : ControllerBase
 
         return null;
     }
-    private async Task EnsureLocalUserExists()
+    private int GetCurrentUserId()
     {
-        var exists = await dbContext.Users.AnyAsync(user => user.Id == LocalUserId);
-        if (exists)
-        {
-            return;
-        }
-
-        dbContext.Users.Add(new AppUser
-        {
-            Id = LocalUserId,
-            DisplayName = "Local User",
-            CreatedAt = DateTime.UtcNow,
-        });
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(value, out var userId) ? userId : 0;
     }
 
     private static HashSet<string> NormalizeEnabledObjectTypeKeys(IReadOnlyList<string>? enabledObjectTypeKeys)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   Background,
@@ -22,6 +22,7 @@ import {
   createHierarchyGroupRequest,
   createHierarchyNodeRequest,
   createTimelineEventRequest,
+  addObjectGalleryImageRequest,
   deleteAttributeGroupRequest,
   deleteCatalogEntryGroupRequest,
   deleteCatalogEntryRequest,
@@ -29,12 +30,14 @@ import {
   deleteCatalogRequest,
   deleteHierarchyGroupRequest,
   deleteHierarchyNodeRequest,
+  deleteObjectGalleryImageRequest,
   deleteTimelineEventRequest,
   createObjectRequest,
   createProjectRequest,
   deleteAttributeDefinitionRequest,
   deleteObjectRequest,
   deleteProjectRequest,
+  fetchCurrentUser,
   fetchAttributeDefinitions,
   fetchAttributeGroups,
   fetchCatalogEntries,
@@ -46,7 +49,11 @@ import {
   fetchHierarchyNodes,
   fetchProjects,
   fetchTimelineEvents,
+  loginRequest,
+  logoutRequest,
+  registerRequest,
   updateObjectRequest,
+  updateObjectGalleryImageRequest,
   updateCatalogEntryGroupRequest,
   updateCatalogEntryRequest,
   updateCatalogRequest,
@@ -65,6 +72,7 @@ import type {
   AttributeDefinition,
   AttributeGroup,
   AttributeDefinitionDraft,
+  AuthUser,
   Catalog,
   CatalogEntry,
   CatalogEntryDraft,
@@ -93,7 +101,9 @@ import type {
   StoryObject,
   StoryProject,
   Theme,
+  TimelineChange,
   TimelineEvent,
+  TimelineChangeType,
   TimelineEventDraft,
   WorkspaceSection,
   WorkspaceTab,
@@ -137,6 +147,7 @@ const translations = {
     projects: 'Projects',
     settings: 'Settings',
     auth: 'Account',
+    logout: 'Sign out',
     backToProjects: 'Projects',
     back: 'Back',
     characters: 'Characters',
@@ -169,6 +180,11 @@ const translations = {
     mainTab: 'Main',
     linksTab: 'Relations',
     timelineTab: 'Timeline',
+    galleryTab: 'Gallery',
+    galleryEmpty: 'No gallery images yet.',
+    addGalleryImage: 'Add image',
+    galleryImageCaption: 'Caption',
+    galleryCaptionPlaceholder: 'Short note for this image',
     timelineEmpty: 'Timeline will collect scenes and events later.',
     timelineEvents: 'Timeline events',
     newTimelineEvent: 'New event',
@@ -183,6 +199,37 @@ const translations = {
     eventColor: 'Color',
     eventPeriod: 'Period',
     noTimelineEvents: 'No timeline events yet',
+    eventParticipants: 'Participants',
+    addEventParticipant: 'Add participant',
+    participantRole: 'Role in event',
+    eventChanges: 'Changes',
+    addEventChange: 'Add change',
+    changeFieldName: 'What changed',
+    changeType: 'Change type',
+    oldValue: 'Before',
+    newValue: 'After',
+    changeNotes: 'Notes',
+    changeTypeField: 'Field',
+    changeTypeAttribute: 'Attribute',
+    changeTypeRelationship: 'Relationship',
+    changeTypeOwnership: 'Ownership',
+    changeTypeCatalogSelection: 'Catalog value',
+    changeTypeHierarchySelection: 'Hierarchy',
+    changeTypeLocation: 'Location',
+    changeTypeStatus: 'Status',
+    changeTypeCustom: 'Other',
+    timelineFieldChanges: 'Field and attribute changes',
+    timelineRelationChanges: 'Relation changes',
+    timelineCatalogChanges: 'Catalog and hierarchy changes',
+    timelineOtherChanges: 'Other changes',
+    timelineContext: 'Timeline context',
+    currentData: 'Current data',
+    saveAsTimelineChange: 'Save as timeline change',
+    saveAsTimelineChangeHint: 'When enabled, object fields are written to the selected event instead of replacing the current object.',
+    timelineEventForChanges: 'Event for changes',
+    objectTimelineEvents: 'Object timeline',
+    noObjectTimelineEvents: 'This object is not attached to timeline events yet.',
+    attachObjectToEvent: 'Attach to event',
     addCatalogValue: 'Add catalog value',
     catalogValueType: 'Value type',
     newCatalog: 'New catalog',
@@ -306,8 +353,21 @@ const translations = {
     emberAccent: 'Ember',
     indigoAccent: 'Indigo',
     authTitle: 'Authorization',
-    authSubtitle: 'A reserved place for sign in, profiles, and sync later.',
-    signInPlaceholder: 'Sign in will be added later',
+    authSubtitle: 'Sign in to keep projects under your account.',
+    signInPlaceholder: 'Sign in',
+    registerTitle: 'Create account',
+    authEmail: 'Email',
+    authPassword: 'Password',
+    authDisplayName: 'Display name',
+    authEmailPlaceholder: 'you@example.com',
+    authPasswordPlaceholder: 'At least 6 characters',
+    authDisplayNamePlaceholder: 'How to show your name',
+    signInAction: 'Sign in',
+    registerAction: 'Create account',
+    switchToRegister: 'Create a new account',
+    switchToLogin: 'I already have an account',
+    notSignedIn: 'Sign in to open your projects.',
+    authFailed: 'Could not sign in. Check the data and try again.',
     close: 'Close',
     edit: 'Edit',
     delete: 'Delete',
@@ -356,6 +416,7 @@ const translations = {
     projects: 'Проекты',
     settings: 'Настройки',
     auth: 'Аккаунт',
+    logout: 'Выйти',
     backToProjects: 'Проекты',
     back: 'Назад',
     characters: 'Персонажи',
@@ -388,6 +449,11 @@ const translations = {
     mainTab: 'Основная',
     linksTab: 'Связи',
     timelineTab: 'Таймлайн',
+    galleryTab: 'Галерея',
+    galleryEmpty: 'В галерее пока нет изображений.',
+    addGalleryImage: 'Добавить изображение',
+    galleryImageCaption: 'Подпись',
+    galleryCaptionPlaceholder: 'Короткая заметка к изображению',
     timelineEmpty: 'Здесь позже будут сцены и события таймлайна.',
     timelineEvents: 'События таймлайна',
     newTimelineEvent: 'Новое событие',
@@ -402,6 +468,37 @@ const translations = {
     eventColor: 'Цвет',
     eventPeriod: 'Период',
     noTimelineEvents: 'Событий таймлайна пока нет',
+    eventParticipants: 'Участники',
+    addEventParticipant: 'Добавить участника',
+    participantRole: 'Роль в событии',
+    eventChanges: 'Изменения',
+    addEventChange: 'Добавить изменение',
+    changeFieldName: 'Что изменилось',
+    changeType: 'Тип изменения',
+    oldValue: 'Было',
+    newValue: 'Стало',
+    changeNotes: 'Заметки',
+    changeTypeField: 'Поле',
+    changeTypeAttribute: 'Характеристика',
+    changeTypeRelationship: 'Связь',
+    changeTypeOwnership: 'Владение',
+    changeTypeCatalogSelection: 'Значение каталога',
+    changeTypeHierarchySelection: 'Иерархия',
+    changeTypeLocation: 'Местоположение',
+    changeTypeStatus: 'Статус',
+    changeTypeCustom: 'Другое',
+    timelineFieldChanges: 'Изменения полей и характеристик',
+    timelineRelationChanges: 'Изменения связей',
+    timelineCatalogChanges: 'Каталоги и иерархии',
+    timelineOtherChanges: 'Другие изменения',
+    timelineContext: 'Временной контекст',
+    currentData: 'Текущие данные',
+    saveAsTimelineChange: 'Сохранить как изменение таймлайна',
+    saveAsTimelineChangeHint: 'Если включено, поля объекта записываются в выбранное событие, а текущий объект не заменяется.',
+    timelineEventForChanges: 'Событие для изменений',
+    objectTimelineEvents: 'Таймлайн объекта',
+    noObjectTimelineEvents: 'Этот объект пока не привязан к событиям таймлайна.',
+    attachObjectToEvent: 'Привязать к событию',
     addCatalogValue: 'Добавить значение каталога',
     catalogValueType: 'Тип значения',
     newCatalog: 'Новый каталог',
@@ -523,8 +620,21 @@ const translations = {
     emberAccent: 'Уголь',
     indigoAccent: 'Индиго',
     authTitle: 'Авторизация',
-    authSubtitle: 'Место под вход, профили и синхронизацию на будущее.',
-    signInPlaceholder: 'Вход будет добавлен позже',
+    authSubtitle: 'Войди, чтобы проекты хранились в твоем аккаунте.',
+    signInPlaceholder: 'Вход',
+    registerTitle: 'Создание аккаунта',
+    authEmail: 'Email',
+    authPassword: 'Пароль',
+    authDisplayName: 'Имя в приложении',
+    authEmailPlaceholder: 'you@example.com',
+    authPasswordPlaceholder: 'Минимум 6 символов',
+    authDisplayNamePlaceholder: 'Как тебя показывать',
+    signInAction: 'Войти',
+    registerAction: 'Создать аккаунт',
+    switchToRegister: 'Создать новый аккаунт',
+    switchToLogin: 'У меня уже есть аккаунт',
+    notSignedIn: 'Войди, чтобы открыть свои проекты.',
+    authFailed: 'Не удалось войти. Проверь данные и попробуй снова.',
     close: 'Закрыть',
     edit: 'Редактировать',
     delete: 'Удалить',
@@ -566,7 +676,18 @@ const defaultProjectObjectTypeKeys: ObjectTypeKey[] = [
   'places',
   'organizations',
 ]
-type ObjectDialogTab = 'main' | 'relations' | 'timeline'
+const timelineChangeTypes: TimelineChangeType[] = [
+  'field',
+  'attribute',
+  'relationship',
+  'ownership',
+  'catalogSelection',
+  'hierarchySelection',
+  'location',
+  'status',
+  'custom',
+]
+type ObjectDialogTab = 'main' | 'relations' | 'timeline' | 'gallery'
 
 const readStoredSettings = (): StoredSettings => {
   const storedSettings = localStorage.getItem(settingsStorageKey)
@@ -644,6 +765,8 @@ const createEmptyTimelineEventDraft = (): TimelineEventDraft => ({
   endValue: '',
   category: '',
   color: '#1f5b4f',
+  participants: [],
+  changes: [],
 })
 
 const toTimelineEventDraft = (event: TimelineEvent): TimelineEventDraft => ({
@@ -655,6 +778,20 @@ const toTimelineEventDraft = (event: TimelineEvent): TimelineEventDraft => ({
   endValue: event.endValue === null ? '' : String(event.endValue),
   category: event.category ?? '',
   color: event.color ?? '#1f5b4f',
+  participants: event.participants.map((participant) => ({
+    targetType: participant.targetType,
+    targetId: String(participant.targetId),
+    role: participant.role ?? '',
+  })),
+  changes: event.changes.map((change) => ({
+    changeType: change.changeType,
+    targetType: change.targetType,
+    targetId: String(change.targetId),
+    fieldName: change.fieldName ?? '',
+    oldValue: change.oldValueJson ?? '',
+    newValue: change.newValueJson ?? '',
+    notes: change.notes ?? '',
+  })),
 })
 
 const relationshipPalette = ['#2f9e44', '#d9480f', '#4263eb', '#7048e8', '#f08c00', '#0b7285']
@@ -712,10 +849,18 @@ const toCatalogEntryDraft = (entry: CatalogEntry): CatalogEntryDraft => {
 function StoryDbApp() {
   const navigate = useNavigate()
   const { projectId } = useParams()
+  const timelineBoardRef = useRef<HTMLDivElement | null>(null)
+  const timelineDragStateRef = useRef({ isDragging: false, startX: 0, scrollLeft: 0 })
   const routeProjectId = projectId === undefined ? null : Number(projectId)
   const [storedSettings] = useState(readStoredSettings)
   const [language, setLanguage] = useState<Language>(storedSettings.language ?? 'en')
   const [dialog, setDialog] = useState<Dialog>(null)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
+  const [isAuthChecked, setIsAuthChecked] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authDisplayName, setAuthDisplayName] = useState('')
   const [newProjectTab, setNewProjectTab] = useState<NewProjectTab>('details')
   const [dossierTab, setDossierTab] = useState<ObjectDialogTab>('main')
   const [editorTab, setEditorTab] = useState<ObjectDialogTab>('main')
@@ -807,6 +952,12 @@ function StoryDbApp() {
   const [editingTimelineEventId, setEditingTimelineEventId] = useState<number | null>(null)
   const [timelineEventDraft, setTimelineEventDraft] =
     useState<TimelineEventDraft>(createEmptyTimelineEventDraft)
+  const [timelineZoom, setTimelineZoom] = useState(1)
+  const [dossierTimelineContextEventId, setDossierTimelineContextEventId] = useState('')
+  const [saveObjectAsTimelineChange, setSaveObjectAsTimelineChange] = useState(false)
+  const [editorTimelineEventId, setEditorTimelineEventId] = useState('')
+  const [galleryImagePath, setGalleryImagePath] = useState<string | null>(null)
+  const [galleryImageCaption, setGalleryImageCaption] = useState('')
   const [newHierarchySelectionGroupId, setNewHierarchySelectionGroupId] = useState('')
   const [isAttributePickerOpen, setIsAttributePickerOpen] = useState(false)
   const [newCharacterAttributeName, setNewCharacterAttributeName] = useState('')
@@ -826,6 +977,17 @@ function StoryDbApp() {
   const [apiError, setApiError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const t = translations[language]
+  const timelineChangeTypeLabels: Record<TimelineChangeType, string> = {
+    field: t.changeTypeField,
+    attribute: t.changeTypeAttribute,
+    relationship: t.changeTypeRelationship,
+    ownership: t.changeTypeOwnership,
+    catalogSelection: t.changeTypeCatalogSelection,
+    hierarchySelection: t.changeTypeHierarchySelection,
+    location: t.changeTypeLocation,
+    status: t.changeTypeStatus,
+    custom: t.changeTypeCustom,
+  }
   const isWorkspace = routeProjectId !== null && Number.isFinite(routeProjectId)
   const selectedProject = useMemo(
     () =>
@@ -964,8 +1126,107 @@ function StoryDbApp() {
     })
   }, [attributeDefinitions, draftAttributes, t.primaryAttributeGroup])
 
-  const dossierAttributeGroups = useMemo(() => {
+  const displayedDossierObject = useMemo(() => {
     if (selectedCharacter === null) {
+      return null
+    }
+
+    const contextEvent =
+      dossierTimelineContextEventId === ''
+        ? null
+        : timelineEvents.find((timelineEvent) => timelineEvent.id === Number(dossierTimelineContextEventId)) ??
+          null
+    if (contextEvent === null) {
+      return selectedCharacter
+    }
+
+    const nextObject: StoryObject = {
+      ...selectedCharacter,
+      attributes: selectedCharacter.attributes.map((attribute) => ({ ...attribute })),
+    }
+    const attributesByName = new Map(
+      nextObject.attributes.map((attribute) => [attribute.name.trim().toLowerCase(), attribute]),
+    )
+    const baseFieldLabels = new Map<string, keyof Pick<StoryObject, 'name' | 'surname' | 'description' | 'age' | 'role'>>([
+      [t.characterName.trim().toLowerCase(), 'name'],
+      [t.objectName.trim().toLowerCase(), 'name'],
+      ['name', 'name'],
+      [t.characterSurname.trim().toLowerCase(), 'surname'],
+      ['surname', 'surname'],
+      [t.description.trim().toLowerCase(), 'description'],
+      ['description', 'description'],
+      [t.characterAge.trim().toLowerCase(), 'age'],
+      ['age', 'age'],
+      [t.characterRole.trim().toLowerCase(), 'role'],
+      ['role', 'role'],
+    ])
+
+    contextEvent.changes
+      .filter(
+        (change) =>
+          change.targetType === 'storyObject' &&
+          change.targetId === selectedCharacter.id &&
+          (change.changeType === 'field' || change.changeType === 'attribute'),
+      )
+      .forEach((change) => {
+        const newValue = change.newValueJson
+        if (newValue === null) {
+          return
+        }
+
+        const fieldName = (change.fieldName ?? change.fieldKey ?? '').trim()
+        if (fieldName.length === 0) {
+          return
+        }
+
+        const normalizedFieldName = fieldName.toLowerCase()
+        const baseField = baseFieldLabels.get(normalizedFieldName)
+        if (baseField !== undefined) {
+          if (baseField === 'name') {
+            nextObject.name = newValue
+          } else if (baseField === 'surname') {
+            nextObject.surname = newValue
+          } else if (baseField === 'description') {
+            nextObject.description = newValue
+          } else if (baseField === 'age') {
+            nextObject.age = newValue
+          } else {
+            nextObject.role = newValue
+          }
+          return
+        }
+
+        const existingAttribute = attributesByName.get(normalizedFieldName)
+        if (existingAttribute !== undefined) {
+          existingAttribute.value = newValue
+          return
+        }
+
+        const virtualAttribute = {
+          id: -attributesByName.size - 1,
+          attributeDefinitionId: 0,
+          name: fieldName,
+          value: newValue,
+        }
+        nextObject.attributes.push(virtualAttribute)
+        attributesByName.set(normalizedFieldName, virtualAttribute)
+      })
+
+    return nextObject
+  }, [
+    dossierTimelineContextEventId,
+    selectedCharacter,
+    t.characterAge,
+    t.characterName,
+    t.characterRole,
+    t.characterSurname,
+    t.description,
+    t.objectName,
+    timelineEvents,
+  ])
+
+  const dossierAttributeGroups = useMemo(() => {
+    if (displayedDossierObject === null) {
       return []
     }
 
@@ -977,7 +1238,7 @@ function StoryDbApp() {
       { key: string; name: string; attributes: StoryObject['attributes'] }
     >()
 
-    selectedCharacter.attributes.forEach((attribute) => {
+    displayedDossierObject.attributes.forEach((attribute) => {
       const definition = definitionsByName.get(attribute.name.trim().toLowerCase())
       const groupName = definition?.groupName ?? t.primaryAttributeGroup
       const groupKey = definition?.groupName ?? '__main__'
@@ -1000,7 +1261,7 @@ function StoryDbApp() {
 
       return left.name.localeCompare(right.name)
     })
-  }, [attributeDefinitions, selectedCharacter, t.primaryAttributeGroup])
+  }, [attributeDefinitions, displayedDossierObject, t.primaryAttributeGroup])
   const characterGraphEdges = useMemo(
     () => {
       const rawEdges = ownershipCharacters.flatMap((character) =>
@@ -1201,9 +1462,160 @@ function StoryDbApp() {
         : timelineEvents.find((timelineEvent) => timelineEvent.id === activeTimelineEventId) ?? null,
     [activeTimelineEventId, timelineEvents],
   )
+  const timelineLayout = useMemo(() => {
+    const normalizedEvents = timelineEvents.map((timelineEvent, index) => {
+      const start = timelineEvent.startValue ?? index + 1
+      const rawEnd = timelineEvent.endValue ?? start
+      const end = rawEnd < start ? start : rawEnd
+
+      return {
+        event: timelineEvent,
+        start,
+        end,
+        lane: index % 4,
+      }
+    })
+    const numericValues = normalizedEvents.flatMap((item) => [item.start, item.end])
+    const minValue = numericValues.length > 0 ? Math.min(...numericValues) : 0
+    const maxValue = numericValues.length > 0 ? Math.max(...numericValues) : 1
+    const span = Math.max(1, maxValue - minValue)
+    const pixelsPerUnit = 92 * timelineZoom
+    const leftPadding = 110
+    const rightPadding = 130
+    const width = Math.max(760, span * pixelsPerUnit + leftPadding + rightPadding)
+    const tickCount = Math.min(8, Math.max(2, Math.ceil(span) + 1))
+    const ticks = Array.from({ length: tickCount }, (_, index) => {
+      const ratio = tickCount === 1 ? 0 : index / (tickCount - 1)
+      const value = minValue + span * ratio
+
+      return {
+        value,
+        left: leftPadding + (value - minValue) * pixelsPerUnit,
+      }
+    })
+    const items = normalizedEvents
+      .sort((left, right) => left.start - right.start || left.event.title.localeCompare(right.event.title))
+      .map((item) => ({
+        ...item,
+        left: leftPadding + (item.start - minValue) * pixelsPerUnit,
+        width: Math.max(18, (item.end - item.start) * pixelsPerUnit),
+      }))
+
+    return { items, ticks, width }
+  }, [timelineEvents, timelineZoom])
+  const selectedObjectTimelineEvents = useMemo(() => {
+    if (selectedCharacter === null) {
+      return []
+    }
+
+    return timelineEvents.filter((timelineEvent) =>
+      timelineEvent.participants.some(
+        (participant) =>
+          participant.targetType === 'storyObject' &&
+          participant.targetId === selectedCharacter.id,
+      ) ||
+      timelineEvent.changes.some(
+        (change) =>
+          change.targetType === 'storyObject' &&
+          change.targetId === selectedCharacter.id,
+      ),
+    )
+  }, [selectedCharacter, timelineEvents])
+  const dossierTimelineContextEvent = useMemo(
+    () =>
+      dossierTimelineContextEventId === ''
+        ? null
+        : timelineEvents.find((timelineEvent) => timelineEvent.id === Number(dossierTimelineContextEventId)) ??
+          null,
+    [dossierTimelineContextEventId, timelineEvents],
+  )
+  const dossierTimelineChangesByType = useMemo(() => {
+    const emptyGroups = {
+      fields: [] as TimelineChange[],
+      relations: [] as TimelineChange[],
+      catalogs: [] as TimelineChange[],
+      other: [] as TimelineChange[],
+    }
+
+    if (selectedCharacter === null || dossierTimelineContextEvent === null) {
+      return emptyGroups
+    }
+
+    return dossierTimelineContextEvent.changes
+      .filter(
+        (change) =>
+          change.targetType === 'storyObject' &&
+          change.targetId === selectedCharacter.id,
+      )
+      .reduce((groups, change) => {
+        if (change.changeType === 'field' || change.changeType === 'attribute') {
+          groups.fields.push(change)
+        } else if (
+          change.changeType === 'relationship' ||
+          change.changeType === 'ownership' ||
+          change.changeType === 'location'
+        ) {
+          groups.relations.push(change)
+        } else if (
+          change.changeType === 'catalogSelection' ||
+          change.changeType === 'hierarchySelection'
+        ) {
+          groups.catalogs.push(change)
+        } else {
+          groups.other.push(change)
+        }
+
+        return groups
+      }, emptyGroups)
+  }, [dossierTimelineContextEvent, selectedCharacter])
+  const timelineTargetObjects = useMemo(
+    () => [
+      ...ownershipCharacters.map((storyObject) => ({ ...storyObject, targetType: 'storyObject' })),
+      ...ownershipItems.map((storyObject) => ({ ...storyObject, targetType: 'storyObject' })),
+      ...relationPlaces.map((storyObject) => ({ ...storyObject, targetType: 'storyObject' })),
+      ...relationOrganizations.map((storyObject) => ({ ...storyObject, targetType: 'storyObject' })),
+    ],
+    [ownershipCharacters, ownershipItems, relationOrganizations, relationPlaces],
+  )
   useEffect(() => {
     let isActive = true
 
+    void fetchCurrentUser()
+      .then((user) => {
+        if (isActive) {
+          setCurrentUser(user)
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setApiError(t.apiUnavailable)
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsAuthChecked(true)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [t.apiUnavailable])
+
+  useEffect(() => {
+    let isActive = true
+
+    if (!isAuthChecked) {
+      return undefined
+    }
+
+    if (currentUser === null) {
+      setProjects([])
+      setIsLoading(false)
+      return undefined
+    }
+
+    setIsLoading(true)
     void fetchProjects()
       .then((data) => {
         if (isActive) {
@@ -1224,7 +1636,7 @@ function StoryDbApp() {
     return () => {
       isActive = false
     }
-  }, [t.apiUnavailable])
+  }, [currentUser, isAuthChecked, t.apiUnavailable])
 
   useEffect(() => {
     let isActive = true
@@ -1358,7 +1770,14 @@ function StoryDbApp() {
   useEffect(() => {
     let isActive = true
 
-    if (!isWorkspace || selectedProject === null || workspaceTab !== 'timeline') {
+    if (
+      !isWorkspace ||
+      selectedProject === null ||
+      (workspaceTab !== 'timeline' &&
+        dialog !== 'character' &&
+        dialog !== 'editCharacter' &&
+        dialog !== 'newCharacter')
+    ) {
       return undefined
     }
 
@@ -1382,7 +1801,7 @@ function StoryDbApp() {
     return () => {
       isActive = false
     }
-  }, [isWorkspace, selectedProject, t.apiUnavailable, workspaceTab])
+  }, [dialog, isWorkspace, selectedProject, t.apiUnavailable, workspaceTab])
 
   useEffect(() => {
     let isActive = true
@@ -1581,7 +2000,8 @@ function StoryDbApp() {
       (dialog !== 'newCharacter' &&
         dialog !== 'editCharacter' &&
         dialog !== 'character' &&
-        workspaceTab !== 'relations')
+        workspaceTab !== 'relations' &&
+        workspaceTab !== 'timeline')
     ) {
       return undefined
     }
@@ -1671,6 +2091,41 @@ function StoryDbApp() {
     setNewCharacterAttributeOptionsText('')
     setCollapsedCharacterAttributeGroups([])
     setCollapsedDossierAttributeGroups([])
+    setGalleryImagePath(null)
+    setGalleryImageCaption('')
+  }
+
+  const submitAuth = async (event: FormEvent) => {
+    event.preventDefault()
+
+    try {
+      setApiError(null)
+      setFormError(null)
+      const user =
+        authMode === 'login'
+          ? await loginRequest(authEmail, authPassword)
+          : await registerRequest(authEmail, authPassword, authDisplayName)
+
+      setCurrentUser(user)
+      setAuthPassword('')
+      setAuthDisplayName('')
+      closeDialog()
+    } catch {
+      setFormError(t.authFailed)
+    }
+  }
+
+  const logout = async () => {
+    try {
+      setApiError(null)
+      await logoutRequest()
+      setCurrentUser(null)
+      setProjects([])
+      setCharacters([])
+      navigate('/')
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
   }
 
   const openEditProject = (project: StoryProject) => {
@@ -1695,6 +2150,8 @@ function StoryDbApp() {
     setSelectedCharacter(storyObject)
     setEditingCharacter(storyObject)
     setEditorTab('main')
+    setSaveObjectAsTimelineChange(false)
+    setEditorTimelineEventId('')
     setCharacterName(storyObject.name)
     setCharacterSurname(storyObject.surname ?? '')
     setCharacterDescription(storyObject.description ?? '')
@@ -2142,6 +2599,208 @@ function StoryDbApp() {
     setFormError(null)
   }
 
+  const addTimelineParticipant = () => {
+    const firstTarget = timelineTargetObjects[0]
+    if (firstTarget === undefined) {
+      return
+    }
+
+    setTimelineEventDraft((draft) => ({
+      ...draft,
+      participants: [
+        ...draft.participants,
+        { targetType: firstTarget.targetType, targetId: String(firstTarget.id), role: '' },
+      ],
+    }))
+  }
+
+  const removeTimelineParticipant = (index: number) => {
+    setTimelineEventDraft((draft) => ({
+      ...draft,
+      participants: draft.participants.filter((_, currentIndex) => currentIndex !== index),
+    }))
+  }
+
+  const addTimelineChange = () => {
+    const firstTarget = timelineTargetObjects[0]
+    if (firstTarget === undefined) {
+      return
+    }
+
+    setTimelineEventDraft((draft) => ({
+      ...draft,
+      changes: [
+        ...draft.changes,
+        {
+          changeType: 'field',
+          targetType: firstTarget.targetType,
+          targetId: String(firstTarget.id),
+          fieldName: '',
+          oldValue: '',
+          newValue: '',
+          notes: '',
+        },
+      ],
+    }))
+  }
+
+  const removeTimelineChange = (index: number) => {
+    setTimelineEventDraft((draft) => ({
+      ...draft,
+      changes: draft.changes.filter((_, currentIndex) => currentIndex !== index),
+    }))
+  }
+
+  const upsertTimelineEvent = (savedEvent: TimelineEvent) => {
+    setTimelineEvents((currentEvents) => {
+      const hasEvent = currentEvents.some((currentEvent) => currentEvent.id === savedEvent.id)
+      const nextEvents = hasEvent
+        ? currentEvents.map((currentEvent) =>
+            currentEvent.id === savedEvent.id ? savedEvent : currentEvent,
+          )
+        : [...currentEvents, savedEvent]
+
+      return nextEvents.sort((left, right) => {
+        const leftValue = left.startValue ?? Number.MAX_SAFE_INTEGER
+        const rightValue = right.startValue ?? Number.MAX_SAFE_INTEGER
+        if (leftValue !== rightValue) {
+          return leftValue - rightValue
+        }
+
+        return left.title.localeCompare(right.title)
+      })
+    })
+  }
+
+  const attachObjectToTimelineEvent = async (storyObject: StoryObject, eventId: number) => {
+    if (selectedProject === null) {
+      return
+    }
+
+    const timelineEvent = timelineEvents.find((event) => event.id === eventId)
+    if (timelineEvent === undefined) {
+      return
+    }
+
+    const alreadyAttached = timelineEvent.participants.some(
+      (participant) =>
+        participant.targetType === 'storyObject' && participant.targetId === storyObject.id,
+    )
+    if (alreadyAttached) {
+      return
+    }
+
+    try {
+      setApiError(null)
+      const draft = toTimelineEventDraft(timelineEvent)
+      const savedEvent = await updateTimelineEventRequest(selectedProject.id, eventId, {
+        ...draft,
+        participants: [
+          ...draft.participants,
+          { targetType: 'storyObject', targetId: String(storyObject.id), role: '' },
+        ],
+      })
+      upsertTimelineEvent(savedEvent)
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
+  }
+
+  const saveObjectChangesToTimelineEvent = async (storyObject: StoryObject, eventId: number) => {
+    if (selectedProject === null) {
+      return false
+    }
+
+    const timelineEvent = timelineEvents.find((event) => event.id === eventId)
+    if (timelineEvent === undefined) {
+      setFormError(t.timelineEventForChanges)
+      return false
+    }
+
+    const currentAttributesByName = new Map(
+      storyObject.attributes.map((attribute) => [
+        attribute.name.trim().toLowerCase(),
+        attribute.value ?? '',
+      ]),
+    )
+    const changes = [
+      {
+        changeType: 'field' as TimelineChangeType,
+        fieldName: t.characterName,
+        oldValue: storyObject.name,
+        newValue: characterName.trim(),
+      },
+      {
+        changeType: 'field' as TimelineChangeType,
+        fieldName: t.characterSurname,
+        oldValue: storyObject.surname ?? '',
+        newValue: storyObject.typeKey === 'characters' ? characterSurname.trim() : '',
+      },
+      {
+        changeType: 'field' as TimelineChangeType,
+        fieldName: t.description,
+        oldValue: storyObject.description ?? '',
+        newValue: characterDescription.trim(),
+      },
+      {
+        changeType: 'field' as TimelineChangeType,
+        fieldName: t.characterAge,
+        oldValue: storyObject.age ?? '',
+        newValue: storyObject.typeKey === 'characters' ? characterAge.trim() : '',
+      },
+      {
+        changeType: 'field' as TimelineChangeType,
+        fieldName: t.characterRole,
+        oldValue: storyObject.role ?? '',
+        newValue: storyObject.typeKey === 'characters' ? characterRole.trim() : '',
+      },
+      ...draftAttributes
+        .filter((attribute) => attribute.name.trim().length > 0)
+        .map((attribute) => ({
+          changeType: 'attribute' as TimelineChangeType,
+          fieldName: attribute.name.trim(),
+          oldValue: currentAttributesByName.get(attribute.name.trim().toLowerCase()) ?? '',
+          newValue: attribute.value.trim(),
+        })),
+    ].filter((change) => change.oldValue !== change.newValue && change.fieldName.trim().length > 0)
+
+    try {
+      setApiError(null)
+      const draft = toTimelineEventDraft(timelineEvent)
+      const hasParticipant = draft.participants.some(
+        (participant) =>
+          participant.targetType === 'storyObject' &&
+          Number(participant.targetId) === storyObject.id,
+      )
+      const savedEvent = await updateTimelineEventRequest(selectedProject.id, eventId, {
+        ...draft,
+        participants: hasParticipant
+          ? draft.participants
+          : [
+              ...draft.participants,
+              { targetType: 'storyObject', targetId: String(storyObject.id), role: '' },
+            ],
+        changes: [
+          ...draft.changes,
+          ...changes.map((change) => ({
+            changeType: change.changeType,
+            targetType: 'storyObject',
+            targetId: String(storyObject.id),
+            fieldName: change.fieldName,
+            oldValue: change.oldValue,
+            newValue: change.newValue,
+            notes: '',
+          })),
+        ],
+      })
+      upsertTimelineEvent(savedEvent)
+      return true
+    } catch {
+      setApiError(t.apiUnavailable)
+      return false
+    }
+  }
+
   const saveTimelineEvent = async (event: FormEvent) => {
     event.preventDefault()
     if (selectedProject === null) {
@@ -2269,6 +2928,104 @@ function StoryDbApp() {
       }
 
       cancelInlineNameEdit()
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
+  }
+
+  const applyUpdatedStoryObject = (updatedObject: StoryObject) => {
+    setCharacters((currentObjects) =>
+      currentObjects.map((storyObject) =>
+        storyObject.id === updatedObject.id ? updatedObject : storyObject,
+      ),
+    )
+    if (updatedObject.typeKey === 'characters') {
+      setOwnershipCharacters((currentObjects) =>
+        currentObjects.map((storyObject) =>
+          storyObject.id === updatedObject.id ? updatedObject : storyObject,
+        ),
+      )
+    }
+    if (updatedObject.typeKey === 'items') {
+      setOwnershipItems((currentObjects) =>
+        currentObjects.map((storyObject) =>
+          storyObject.id === updatedObject.id ? updatedObject : storyObject,
+        ),
+      )
+    }
+    if (updatedObject.typeKey === 'places') {
+      setRelationPlaces((currentObjects) =>
+        currentObjects.map((storyObject) =>
+          storyObject.id === updatedObject.id ? updatedObject : storyObject,
+        ),
+      )
+    }
+    if (updatedObject.typeKey === 'organizations') {
+      setRelationOrganizations((currentObjects) =>
+        currentObjects.map((storyObject) =>
+          storyObject.id === updatedObject.id ? updatedObject : storyObject,
+        ),
+      )
+    }
+    setSelectedCharacter((currentObject) =>
+      currentObject?.id === updatedObject.id ? updatedObject : currentObject,
+    )
+  }
+
+  const addGalleryImage = async () => {
+    if (selectedProject === null || selectedCharacter === null || galleryImagePath === null) {
+      return
+    }
+
+    try {
+      setApiError(null)
+      const updatedObject = await addObjectGalleryImageRequest(
+        selectedProject.id,
+        selectedCharacter.id,
+        galleryImagePath,
+        galleryImageCaption,
+      )
+      applyUpdatedStoryObject(updatedObject)
+      setGalleryImagePath(null)
+      setGalleryImageCaption('')
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
+  }
+
+  const updateGalleryImageCaption = async (imageId: number, imagePath: string, caption: string) => {
+    if (selectedProject === null || selectedCharacter === null) {
+      return
+    }
+
+    try {
+      setApiError(null)
+      const updatedObject = await updateObjectGalleryImageRequest(
+        selectedProject.id,
+        selectedCharacter.id,
+        imageId,
+        imagePath,
+        caption,
+      )
+      applyUpdatedStoryObject(updatedObject)
+    } catch {
+      setApiError(t.apiUnavailable)
+    }
+  }
+
+  const deleteGalleryImage = async (imageId: number) => {
+    if (selectedProject === null || selectedCharacter === null) {
+      return
+    }
+
+    try {
+      setApiError(null)
+      const updatedObject = await deleteObjectGalleryImageRequest(
+        selectedProject.id,
+        selectedCharacter.id,
+        imageId,
+      )
+      applyUpdatedStoryObject(updatedObject)
     } catch {
       setApiError(t.apiUnavailable)
     }
@@ -2470,6 +3227,22 @@ function StoryDbApp() {
     try {
       setApiError(null)
       setFormError(null)
+      if (saveObjectAsTimelineChange) {
+        const eventId = Number(editorTimelineEventId)
+        if (!Number.isInteger(eventId) || eventId <= 0) {
+          setFormError(t.timelineEventForChanges)
+          return
+        }
+
+        const isSaved = await saveObjectChangesToTimelineEvent(editingCharacter, eventId)
+        if (isSaved) {
+          setSaveObjectAsTimelineChange(false)
+          setEditorTimelineEventId('')
+          closeDialog()
+        }
+        return
+      }
+
       await ensureDraftAttributeDefinitions()
       const updatedCharacter = await updateObjectRequest(
         selectedProject.id,
@@ -3544,7 +4317,7 @@ function StoryDbApp() {
               {t.backToProjects}
             </button>
           )}
-          {!isWorkspace && (
+          {!isWorkspace && currentUser !== null && (
             <button
               className="primary-action"
               type="button"
@@ -3568,13 +4341,19 @@ function StoryDbApp() {
           >
             {t.settings}
           </button>
-          <button
-            className="secondary-action"
-            type="button"
-            onClick={() => setDialog('auth')}
-          >
-            {t.auth}
-          </button>
+          {currentUser === null ? (
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={() => setDialog('auth')}
+            >
+              {t.auth}
+            </button>
+          ) : (
+            <button className="secondary-action" type="button" onClick={() => void logout()}>
+              {currentUser.displayName} / {t.logout}
+            </button>
+          )}
         </div>
       </header>
 
@@ -3637,7 +4416,16 @@ function StoryDbApp() {
             ))}
           </section>
 
-          {visibleProjects.length === 0 && (
+          {currentUser === null && !isLoading && apiError === null && (
+            <section className="empty-state" aria-live="polite">
+              <h2>{t.notSignedIn}</h2>
+              <button className="primary-action" type="button" onClick={() => setDialog('auth')}>
+                {t.signInAction}
+              </button>
+            </section>
+          )}
+
+          {currentUser !== null && visibleProjects.length === 0 && !isLoading && (
             <section className="empty-state" aria-live="polite">
               <h2>{t.noProjects}</h2>
               <p>{t.noProjectsHint}</p>
@@ -3786,6 +4574,8 @@ function StoryDbApp() {
                     onClick={() => {
                       setEditingCharacter(null)
                       setEditorTab('main')
+                      setSaveObjectAsTimelineChange(false)
+                      setEditorTimelineEventId('')
                       setCharacterName('')
                       setCharacterSurname('')
                       setCharacterDescription('')
@@ -4094,6 +4884,136 @@ function StoryDbApp() {
                   )}
                 </div>
 
+                <section className="timeline-board-panel" aria-label={t.timelineTab}>
+                  <div className="timeline-panel-header">
+                    <div>
+                      <h3>{t.timelineTab}</h3>
+                      <p>
+                        {activeTimelineEvent === null
+                          ? t.noTimelineEvents
+                          : activeTimelineEvent.title}
+                      </p>
+                    </div>
+                    <div className="timeline-zoom-controls" role="group" aria-label={t.timelineTab}>
+                      <button
+                        className="secondary-action compact"
+                        type="button"
+                        onClick={() => setTimelineZoom((zoom) => Math.max(0.5, zoom - 0.25))}
+                      >
+                        -
+                      </button>
+                      <span>{Math.round(timelineZoom * 100)}%</span>
+                      <button
+                        className="secondary-action compact"
+                        type="button"
+                        onClick={() => setTimelineZoom((zoom) => Math.min(3, zoom + 0.25))}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    className="horizontal-timeline"
+                    ref={timelineBoardRef}
+                    onMouseDown={(event) => {
+                      const target = event.target as HTMLElement
+                      if (target.closest('button') !== null) {
+                        return
+                      }
+
+                      const board = timelineBoardRef.current
+                      if (board === null) {
+                        return
+                      }
+
+                      timelineDragStateRef.current = {
+                        isDragging: true,
+                        startX: event.clientX,
+                        scrollLeft: board.scrollLeft,
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      timelineDragStateRef.current.isDragging = false
+                    }}
+                    onMouseMove={(event) => {
+                      const board = timelineBoardRef.current
+                      if (board === null || !timelineDragStateRef.current.isDragging) {
+                        return
+                      }
+
+                      const deltaX = event.clientX - timelineDragStateRef.current.startX
+                      board.scrollLeft = timelineDragStateRef.current.scrollLeft - deltaX
+                    }}
+                    onMouseUp={() => {
+                      timelineDragStateRef.current.isDragging = false
+                    }}
+                    onWheel={(event) => {
+                      if (!event.ctrlKey) {
+                        return
+                      }
+
+                      event.preventDefault()
+                      setTimelineZoom((zoom) =>
+                        Math.min(3, Math.max(0.5, zoom + (event.deltaY > 0 ? -0.15 : 0.15))),
+                      )
+                    }}
+                  >
+                    <div
+                      className="horizontal-timeline-inner"
+                      style={{ width: `${timelineLayout.width}px` }}
+                    >
+                      <div className="timeline-axis" />
+                      {timelineLayout.ticks.map((tick) => (
+                        <div
+                          className="timeline-tick"
+                          key={`${tick.value}-${tick.left}`}
+                          style={{ left: `${tick.left}px` }}
+                        >
+                          <span />
+                          <small>{Number.isInteger(tick.value) ? tick.value : tick.value.toFixed(1)}</small>
+                        </div>
+                      ))}
+                      {timelineLayout.items.map((item) => {
+                        const isRange = item.end > item.start
+                        const eventColor = item.event.color ?? 'var(--accent)'
+
+                        return (
+                          <button
+                            className={
+                              activeTimelineEventId === item.event.id
+                                ? 'timeline-node is-active'
+                                : 'timeline-node'
+                            }
+                            key={item.event.id}
+                            style={{
+                              left: `${item.left}px`,
+                              top: `${54 + item.lane * 78}px`,
+                              width: `${isRange ? item.width : 18}px`,
+                              borderColor: eventColor,
+                              background: isRange
+                                ? `color-mix(in srgb, ${eventColor} 18%, var(--surface))`
+                                : eventColor,
+                            }}
+                            type="button"
+                            onClick={() => setActiveTimelineEventId(item.event.id)}
+                            onDoubleClick={() => editTimelineEvent(item.event)}
+                          >
+                            <span className="timeline-node-label">
+                              <strong>{item.event.title}</strong>
+                              <small>
+                                {[item.event.startLabel, item.event.endLabel]
+                                  .filter(Boolean)
+                                  .join(' - ') || item.start}
+                              </small>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </section>
+
                 <form className="timeline-editor-panel" onSubmit={saveTimelineEvent}>
                   <div className="timeline-panel-header">
                     <div>
@@ -4248,6 +5168,218 @@ function StoryDbApp() {
                     />
                   </label>
 
+                  <section className="timeline-linked-section">
+                    <div className="timeline-panel-header">
+                      <h3>{t.eventParticipants}</h3>
+                      <button
+                        className="secondary-action compact"
+                        type="button"
+                        onClick={addTimelineParticipant}
+                        disabled={timelineTargetObjects.length === 0}
+                      >
+                        {t.addEventParticipant}
+                      </button>
+                    </div>
+                    {timelineEventDraft.participants.map((participant, index) => (
+                      <div className="timeline-linked-row" key={`participant-${index}`}>
+                        <label className="project-name-field">
+                          <span>{t.eventParticipants}</span>
+                          <select
+                            value={`${participant.targetType}:${participant.targetId}`}
+                            onChange={(event) => {
+                              const [targetType, targetId] = event.target.value.split(':')
+                              setTimelineEventDraft((draft) => ({
+                                ...draft,
+                                participants: draft.participants.map((currentParticipant, currentIndex) =>
+                                  currentIndex === index
+                                    ? { ...currentParticipant, targetType, targetId }
+                                    : currentParticipant,
+                                ),
+                              }))
+                            }}
+                          >
+                            {timelineTargetObjects.map((storyObject) => (
+                              <option
+                                key={`${storyObject.typeKey}-${storyObject.id}`}
+                                value={`${storyObject.targetType}:${storyObject.id}`}
+                              >
+                                {t[storyObject.typeKey as ObjectTypeKey]}: {storyObject.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="project-name-field">
+                          <span>{t.participantRole}</span>
+                          <input
+                            type="text"
+                            value={participant.role}
+                            onChange={(event) =>
+                              setTimelineEventDraft((draft) => ({
+                                ...draft,
+                                participants: draft.participants.map((currentParticipant, currentIndex) =>
+                                  currentIndex === index
+                                    ? { ...currentParticipant, role: event.target.value }
+                                    : currentParticipant,
+                                ),
+                              }))
+                            }
+                          />
+                        </label>
+                        <button
+                          className="danger-icon"
+                          type="button"
+                          onClick={() => removeTimelineParticipant(index)}
+                        >
+                          <Trash2 size={16} strokeWidth={2.2} />
+                        </button>
+                      </div>
+                    ))}
+                  </section>
+
+                  <section className="timeline-linked-section">
+                    <div className="timeline-panel-header">
+                      <h3>{t.eventChanges}</h3>
+                      <button
+                        className="secondary-action compact"
+                        type="button"
+                        onClick={addTimelineChange}
+                        disabled={timelineTargetObjects.length === 0}
+                      >
+                        {t.addEventChange}
+                      </button>
+                    </div>
+                    {timelineEventDraft.changes.map((change, index) => (
+                      <div className="timeline-change-row" key={`change-${index}`}>
+                        <label className="project-name-field">
+                          <span>{t.changeType}</span>
+                          <select
+                            value={change.changeType}
+                            onChange={(event) =>
+                              setTimelineEventDraft((draft) => ({
+                                ...draft,
+                                changes: draft.changes.map((currentChange, currentIndex) =>
+                                  currentIndex === index
+                                    ? {
+                                        ...currentChange,
+                                        changeType: event.target.value as TimelineChangeType,
+                                      }
+                                    : currentChange,
+                                ),
+                              }))
+                            }
+                          >
+                            {timelineChangeTypes.map((changeType) => (
+                              <option key={changeType} value={changeType}>
+                                {timelineChangeTypeLabels[changeType]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="project-name-field">
+                          <span>{t.eventParticipants}</span>
+                          <select
+                            value={`${change.targetType}:${change.targetId}`}
+                            onChange={(event) => {
+                              const [targetType, targetId] = event.target.value.split(':')
+                              setTimelineEventDraft((draft) => ({
+                                ...draft,
+                                changes: draft.changes.map((currentChange, currentIndex) =>
+                                  currentIndex === index
+                                    ? { ...currentChange, targetType, targetId }
+                                    : currentChange,
+                                ),
+                              }))
+                            }}
+                          >
+                            {timelineTargetObjects.map((storyObject) => (
+                              <option
+                                key={`${storyObject.typeKey}-${storyObject.id}`}
+                                value={`${storyObject.targetType}:${storyObject.id}`}
+                              >
+                                {t[storyObject.typeKey as ObjectTypeKey]}: {storyObject.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="project-name-field">
+                          <span>{t.changeFieldName}</span>
+                          <input
+                            type="text"
+                            value={change.fieldName}
+                            onChange={(event) =>
+                              setTimelineEventDraft((draft) => ({
+                                ...draft,
+                                changes: draft.changes.map((currentChange, currentIndex) =>
+                                  currentIndex === index
+                                    ? { ...currentChange, fieldName: event.target.value }
+                                    : currentChange,
+                                ),
+                              }))
+                            }
+                          />
+                        </label>
+                        <label className="project-name-field">
+                          <span>{t.oldValue}</span>
+                          <input
+                            type="text"
+                            value={change.oldValue}
+                            onChange={(event) =>
+                              setTimelineEventDraft((draft) => ({
+                                ...draft,
+                                changes: draft.changes.map((currentChange, currentIndex) =>
+                                  currentIndex === index
+                                    ? { ...currentChange, oldValue: event.target.value }
+                                    : currentChange,
+                                ),
+                              }))
+                            }
+                          />
+                        </label>
+                        <label className="project-name-field">
+                          <span>{t.newValue}</span>
+                          <input
+                            type="text"
+                            value={change.newValue}
+                            onChange={(event) =>
+                              setTimelineEventDraft((draft) => ({
+                                ...draft,
+                                changes: draft.changes.map((currentChange, currentIndex) =>
+                                  currentIndex === index
+                                    ? { ...currentChange, newValue: event.target.value }
+                                    : currentChange,
+                                ),
+                              }))
+                            }
+                          />
+                        </label>
+                        <label className="project-name-field timeline-change-notes">
+                          <span>{t.changeNotes}</span>
+                          <input
+                            type="text"
+                            value={change.notes}
+                            onChange={(event) =>
+                              setTimelineEventDraft((draft) => ({
+                                ...draft,
+                                changes: draft.changes.map((currentChange, currentIndex) =>
+                                  currentIndex === index
+                                    ? { ...currentChange, notes: event.target.value }
+                                    : currentChange,
+                                ),
+                              }))
+                            }
+                          />
+                        </label>
+                        <button
+                          className="danger-icon"
+                          type="button"
+                          onClick={() => removeTimelineChange(index)}
+                        >
+                          <Trash2 size={16} strokeWidth={2.2} />
+                        </button>
+                      </div>
+                    ))}
+                  </section>
+
                   <button className="primary-action" type="submit">
                     {editingTimelineEventId === null ? t.newTimelineEvent : t.save}
                   </button>
@@ -4310,7 +5442,9 @@ function StoryDbApp() {
                   {dialog === 'settings'
                     ? t.interfaceLanguage
                     : dialog === 'auth'
-                      ? t.signInPlaceholder
+                      ? authMode === 'login'
+                        ? t.signInPlaceholder
+                        : t.registerTitle
                       : dialog === 'editProject'
                         ? t.editProject
                         : dialog === 'newProject'
@@ -4436,55 +5570,123 @@ function StoryDbApp() {
               </div>
             )}
 
-            {dialog === 'auth' && <p className="auth-note">{t.authSubtitle}</p>}
+            {dialog === 'auth' && (
+              <form className="auth-form" onSubmit={(event) => void submitAuth(event)}>
+                <p className="auth-note">{t.authSubtitle}</p>
+                <label className="project-name-field">
+                  <span>{t.authEmail}</span>
+                  <input
+                    autoComplete="email"
+                    type="email"
+                    value={authEmail}
+                    onChange={(event) => setAuthEmail(event.target.value)}
+                    placeholder={t.authEmailPlaceholder}
+                    required
+                  />
+                </label>
+                <label className="project-name-field">
+                  <span>{t.authPassword}</span>
+                  <input
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    type="password"
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    placeholder={t.authPasswordPlaceholder}
+                    minLength={6}
+                    required
+                  />
+                </label>
+                {authMode === 'register' && (
+                  <label className="project-name-field">
+                    <span>{t.authDisplayName}</span>
+                    <input
+                      autoComplete="name"
+                      value={authDisplayName}
+                      onChange={(event) => setAuthDisplayName(event.target.value)}
+                      placeholder={t.authDisplayNamePlaceholder}
+                    />
+                  </label>
+                )}
+                <div className="auth-actions">
+                  <button className="primary-action" type="submit">
+                    {authMode === 'login' ? t.signInAction : t.registerAction}
+                  </button>
+                  <button
+                    className="secondary-action"
+                    type="button"
+                    onClick={() => {
+                      setFormError(null)
+                      setAuthMode((mode) => (mode === 'login' ? 'register' : 'login'))
+                    }}
+                  >
+                    {authMode === 'login' ? t.switchToRegister : t.switchToLogin}
+                  </button>
+                </div>
+              </form>
+            )}
 
-            {dialog === 'character' && selectedCharacter !== null && (
+            {dialog === 'character' && selectedCharacter !== null && displayedDossierObject !== null && (
               <section className="character-dossier">
-                {resolveAssetUrl(selectedCharacter.imagePath) === null ? (
+                {resolveAssetUrl(displayedDossierObject.imagePath) === null ? (
                   <div className="character-portrait dossier-portrait" aria-hidden="true">
-                    {selectedCharacter.name
+                    {displayedDossierObject.name
                       .split(' ')
                       .map((part) => part[0])
                       .join('')}
                   </div>
                 ) : (
                   <div className="character-portrait dossier-portrait" aria-hidden="true">
-                    <img src={resolveAssetUrl(selectedCharacter.imagePath) ?? undefined} alt="" />
+                    <img src={resolveAssetUrl(displayedDossierObject.imagePath) ?? undefined} alt="" />
                   </div>
                 )}
                 <div className="dossier-fields">
                   <div>
                     <p className="setting-label">
-                      {t[selectedCharacter.typeKey as ObjectTypeKey] ?? selectedCharacter.typeKey}
+                      {t[displayedDossierObject.typeKey as ObjectTypeKey] ?? displayedDossierObject.typeKey}
                     </p>
                     <h3>
-                      {selectedCharacter.name}
-                      {selectedCharacter.surname !== null && (
-                        <span className="dossier-surname"> {selectedCharacter.surname}</span>
+                      {displayedDossierObject.name}
+                      {displayedDossierObject.surname !== null && (
+                        <span className="dossier-surname"> {displayedDossierObject.surname}</span>
                       )}
                     </h3>
                   </div>
-                  {selectedCharacter.typeKey === 'characters' && (
+                  {displayedDossierObject.typeKey === 'characters' && (
                     <dl className="character-detail-summary">
                       <div>
                         <dt>{t.characterAge}</dt>
-                        <dd>{selectedCharacter.age ?? '-'}</dd>
+                        <dd>{displayedDossierObject.age ?? '-'}</dd>
                       </div>
                       <div>
                         <dt>{t.characterRole}</dt>
-                        <dd>{selectedCharacter.role ?? '-'}</dd>
+                        <dd>{displayedDossierObject.role ?? '-'}</dd>
                       </div>
                     </dl>
                   )}
                   <div>
                     <p className="setting-label">{t.description}</p>
-                    <p>{selectedCharacter.description}</p>
+                    <p>{displayedDossierObject.description}</p>
                   </div>
+                  <label className="project-name-field dossier-time-context">
+                    <span>{t.timelineContext}</span>
+                    <select
+                      value={dossierTimelineContextEventId}
+                      onChange={(event) => setDossierTimelineContextEventId(event.target.value)}
+                    >
+                      <option value="">{t.currentData}</option>
+                      {selectedObjectTimelineEvents.map((timelineEvent) => (
+                        <option key={timelineEvent.id} value={timelineEvent.id}>
+                          {timelineEvent.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <div className="modal-tabs object-dialog-tabs" role="group" aria-label={t.dossier}>
                     {([
                       ['main', t.mainTab],
                       ['relations', t.linksTab],
                       ['timeline', t.timelineTab],
+                      ['gallery', t.galleryTab],
                     ] as const).map(([tabKey, label]) => (
                       <button
                         className={dossierTab === tabKey ? 'modal-tab is-active' : 'modal-tab'}
@@ -4689,8 +5891,141 @@ function StoryDbApp() {
                   )}
                   {dossierTab === 'timeline' && (
                     <section className="dossier-attributes-section">
-                      <h4>{t.timelineTab}</h4>
-                      <p className="empty-state compact">{t.timelineEmpty}</p>
+                      <h4>{t.objectTimelineEvents}</h4>
+                      {selectedObjectTimelineEvents.length === 0 ? (
+                        <p className="empty-state compact">{t.noObjectTimelineEvents}</p>
+                      ) : (
+                        <div className="relationship-summary-list">
+                          {selectedObjectTimelineEvents.map((timelineEvent) => (
+                            <article className="relationship-summary-card" key={timelineEvent.id}>
+                              <button
+                                className="inline-link-button"
+                                type="button"
+                                onClick={() => {
+                                  setActiveTimelineEventId(timelineEvent.id)
+                                  setWorkspaceTab('timeline')
+                                  closeDialog()
+                                }}
+                              >
+                                {timelineEvent.title}
+                              </button>
+                              <strong>
+                                {[timelineEvent.startLabel, timelineEvent.endLabel]
+                                  .filter(Boolean)
+                                  .join(' - ') || t.eventPeriod}
+                              </strong>
+                              {timelineEvent.participants
+                                .filter(
+                                  (participant) =>
+                                    participant.targetType === 'storyObject' &&
+                                    participant.targetId === selectedCharacter.id &&
+                                    participant.role !== null,
+                                )
+                                .map((participant) => (
+                                  <p key={participant.id}>{participant.role}</p>
+                                ))}
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                      {dossierTimelineContextEvent !== null && (
+                        <section className="timeline-context-changes">
+                          <h4>{dossierTimelineContextEvent.title}</h4>
+                          {[
+                            { title: t.timelineFieldChanges, changes: dossierTimelineChangesByType.fields },
+                            { title: t.timelineRelationChanges, changes: dossierTimelineChangesByType.relations },
+                            { title: t.timelineCatalogChanges, changes: dossierTimelineChangesByType.catalogs },
+                            { title: t.timelineOtherChanges, changes: dossierTimelineChangesByType.other },
+                          ]
+                            .filter((group) => group.changes.length > 0)
+                            .map((group) => (
+                              <section className="timeline-change-group" key={group.title}>
+                                <h5>{group.title}</h5>
+                                <dl className="attribute-list grouped">
+                                  {group.changes.map((change) => (
+                                    <div key={change.id}>
+                                      <dt>
+                                        {change.fieldName ?? change.fieldKey ?? timelineChangeTypeLabels[change.changeType]}
+                                      </dt>
+                                      <dd>
+                                        <span className="timeline-change-type">
+                                          {timelineChangeTypeLabels[change.changeType]}
+                                        </span>
+                                        {(change.oldValueJson ?? '-') + ' -> ' + (change.newValueJson ?? '-')}
+                                        {change.notes !== null && (
+                                          <small>{change.notes}</small>
+                                        )}
+                                      </dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              </section>
+                            ))}
+                        </section>
+                      )}
+                    </section>
+                  )}
+                  {dossierTab === 'gallery' && (
+                    <section className="dossier-attributes-section">
+                      <h4>{t.galleryTab}</h4>
+                      <div className="gallery-upload-row">
+                        <ImageDropzone
+                          imagePath={galleryImagePath}
+                          label={t.addGalleryImage}
+                          placeholder={t.coverDropzone}
+                          onChange={setGalleryImagePath}
+                          onError={() => setApiError(t.imageUploadFailed)}
+                        />
+                        <label className="project-name-field">
+                          <span>{t.galleryImageCaption}</span>
+                          <input
+                            type="text"
+                            value={galleryImageCaption}
+                            onChange={(event) => setGalleryImageCaption(event.target.value)}
+                            placeholder={t.galleryCaptionPlaceholder}
+                          />
+                        </label>
+                        <button
+                          className="primary-action"
+                          type="button"
+                          disabled={galleryImagePath === null}
+                          onClick={() => void addGalleryImage()}
+                        >
+                          {t.addGalleryImage}
+                        </button>
+                      </div>
+                      {selectedCharacter.galleryImages.length === 0 ? (
+                        <p className="empty-state compact">{t.galleryEmpty}</p>
+                      ) : (
+                        <div className="object-gallery-grid">
+                          {selectedCharacter.galleryImages.map((image) => (
+                            <article className="object-gallery-card" key={image.id}>
+                              <img src={resolveAssetUrl(image.imagePath) ?? undefined} alt="" />
+                              <input
+                                type="text"
+                                defaultValue={image.caption ?? ''}
+                                placeholder={t.galleryCaptionPlaceholder}
+                                onBlur={(event) =>
+                                  void updateGalleryImageCaption(
+                                    image.id,
+                                    image.imagePath,
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                              <button
+                                className="icon-action danger-icon"
+                                type="button"
+                                aria-label={t.delete}
+                                title={t.delete}
+                                onClick={() => void deleteGalleryImage(image.id)}
+                              >
+                                <Trash2 size={16} strokeWidth={2.2} />
+                              </button>
+                            </article>
+                          ))}
+                        </div>
+                      )}
                     </section>
                   )}
                   </div>
@@ -5453,9 +6788,65 @@ function StoryDbApp() {
                 </section>
                 )}
                 {editorTab === 'timeline' && (
-                  <section className="dossier-attributes-section">
-                    <h4>{t.timelineTab}</h4>
-                    <p className="empty-state compact">{t.timelineEmpty}</p>
+                  <section className="attribute-editor collapsible-block timeline-editor-block">
+                    <div className="attribute-editor-header">
+                      <div className="collapse-heading static-heading">{t.timelineTab}</div>
+                    </div>
+                    <div className="attribute-editor-body">
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={saveObjectAsTimelineChange}
+                          disabled={dialog !== 'editCharacter'}
+                          onChange={(event) => setSaveObjectAsTimelineChange(event.target.checked)}
+                        />
+                        <span>{t.saveAsTimelineChange}</span>
+                      </label>
+                      <p className="relationship-hint">{t.saveAsTimelineChangeHint}</p>
+                      <label className="project-name-field">
+                        <span>{t.timelineEventForChanges}</span>
+                        <select
+                          value={editorTimelineEventId}
+                          onChange={(event) => setEditorTimelineEventId(event.target.value)}
+                        >
+                          <option value="">{t.timelineEventForChanges}</option>
+                          {timelineEvents.map((timelineEvent) => (
+                            <option key={timelineEvent.id} value={timelineEvent.id}>
+                              {timelineEvent.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {dialog === 'editCharacter' && editingCharacter !== null && (
+                        <button
+                          className="secondary-action compact"
+                          type="button"
+                          disabled={editorTimelineEventId === ''}
+                          onClick={() =>
+                            void attachObjectToTimelineEvent(
+                              editingCharacter,
+                              Number(editorTimelineEventId),
+                            )
+                          }
+                        >
+                          {t.attachObjectToEvent}
+                        </button>
+                      )}
+                      {editingCharacter !== null && selectedObjectTimelineEvents.length > 0 && (
+                        <div className="relationship-summary-list">
+                          {selectedObjectTimelineEvents.map((timelineEvent) => (
+                            <article className="relationship-summary-card" key={timelineEvent.id}>
+                              <strong>{timelineEvent.title}</strong>
+                              <span>
+                                {[timelineEvent.startLabel, timelineEvent.endLabel]
+                                  .filter(Boolean)
+                                  .join(' - ') || t.eventPeriod}
+                              </span>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </section>
                 )}
                 </div>

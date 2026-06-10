@@ -20,6 +20,7 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     public DbSet<ObjectOwnership> ObjectOwnerships => Set<ObjectOwnership>();
     public DbSet<ObjectRelation> ObjectRelations => Set<ObjectRelation>();
     public DbSet<CharacterRelationship> CharacterRelationships => Set<CharacterRelationship>();
+    public DbSet<ObjectGalleryImage> ObjectGalleryImages => Set<ObjectGalleryImage>();
     public DbSet<TimelineEvent> TimelineEvents => Set<TimelineEvent>();
     public DbSet<TimelineParticipant> TimelineParticipants => Set<TimelineParticipant>();
     public DbSet<TimelineChange> TimelineChanges => Set<TimelineChange>();
@@ -36,6 +37,10 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     {
         modelBuilder.Entity<AppUser>()
             .HasIndex(user => user.Email)
+            .IsUnique();
+
+        modelBuilder.Entity<AppUser>()
+            .HasIndex(user => user.NormalizedEmail)
             .IsUnique();
 
         modelBuilder.Entity<Project>()
@@ -81,6 +86,15 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .WithMany(definition => definition.ObjectAttributes)
             .HasForeignKey(attribute => attribute.AttributeDefinitionId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ObjectGalleryImage>()
+            .HasOne(image => image.StoryObject)
+            .WithMany(storyObject => storyObject.GalleryImages)
+            .HasForeignKey(image => image.StoryObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ObjectGalleryImage>()
+            .HasIndex(image => new { image.StoryObjectId, image.SortOrder });
 
         modelBuilder.Entity<AttributeGroup>()
             .HasIndex(group => new { group.ProjectId, group.ObjectTypeId, group.Name })

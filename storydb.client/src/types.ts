@@ -68,8 +68,16 @@ export type StoryObject = {
   ownedTerritories: ObjectReference[]
   hierarchyParents: ObjectReference[]
   hierarchyChildren: ObjectReference[]
+  galleryImages: ObjectGalleryImage[]
   outgoingCharacterRelationships: CharacterRelationship[]
   incomingCharacterRelationships: CharacterRelationship[]
+}
+
+export type ObjectGalleryImage = {
+  id: number
+  imagePath: string
+  caption: string | null
+  sortOrder: number
 }
 
 export type ObjectReference = {
@@ -189,6 +197,12 @@ export type StoredSettings = {
   accent?: Accent
 }
 
+export type AuthUser = {
+  id: number
+  email: string
+  displayName: string
+}
+
 
 export type HierarchyGroup = {
   id: number
@@ -294,7 +308,7 @@ export type TimelineParticipant = {
 
 export type TimelineChange = {
   id: number
-  changeType: string
+  changeType: TimelineChangeType
   targetType: string
   targetId: number
   fieldKey: string | null
@@ -317,4 +331,33 @@ export type TimelineEventDraft = {
   endValue: string
   category: string
   color: string
+  participants: TimelineParticipantDraft[]
+  changes: TimelineChangeDraft[]
 }
+
+export type TimelineParticipantDraft = {
+  targetType: string
+  targetId: string
+  role: string
+}
+
+export type TimelineChangeDraft = {
+  changeType: TimelineChangeType
+  targetType: string
+  targetId: string
+  fieldName: string
+  oldValue: string
+  newValue: string
+  notes: string
+}
+
+export type TimelineChangeType =
+  | 'field'
+  | 'attribute'
+  | 'relationship'
+  | 'ownership'
+  | 'catalogSelection'
+  | 'hierarchySelection'
+  | 'location'
+  | 'status'
+  | 'custom'
