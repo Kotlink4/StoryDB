@@ -3,23 +3,21 @@ services:
     image: postgres:17-alpine
     container_name: storydb-postgres
     environment:
-      POSTGRES_DB: storydb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-storydb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - storydb_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d storydb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-storydb}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   api:
-    build:
-      context: .
-      dockerfile: StoryDB.Api/Dockerfile
+    image: ${STORYDB_API_IMAGE}
     container_name: storydb-api
     depends_on:
       postgres:
@@ -27,20 +25,13 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: 5282
-      ConnectionStrings__StoryDb: Host=postgres;Port=5432;Database=storydb;Username=postgres;Password=postgres
-    ports:
-      - "${API_HOST_PORT:-5282}:5282"
+      ConnectionStrings__StoryDb: Host=postgres;Port=5432;Database=${POSTGRES_DB:-storydb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
     volumes:
       - storydb_uploads:/app/uploads
       - storydb_dataprotection:/root/.aspnet/DataProtection-Keys
 
   client:
-    build:
-      context: .
-      dockerfile: storydb.client/Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5282/api}
-        VITE_ASSET_BASE_URL: ${VITE_ASSET_BASE_URL:-http://localhost:5282}
+    image: ${STORYDB_CLIENT_IMAGE}
     container_name: storydb-client
     depends_on:
       - api

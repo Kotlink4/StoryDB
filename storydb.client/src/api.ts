@@ -23,8 +23,8 @@
   TimelineEventDraft,
 } from './types'
 
-const apiBaseUrl = 'http://localhost:5282/api'
-export const assetBaseUrl = 'http://localhost:5282'
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'
+export const assetBaseUrl = import.meta.env.VITE_ASSET_BASE_URL ?? ''
 
 const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) =>
   globalThis.fetch(input, {

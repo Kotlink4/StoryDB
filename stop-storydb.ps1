@@ -2,27 +2,34 @@ $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
 
-function Stop-PortProcess {
-    param([int]$Port)
+function Invoke-Compose {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
 
-    $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
-        Where-Object { $_.State -eq 'Listen' } |
-        Select-Object -ExpandProperty OwningProcess -Unique
-
-    foreach ($processId in $connections) {
-        if ($processId -gt 0) {
-            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
-        }
+    $dockerComposeWorks = $false
+    try {
+        docker compose version *> $null
+        $dockerComposeWorks = $LASTEXITCODE -eq 0
+    } catch {
+        $dockerComposeWorks = $false
     }
+
+    if ($dockerComposeWorks) {
+        docker compose @Arguments
+        return
+    }
+
+    $legacyCompose = Get-Command docker-compose -ErrorAction SilentlyContinue
+    if ($legacyCompose -ne $null) {
+        docker-compose @Arguments
+        return
+    }
+
+    throw 'Docker Compose was not found. Install Docker Desktop or the docker compose plugin.'
 }
 
 Set-Location $root
 
-Write-Host 'Stopping StoryDB API and frontend...'
-Stop-PortProcess -Port 5282
-Stop-PortProcess -Port 50201
+Write-Host 'Stopping StoryDB Docker stack...'
+Invoke-Compose down
 
-Write-Host 'Stopping Docker containers...'
-docker compose down
-
-Write-Host 'StoryDB is stopped. PostgreSQL data volume was kept.'
+Write-Host 'StoryDB is stopped. PostgreSQL and uploads volumes were kept.'

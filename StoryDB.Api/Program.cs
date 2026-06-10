@@ -40,7 +40,16 @@ builder.Services.AddCors(options =>
     options.AddPolicy("StoryDbClient", policy =>
     {
         policy
-            .WithOrigins("http://localhost:50201", "http://127.0.0.1:50201")
+            .SetIsOriginAllowed(origin =>
+            {
+                if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                {
+                    return false;
+                }
+
+                return (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                    uri.Port == 50201;
+            })
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -68,7 +77,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-if (!app.Environment.IsDevelopment())
+if (builder.Configuration.GetValue("UseHttpsRedirection", false))
 {
     app.UseHttpsRedirection();
 }

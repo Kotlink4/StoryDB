@@ -2,19 +2,20 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-stop_port_process() {
-  local port="$1"
-  local pids=""
 
-  if command -v lsof >/dev/null 2>&1; then
-    pids="$(lsof -ti tcp:"$port" -sTCP:LISTEN || true)"
-  elif command -v ss >/dev/null 2>&1; then
-    pids="$(ss -ltnp "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)"
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+    return
   fi
 
-  if [[ -n "$pids" ]]; then
-    kill $pids 2>/dev/null || true
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+    return
   fi
+
+  echo "Docker Compose was not found. Install the docker compose plugin." >&2
+  exit 1
 }
 
 cd "$ROOT"
@@ -24,11 +25,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Stopping StoryDB API and frontend..."
-stop_port_process 5282
-stop_port_process 50201
+echo "Stopping StoryDB Docker stack..."
+compose down
 
-echo "Stopping Docker container..."
-docker rm -f storydb-postgres >/dev/null 2>&1 || true
-
-echo "StoryDB is stopped. PostgreSQL data volume was kept."
+echo "StoryDB is stopped. PostgreSQL and uploads volumes were kept."

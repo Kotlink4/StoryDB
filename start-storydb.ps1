@@ -1,10 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
-$apiLog = Join-Path $root 'api-dev-5282.log'
-$apiErrorLog = Join-Path $root 'api-dev-5282.err.log'
-$clientLog = Join-Path $root 'client-dev-50201.log'
-$clientErrorLog = Join-Path $root 'client-dev-50201.err.log'
 
 function Stop-PortProcess {
     param([int]$Port)
@@ -20,51 +16,47 @@ function Stop-PortProcess {
     }
 }
 
+function Invoke-Compose {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+
+    $dockerComposeWorks = $false
+    try {
+        docker compose version *> $null
+        $dockerComposeWorks = $LASTEXITCODE -eq 0
+    } catch {
+        $dockerComposeWorks = $false
+    }
+
+    if ($dockerComposeWorks) {
+        docker compose @Arguments
+        return
+    }
+
+    $legacyCompose = Get-Command docker-compose -ErrorAction SilentlyContinue
+    if ($legacyCompose -ne $null) {
+        docker-compose @Arguments
+        return
+    }
+
+    throw 'Docker Compose was not found. Install Docker Desktop or the docker compose plugin.'
+}
+
 Set-Location $root
 
-Write-Host 'Stopping old StoryDB app processes...'
+Write-Host 'Stopping old StoryDB Docker stack...'
+Invoke-Compose down
+
+Write-Host 'Stopping old host StoryDB processes...'
 Stop-PortProcess -Port 5282
 Stop-PortProcess -Port 50201
 
-Write-Host 'Starting PostgreSQL container...'
-docker compose up -d
-
-Write-Host 'Waiting for PostgreSQL healthcheck...'
-$deadline = (Get-Date).AddSeconds(60)
-do {
-    $health = docker inspect --format='{{.State.Health.Status}}' storydb-postgres 2>$null
-    if ($health -eq 'healthy') {
-        break
-    }
-
-    Start-Sleep -Seconds 2
-} while ((Get-Date) -lt $deadline)
-
-if ($health -ne 'healthy') {
-    throw 'PostgreSQL container did not become healthy in 60 seconds.'
-}
-
-Write-Host 'Starting StoryDB API on http://localhost:5282 ...'
-Start-Process `
-    -FilePath 'dotnet' `
-    -ArgumentList @('run', '--project', 'StoryDB.Api', '--launch-profile', 'http') `
-    -WorkingDirectory $root `
-    -RedirectStandardOutput $apiLog `
-    -RedirectStandardError $apiErrorLog `
-    -WindowStyle Hidden
-
-Write-Host 'Starting StoryDB frontend on http://127.0.0.1:50201 ...'
-Start-Process `
-    -FilePath 'npm.cmd' `
-    -ArgumentList @('run', 'dev', '--', '--host', '127.0.0.1') `
-    -WorkingDirectory (Join-Path $root 'storydb.client') `
-    -RedirectStandardOutput $clientLog `
-    -RedirectStandardError $clientErrorLog `
-    -WindowStyle Hidden
+Write-Host 'Starting StoryDB Docker stack...'
+Invoke-Compose up -d --build
 
 Write-Host ''
-Write-Host 'StoryDB is starting.'
-Write-Host 'Frontend: http://127.0.0.1:50201'
+Write-Host 'StoryDB is running in Docker.'
+Write-Host 'Frontend: http://localhost:50201'
 Write-Host 'API:      http://localhost:5282'
-Write-Host "API log:  $apiLog"
-Write-Host "UI log:   $clientLog"
+Write-Host 'Postgres: localhost:5432'
+Write-Host ''
+Write-Host 'Logs:     docker compose logs -f'
