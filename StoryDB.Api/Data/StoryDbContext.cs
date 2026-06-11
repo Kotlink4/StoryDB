@@ -71,11 +71,17 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasForeignKey(storyObject => storyObject.ObjectTypeId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<StoryObject>()
+            .HasIndex(storyObject => new { storyObject.ProjectId, storyObject.ObjectTypeId, storyObject.Name });
+
         modelBuilder.Entity<ObjectAttribute>()
             .HasOne(attribute => attribute.StoryObject)
             .WithMany(storyObject => storyObject.Attributes)
             .HasForeignKey(attribute => attribute.StoryObjectId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ObjectAttribute>()
+            .HasIndex(attribute => new { attribute.StoryObjectId, attribute.SortOrder });
 
         modelBuilder.Entity<ObjectAttribute>()
             .HasIndex(attribute => new { attribute.StoryObjectId, attribute.AttributeDefinitionId })
@@ -173,6 +179,9 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasKey(selection => new { selection.StoryObjectId, selection.HierarchyGroupId, selection.HierarchyNodeId });
 
         modelBuilder.Entity<StoryObjectHierarchySelection>()
+            .HasIndex(selection => new { selection.StoryObjectId, selection.SortOrder });
+
+        modelBuilder.Entity<StoryObjectHierarchySelection>()
             .HasOne(selection => selection.StoryObject)
             .WithMany(storyObject => storyObject.HierarchySelections)
             .HasForeignKey(selection => selection.StoryObjectId)
@@ -206,6 +215,9 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasMaxLength(20);
 
         modelBuilder.Entity<StoryObjectCatalogSelection>()
+            .HasIndex(selection => new { selection.StoryObjectId, selection.SortOrder });
+
+        modelBuilder.Entity<StoryObjectCatalogSelection>()
             .HasOne(selection => selection.StoryObject)
             .WithMany(storyObject => storyObject.CatalogSelections)
             .HasForeignKey(selection => selection.StoryObjectId)
@@ -233,6 +245,12 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasKey(ownership => new { ownership.OwnerCharacterId, ownership.ItemObjectId });
 
         modelBuilder.Entity<ObjectOwnership>()
+            .HasIndex(ownership => new { ownership.OwnerCharacterId, ownership.SortOrder });
+
+        modelBuilder.Entity<ObjectOwnership>()
+            .HasIndex(ownership => new { ownership.ItemObjectId, ownership.SortOrder });
+
+        modelBuilder.Entity<ObjectOwnership>()
             .HasOne(ownership => ownership.OwnerCharacter)
             .WithMany(storyObject => storyObject.OwnedItems)
             .HasForeignKey(ownership => ownership.OwnerCharacterId)
@@ -247,6 +265,12 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
         modelBuilder.Entity<ObjectRelation>()
             .HasIndex(relation => new { relation.SourceObjectId, relation.RelationType, relation.TargetObjectId })
             .IsUnique();
+
+        modelBuilder.Entity<ObjectRelation>()
+            .HasIndex(relation => new { relation.SourceObjectId, relation.SortOrder });
+
+        modelBuilder.Entity<ObjectRelation>()
+            .HasIndex(relation => new { relation.TargetObjectId, relation.RelationType, relation.SortOrder });
 
         modelBuilder.Entity<ObjectRelation>()
             .Property(relation => relation.RelationType)
@@ -271,6 +295,12 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
                 relationship.TargetCharacterId,
                 relationship.RelationType,
             });
+
+        modelBuilder.Entity<CharacterRelationship>()
+            .HasIndex(relationship => new { relationship.SourceCharacterId, relationship.SortOrder });
+
+        modelBuilder.Entity<CharacterRelationship>()
+            .HasIndex(relationship => new { relationship.TargetCharacterId, relationship.SortOrder });
 
         modelBuilder.Entity<CharacterRelationship>()
             .Property(relationship => relationship.RelationType)
@@ -411,6 +441,9 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .IsUnique();
 
         modelBuilder.Entity<CatalogEntry>()
+            .HasIndex(entry => new { entry.CatalogId, entry.SortOrder });
+
+        modelBuilder.Entity<CatalogEntry>()
             .HasOne(entry => entry.Catalog)
             .WithMany(catalog => catalog.Entries)
             .HasForeignKey(entry => entry.CatalogId)
@@ -419,6 +452,9 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
         modelBuilder.Entity<CatalogEntryGroup>()
             .HasIndex(group => new { group.CatalogId, group.Name })
             .IsUnique();
+
+        modelBuilder.Entity<CatalogEntryGroup>()
+            .HasIndex(group => new { group.CatalogId, group.SortOrder });
 
         modelBuilder.Entity<CatalogEntryGroup>()
             .HasOne(group => group.Catalog)

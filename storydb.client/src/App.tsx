@@ -117,6 +117,7 @@ import { ImageDropzone } from './components/ImageDropzone'
 import { ObjectCard } from './components/ObjectCard'
 import { ProjectCard } from './components/ProjectCard'
 import { ReadySolutionsPanel } from './components/ReadySolutionsPanel'
+import { StylePreview } from './StylePreview'
 import '@xyflow/react/dist/style.css'
 import './App.css'
 
@@ -6939,6 +6940,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<StoryDbApp />} />
+        <Route path="/style-preview/*" element={<StylePreview />} />
         <Route path="/projects/:projectId" element={<StoryDbApp />} />
       </Routes>
     </BrowserRouter>

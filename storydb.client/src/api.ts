@@ -547,6 +547,13 @@ export const fetchObjects = async (projectId: number, typeKey: ObjectTypeKey) =>
   return (await response.json()) as StoryObject[]
 }
 
+export const fetchObject = async (projectId: number, objectId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/objects/${objectId}`)
+  ensureOk(response, 'Failed to load object.')
+
+  return (await response.json()) as StoryObject
+}
+
 export const fetchCharacters = (projectId: number) => fetchObjects(projectId, 'characters')
 
 export const createObjectRequest = async (

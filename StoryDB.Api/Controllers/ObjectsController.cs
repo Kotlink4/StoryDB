@@ -17,38 +17,6 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
     {
         var query = dbContext.Objects
             .AsNoTracking()
-            .Include(storyObject => storyObject.ObjectType)
-            .Include(storyObject => storyObject.GalleryImages)
-            .Include(storyObject => storyObject.Attributes)
-            .ThenInclude(attribute => attribute.AttributeDefinition)
-            .Include(storyObject => storyObject.HierarchySelections)
-            .ThenInclude(selection => selection.HierarchyGroup)
-            .Include(storyObject => storyObject.HierarchySelections)
-            .ThenInclude(selection => selection.HierarchyNode)
-            .Include(storyObject => storyObject.CatalogSelections)
-            .ThenInclude(selection => selection.Catalog)
-            .Include(storyObject => storyObject.CatalogSelections)
-            .ThenInclude(selection => selection.CatalogEntryGroup)
-            .Include(storyObject => storyObject.CatalogSelections)
-            .ThenInclude(selection => selection.CatalogEntry)
-            .Include(storyObject => storyObject.OwnedItems)
-            .ThenInclude(ownership => ownership.ItemObject)
-            .ThenInclude(item => item!.ObjectType)
-            .Include(storyObject => storyObject.Owners)
-            .ThenInclude(ownership => ownership.OwnerCharacter)
-            .ThenInclude(owner => owner!.ObjectType)
-            .Include(storyObject => storyObject.OutgoingRelations)
-            .ThenInclude(relation => relation.TargetObject)
-            .ThenInclude(target => target!.ObjectType)
-            .Include(storyObject => storyObject.IncomingRelations)
-            .ThenInclude(relation => relation.SourceObject)
-            .ThenInclude(source => source!.ObjectType)
-            .Include(storyObject => storyObject.OutgoingCharacterRelationships)
-            .ThenInclude(relationship => relationship.TargetCharacter)
-            .ThenInclude(target => target!.ObjectType)
-            .Include(storyObject => storyObject.IncomingCharacterRelationships)
-            .ThenInclude(relationship => relationship.SourceCharacter)
-            .ThenInclude(source => source!.ObjectType)
             .Where(storyObject =>
                 storyObject.ProjectId == projectId &&
                 storyObject.ObjectType != null &&
@@ -61,10 +29,55 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
 
         var objects = await query
             .OrderBy(storyObject => storyObject.Name)
-            .Select(storyObject => ToDto(storyObject))
+            .Select(storyObject => new StoryObjectDto(
+                storyObject.Id,
+                storyObject.Name,
+                storyObject.Surname,
+                storyObject.Description,
+                storyObject.Age,
+                storyObject.Role,
+                storyObject.ImagePath,
+                storyObject.ObjectType!.Key,
+                storyObject.Attributes
+                    .OrderBy(attribute => attribute.SortOrder)
+                    .Take(3)
+                    .Select(attribute => new ObjectAttributeDto(
+                        attribute.Id,
+                        attribute.AttributeDefinitionId,
+                        attribute.AttributeDefinition!.Name,
+                        attribute.Value))
+                    .ToList(),
+                Array.Empty<ObjectHierarchySelectionDto>(), // HierarchySelections
+                Array.Empty<ObjectCatalogSelectionDto>(), // CatalogSelections
+                Array.Empty<ObjectReferenceDto>(), // OwnedItems
+                Array.Empty<ObjectReferenceDto>(), // Owners
+                Array.Empty<ObjectReferenceDto>(), // TerritoryPlaces
+                Array.Empty<ObjectReferenceDto>(), // OrganizationsOnTerritory
+                Array.Empty<ObjectReferenceDto>(), // OwnerOrganizations
+                Array.Empty<ObjectReferenceDto>(), // OwnedTerritories
+                Array.Empty<ObjectReferenceDto>(), // HierarchyParents
+                Array.Empty<ObjectReferenceDto>(), // HierarchyChildren
+                Array.Empty<ObjectGalleryImageDto>(), // GalleryImages
+                Array.Empty<CharacterRelationshipDto>(), // OutgoingCharacterRelationships
+                Array.Empty<CharacterRelationshipDto>())) // IncomingCharacterRelationships
             .ToListAsync();
 
         return Ok(objects);
+    }
+
+    [HttpGet("{objectId:int}")]
+    public async Task<ActionResult<StoryObjectDto>> GetObject(int projectId, int objectId)
+    {
+        var storyObjectExists = await dbContext.Objects
+            .AsNoTracking()
+            .AnyAsync(storyObject => storyObject.ProjectId == projectId && storyObject.Id == objectId);
+
+        if (!storyObjectExists)
+        {
+            return NotFound();
+        }
+
+        return Ok(await GetObjectDto(projectId, objectId));
     }
 
     [HttpPost]
@@ -173,9 +186,9 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             : [];
         await dbContext.SaveChangesAsync();
 
-        var dto = await GetObjectDto(projectId, storyObject.Id);
+        var dto = ToSavedSummaryDto(storyObject, objectType.Key, definitionsResult.Definitions);
 
-        return CreatedAtAction(nameof(GetObjects), new { projectId, typeKey = request.TypeKey }, dto);
+        return CreatedAtAction(nameof(GetObject), new { projectId, objectId = storyObject.Id }, dto);
     }
 
     [HttpPut("{objectId:int}")]
@@ -191,8 +204,8 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         }
 
         var storyObject = await dbContext.Objects
+            .AsSplitQuery()
             .Include(storyObject => storyObject.ObjectType)
-            .Include(storyObject => storyObject.GalleryImages)
             .Include(storyObject => storyObject.Attributes)
             .Include(storyObject => storyObject.HierarchySelections)
             .Include(storyObject => storyObject.CatalogSelections)
@@ -265,35 +278,21 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         storyObject.ImagePath = request.ImagePath;
         storyObject.UpdatedAt = DateTime.UtcNow;
 
-        dbContext.ObjectAttributes.RemoveRange(storyObject.Attributes);
-        storyObject.Attributes = ToObjectAttributes(request.Attributes, definitionsResult.Definitions);
-        dbContext.StoryObjectHierarchySelections.RemoveRange(storyObject.HierarchySelections);
-        storyObject.HierarchySelections = ToHierarchySelections(request.HierarchySelections);
-        dbContext.StoryObjectCatalogSelections.RemoveRange(storyObject.CatalogSelections);
-        storyObject.CatalogSelections = ToCatalogSelections(request.CatalogSelections);
-        dbContext.ObjectOwnerships.RemoveRange(storyObject.OwnedItems);
-        dbContext.ObjectOwnerships.RemoveRange(storyObject.Owners);
-        storyObject.OwnedItems = storyObject.ObjectType.Key == "characters"
-            ? ToOwnedItemLinks(storyObject.Id, ownershipResult.OwnedItemIds)
-            : [];
-        storyObject.Owners = storyObject.ObjectType.Key == "items"
-            ? ToOwnerLinks(storyObject.Id, ownershipResult.OwnerCharacterIds)
-            : [];
-        dbContext.ObjectRelations.RemoveRange(storyObject.OutgoingRelations);
-        storyObject.OutgoingRelations = ToObjectRelations(
+        SyncObjectAttributes(storyObject, ToObjectAttributes(request.Attributes, definitionsResult.Definitions));
+        SyncHierarchySelections(storyObject, ToHierarchySelections(request.HierarchySelections));
+        SyncCatalogSelections(storyObject, ToCatalogSelections(request.CatalogSelections));
+        SyncOwnerships(storyObject, storyObject.ObjectType.Key, ownershipResult.OwnedItemIds, ownershipResult.OwnerCharacterIds);
+        SyncObjectRelations(storyObject, ToObjectRelations(
             storyObject.Id,
             storyObject.ObjectType.Key,
             relationResult.TerritoryPlaceIds,
             relationResult.OwnerOrganizationIds,
-            relationResult.ParentObjectIds);
-        dbContext.CharacterRelationships.RemoveRange(storyObject.OutgoingCharacterRelationships);
-        storyObject.OutgoingCharacterRelationships = storyObject.ObjectType.Key == "characters"
-            ? ToCharacterRelationships(storyObject.Id, characterRelationshipsResult.Relationships)
-            : [];
+            relationResult.ParentObjectIds));
+        SyncCharacterRelationships(storyObject, storyObject.ObjectType.Key, characterRelationshipsResult.Relationships);
 
         await dbContext.SaveChangesAsync();
 
-        var dto = await GetObjectDto(projectId, storyObject.Id);
+        var dto = ToSavedSummaryDto(storyObject, storyObject.ObjectType.Key, definitionsResult.Definitions);
 
         return Ok(dto);
     }
@@ -805,44 +804,240 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
     {
         var storyObject = await dbContext.Objects
             .AsNoTracking()
-            .Include(currentObject => currentObject.ObjectType)
-            .Include(currentObject => currentObject.GalleryImages)
-            .Include(currentObject => currentObject.Attributes)
-            .ThenInclude(attribute => attribute.AttributeDefinition)
-            .Include(currentObject => currentObject.HierarchySelections)
-            .ThenInclude(selection => selection.HierarchyGroup)
-            .Include(currentObject => currentObject.HierarchySelections)
-            .ThenInclude(selection => selection.HierarchyNode)
-            .Include(currentObject => currentObject.CatalogSelections)
-            .ThenInclude(selection => selection.Catalog)
-            .Include(currentObject => currentObject.CatalogSelections)
-            .ThenInclude(selection => selection.CatalogEntryGroup)
-            .Include(currentObject => currentObject.CatalogSelections)
-            .ThenInclude(selection => selection.CatalogEntry)
-            .Include(currentObject => currentObject.OwnedItems)
-            .ThenInclude(ownership => ownership.ItemObject)
-            .ThenInclude(item => item!.ObjectType)
-            .Include(currentObject => currentObject.Owners)
-            .ThenInclude(ownership => ownership.OwnerCharacter)
-            .ThenInclude(owner => owner!.ObjectType)
-            .Include(currentObject => currentObject.OutgoingRelations)
-            .ThenInclude(relation => relation.TargetObject)
-            .ThenInclude(target => target!.ObjectType)
-            .Include(currentObject => currentObject.IncomingRelations)
-            .ThenInclude(relation => relation.SourceObject)
-            .ThenInclude(source => source!.ObjectType)
-            .Include(currentObject => currentObject.OutgoingCharacterRelationships)
-            .ThenInclude(relationship => relationship.TargetCharacter)
-            .ThenInclude(target => target!.ObjectType)
-            .Include(currentObject => currentObject.IncomingCharacterRelationships)
-            .ThenInclude(relationship => relationship.SourceCharacter)
-            .ThenInclude(source => source!.ObjectType)
-            .FirstAsync(currentObject => currentObject.ProjectId == projectId && currentObject.Id == objectId);
+            .Where(currentObject => currentObject.ProjectId == projectId && currentObject.Id == objectId)
+            .Select(currentObject => new
+            {
+                currentObject.Id,
+                currentObject.Name,
+                currentObject.Surname,
+                currentObject.Description,
+                currentObject.Age,
+                currentObject.Role,
+                currentObject.ImagePath,
+                TypeKey = currentObject.ObjectType!.Key,
+            })
+            .FirstAsync();
 
-        return ToDto(storyObject);
+        var attributes = await dbContext.ObjectAttributes
+            .AsNoTracking()
+            .Where(attribute => attribute.StoryObjectId == objectId)
+            .OrderBy(attribute => attribute.SortOrder)
+            .Select(attribute => new ObjectAttributeDto(
+                attribute.Id,
+                attribute.AttributeDefinitionId,
+                attribute.AttributeDefinition!.Name,
+                attribute.Value))
+            .ToListAsync();
+
+        var hierarchyRows = await dbContext.StoryObjectHierarchySelections
+            .AsNoTracking()
+            .Where(selection => selection.StoryObjectId == objectId)
+            .OrderBy(selection => selection.SortOrder)
+            .Select(selection => new
+            {
+                selection.HierarchyGroupId,
+                GroupName = selection.HierarchyGroup!.Name,
+                selection.HierarchyNodeId,
+                NodeName = selection.HierarchyNode!.Name,
+                selection.SortOrder,
+            })
+            .ToListAsync();
+
+        var hierarchySelections = hierarchyRows
+            .GroupBy(selection => new { selection.HierarchyGroupId, selection.GroupName })
+            .OrderBy(group => group.Min(selection => selection.SortOrder))
+            .Select(group => new ObjectHierarchySelectionDto(
+                group.Key.HierarchyGroupId,
+                group.Key.GroupName,
+                group.OrderBy(selection => selection.SortOrder)
+                    .Select(selection => new ObjectHierarchyNodeSelectionDto(
+                        selection.HierarchyNodeId,
+                        selection.NodeName))
+                    .ToList()))
+            .ToList();
+
+        var catalogSelections = await dbContext.StoryObjectCatalogSelections
+            .AsNoTracking()
+            .Where(selection => selection.StoryObjectId == objectId)
+            .OrderBy(selection => selection.SortOrder)
+            .Select(selection => new ObjectCatalogSelectionDto(
+                selection.TargetType,
+                selection.CatalogId,
+                selection.Catalog!.Name,
+                selection.CatalogEntryGroupId,
+                selection.CatalogEntryGroup == null ? null : selection.CatalogEntryGroup.Name,
+                selection.CatalogEntryId,
+                selection.CatalogEntry == null ? null : selection.CatalogEntry.Name))
+            .ToListAsync();
+
+        var ownedItems = await dbContext.ObjectOwnerships
+            .AsNoTracking()
+            .Where(ownership => ownership.OwnerCharacterId == objectId)
+            .OrderBy(ownership => ownership.SortOrder)
+            .Select(ownership => new ObjectReferenceDto(
+                ownership.ItemObjectId,
+                ownership.ItemObject!.Name,
+                ownership.ItemObject.ImagePath,
+                ownership.ItemObject.ObjectType!.Key))
+            .ToListAsync();
+
+        var owners = await dbContext.ObjectOwnerships
+            .AsNoTracking()
+            .Where(ownership => ownership.ItemObjectId == objectId)
+            .OrderBy(ownership => ownership.SortOrder)
+            .Select(ownership => new ObjectReferenceDto(
+                ownership.OwnerCharacterId,
+                ownership.OwnerCharacter!.Name,
+                ownership.OwnerCharacter.ImagePath,
+                ownership.OwnerCharacter.ObjectType!.Key))
+            .ToListAsync();
+
+        var relationRows = await dbContext.ObjectRelations
+            .AsNoTracking()
+            .Where(relation => relation.SourceObjectId == objectId || relation.TargetObjectId == objectId)
+            .Select(relation => new
+            {
+                relation.RelationType,
+                relation.SortOrder,
+                relation.SourceObjectId,
+                SourceName = relation.SourceObject!.Name,
+                SourceImagePath = relation.SourceObject.ImagePath,
+                SourceTypeKey = relation.SourceObject.ObjectType!.Key,
+                relation.TargetObjectId,
+                TargetName = relation.TargetObject!.Name,
+                TargetImagePath = relation.TargetObject.ImagePath,
+                TargetTypeKey = relation.TargetObject.ObjectType!.Key,
+            })
+            .ToListAsync();
+
+        IReadOnlyList<ObjectReferenceDto> RelationReferences(string relationType, bool useTargetObject) =>
+            relationRows
+                .Where(relation => relation.RelationType == relationType)
+                .OrderBy(relation => relation.SortOrder)
+                .Select(relation => useTargetObject
+                    ? new ObjectReferenceDto(
+                        relation.TargetObjectId,
+                        relation.TargetName,
+                        relation.TargetImagePath,
+                        relation.TargetTypeKey)
+                    : new ObjectReferenceDto(
+                        relation.SourceObjectId,
+                        relation.SourceName,
+                        relation.SourceImagePath,
+                        relation.SourceTypeKey))
+                .ToList();
+
+        var galleryImages = await dbContext.ObjectGalleryImages
+            .AsNoTracking()
+            .Where(image => image.StoryObjectId == objectId)
+            .OrderBy(image => image.SortOrder)
+            .ThenBy(image => image.Id)
+            .Select(image => new ObjectGalleryImageDto(
+                image.Id,
+                image.ImagePath,
+                image.Caption,
+                image.SortOrder))
+            .ToListAsync();
+
+        var outgoingCharacterRows = await dbContext.CharacterRelationships
+            .AsNoTracking()
+            .Where(relationship => relationship.SourceCharacterId == objectId)
+            .OrderBy(relationship => relationship.SortOrder)
+            .Select(relationship => new
+            {
+                relationship.Id,
+                relationship.TargetCharacterId,
+                CharacterName = relationship.TargetCharacter!.Name,
+                CharacterImagePath = relationship.TargetCharacter.ImagePath,
+                CharacterTypeKey = relationship.TargetCharacter.ObjectType!.Key,
+                relationship.RelationType,
+                relationship.Strength,
+                relationship.Tension,
+                relationship.IsBidirectional,
+                relationship.Description,
+            })
+            .ToListAsync();
+
+        var outgoingCharacterRelationships = outgoingCharacterRows
+            .Select(relationship => new CharacterRelationshipDto(
+                relationship.Id,
+                new ObjectReferenceDto(
+                    relationship.TargetCharacterId,
+                    relationship.CharacterName,
+                    relationship.CharacterImagePath,
+                    relationship.CharacterTypeKey),
+                relationship.RelationType,
+                relationship.Strength,
+                relationship.Tension,
+                relationship.IsBidirectional,
+                relationship.Description,
+                "outgoing"))
+            .ToList();
+
+        var incomingCharacterRows = await dbContext.CharacterRelationships
+            .AsNoTracking()
+            .Where(relationship => relationship.TargetCharacterId == objectId)
+            .OrderBy(relationship => relationship.SortOrder)
+            .Select(relationship => new
+            {
+                relationship.Id,
+                relationship.SourceCharacterId,
+                CharacterName = relationship.SourceCharacter!.Name,
+                CharacterImagePath = relationship.SourceCharacter.ImagePath,
+                CharacterTypeKey = relationship.SourceCharacter.ObjectType!.Key,
+                relationship.RelationType,
+                relationship.Strength,
+                relationship.Tension,
+                relationship.IsBidirectional,
+                relationship.Description,
+            })
+            .ToListAsync();
+
+        var incomingCharacterRelationships = incomingCharacterRows
+            .Select(relationship => new CharacterRelationshipDto(
+                relationship.Id,
+                new ObjectReferenceDto(
+                    relationship.SourceCharacterId,
+                    relationship.CharacterName,
+                    relationship.CharacterImagePath,
+                    relationship.CharacterTypeKey),
+                relationship.RelationType,
+                relationship.Strength,
+                relationship.Tension,
+                relationship.IsBidirectional,
+                relationship.Description,
+                "incoming"))
+            .ToList();
+
+        return new StoryObjectDto(
+            storyObject.Id,
+            storyObject.Name,
+            storyObject.Surname,
+            storyObject.Description,
+            storyObject.Age,
+            storyObject.Role,
+            storyObject.ImagePath,
+            storyObject.TypeKey,
+            attributes,
+            hierarchySelections,
+            catalogSelections,
+            ownedItems,
+            owners,
+            RelationReferences("locatedOnTerritory", true),
+            RelationReferences("locatedOnTerritory", false),
+            RelationReferences("territoryOwner", true),
+            RelationReferences("territoryOwner", false),
+            RelationReferences("hierarchyParent", true),
+            RelationReferences("hierarchyParent", false),
+            galleryImages,
+            outgoingCharacterRelationships,
+            incomingCharacterRelationships);
     }
 
-    private static StoryObjectDto ToDto(StoryObject storyObject)
+    private static StoryObjectDto ToSavedSummaryDto(
+        StoryObject storyObject,
+        string typeKey,
+        IReadOnlyDictionary<int, AttributeDefinition> definitionsById)
     {
         return new StoryObjectDto(
             storyObject.Id,
@@ -852,124 +1047,33 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             storyObject.Age,
             storyObject.Role,
             storyObject.ImagePath,
-            storyObject.ObjectType!.Key,
+            typeKey,
             storyObject.Attributes
                 .OrderBy(attribute => attribute.SortOrder)
-                .Select(attribute => new ObjectAttributeDto(
-                    attribute.Id,
-                    attribute.AttributeDefinitionId,
-                    attribute.AttributeDefinition!.Name,
-                    attribute.Value))
-                .ToList(),
-            storyObject.HierarchySelections
-                .Where(selection => selection.HierarchyGroup is not null && selection.HierarchyNode is not null)
-                .GroupBy(selection => new
+                .Select(attribute =>
                 {
-                    selection.HierarchyGroupId,
-                    selection.HierarchyGroup!.Name,
+                    definitionsById.TryGetValue(attribute.AttributeDefinitionId, out var definition);
+
+                    return new ObjectAttributeDto(
+                        attribute.Id,
+                        attribute.AttributeDefinitionId,
+                        definition?.Name ?? string.Empty,
+                        attribute.Value);
                 })
-                .OrderBy(group => group.Min(selection => selection.SortOrder))
-                .Select(group => new ObjectHierarchySelectionDto(
-                    group.Key.HierarchyGroupId,
-                    group.Key.Name,
-                    group.OrderBy(selection => selection.SortOrder)
-                        .Select(selection => new ObjectHierarchyNodeSelectionDto(
-                            selection.HierarchyNodeId,
-                            selection.HierarchyNode!.Name))
-                        .ToList()))
                 .ToList(),
-            storyObject.CatalogSelections
-                .Where(selection => selection.Catalog is not null)
-                .OrderBy(selection => selection.SortOrder)
-                .Select(selection => new ObjectCatalogSelectionDto(
-                    selection.TargetType,
-                    selection.CatalogId,
-                    selection.Catalog!.Name,
-                    selection.CatalogEntryGroupId,
-                    selection.CatalogEntryGroup?.Name,
-                    selection.CatalogEntryId,
-                    selection.CatalogEntry?.Name))
-                .ToList(),
-            storyObject.OwnedItems
-                .Where(ownership => ownership.ItemObject is not null)
-                .OrderBy(ownership => ownership.SortOrder)
-                .Select(ownership => new ObjectReferenceDto(
-                    ownership.ItemObjectId,
-                    ownership.ItemObject!.Name,
-                    ownership.ItemObject.ImagePath,
-                    ownership.ItemObject.ObjectType?.Key ?? "items"))
-                .ToList(),
-            storyObject.Owners
-                .Where(ownership => ownership.OwnerCharacter is not null)
-                .OrderBy(ownership => ownership.SortOrder)
-                .Select(ownership => new ObjectReferenceDto(
-                    ownership.OwnerCharacterId,
-                    ownership.OwnerCharacter!.Name,
-                    ownership.OwnerCharacter.ImagePath,
-                    ownership.OwnerCharacter.ObjectType?.Key ?? "characters"))
-                .ToList(),
-            ToRelationReferences(storyObject.OutgoingRelations, "locatedOnTerritory", true),
-            ToRelationReferences(storyObject.IncomingRelations, "locatedOnTerritory", false),
-            ToRelationReferences(storyObject.OutgoingRelations, "territoryOwner", true),
-            ToRelationReferences(storyObject.IncomingRelations, "territoryOwner", false),
-            ToRelationReferences(storyObject.OutgoingRelations, "hierarchyParent", true),
-            ToRelationReferences(storyObject.IncomingRelations, "hierarchyParent", false),
-            storyObject.GalleryImages
-                .OrderBy(image => image.SortOrder)
-                .ThenBy(image => image.Id)
-                .Select(image => new ObjectGalleryImageDto(
-                    image.Id,
-                    image.ImagePath,
-                    image.Caption,
-                    image.SortOrder))
-                .ToList(),
-            storyObject.OutgoingCharacterRelationships
-                .Where(relationship => relationship.TargetCharacter is not null)
-                .OrderBy(relationship => relationship.SortOrder)
-                .Select(relationship => ToCharacterRelationshipDto(relationship, relationship.TargetCharacter!, "outgoing"))
-                .ToList(),
-            storyObject.IncomingCharacterRelationships
-                .Where(relationship => relationship.SourceCharacter is not null)
-                .OrderBy(relationship => relationship.SortOrder)
-                .Select(relationship => ToCharacterRelationshipDto(relationship, relationship.SourceCharacter!, "incoming"))
-                .ToList()
-        );
-    }
-
-    private static CharacterRelationshipDto ToCharacterRelationshipDto(
-        CharacterRelationship relationship,
-        StoryObject relatedCharacter,
-        string direction) =>
-        new(
-            relationship.Id,
-            new ObjectReferenceDto(
-                relatedCharacter.Id,
-                relatedCharacter.Name,
-                relatedCharacter.ImagePath,
-                relatedCharacter.ObjectType?.Key ?? "characters"),
-            relationship.RelationType,
-            relationship.Strength,
-            relationship.Tension,
-            relationship.IsBidirectional,
-            relationship.Description,
-            direction);
-
-    private static IReadOnlyList<ObjectReferenceDto> ToRelationReferences(
-        IEnumerable<ObjectRelation> relations,
-        string relationType,
-        bool useTargetObject)
-    {
-        return relations
-            .Where(relation => relation.RelationType == relationType)
-            .OrderBy(relation => relation.SortOrder)
-            .Select(relation => useTargetObject ? relation.TargetObject : relation.SourceObject)
-            .Where(storyObject => storyObject is not null)
-            .Select(storyObject => new ObjectReferenceDto(
-                storyObject!.Id,
-                storyObject.Name,
-                storyObject.ImagePath,
-                storyObject.ObjectType?.Key ?? string.Empty))
-            .ToList();
+            [], // HierarchySelections
+            [], // CatalogSelections
+            [], // OwnedItems
+            [], // Owners
+            [], // TerritoryPlaces
+            [], // OrganizationsOnTerritory
+            [], // OwnerOrganizations
+            [], // OwnedTerritories
+            [], // HierarchyParents
+            [], // HierarchyChildren
+            [], // GalleryImages
+            [], // OutgoingCharacterRelationships
+            []); // IncomingCharacterRelationships
     }
 
     private async Task<OwnershipSelectionsValidationResult> GetValidatedOwnershipSelections(
@@ -1112,6 +1216,282 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
                 SortOrder = index,
             })
             .ToList();
+
+    private void SyncObjectAttributes(
+        StoryObject storyObject,
+        IReadOnlyList<ObjectAttribute> requestedAttributes)
+    {
+        var requestedByDefinitionId = requestedAttributes.ToDictionary(attribute => attribute.AttributeDefinitionId);
+        foreach (var existingAttribute in storyObject.Attributes
+            .Where(attribute => !requestedByDefinitionId.ContainsKey(attribute.AttributeDefinitionId))
+            .ToList())
+        {
+            dbContext.ObjectAttributes.Remove(existingAttribute);
+            storyObject.Attributes.Remove(existingAttribute);
+        }
+
+        foreach (var requestedAttribute in requestedAttributes)
+        {
+            var existingAttribute = storyObject.Attributes.FirstOrDefault(attribute =>
+                attribute.AttributeDefinitionId == requestedAttribute.AttributeDefinitionId);
+            if (existingAttribute is null)
+            {
+                storyObject.Attributes.Add(new ObjectAttribute
+                {
+                    StoryObjectId = storyObject.Id,
+                    AttributeDefinitionId = requestedAttribute.AttributeDefinitionId,
+                    Value = requestedAttribute.Value,
+                    SortOrder = requestedAttribute.SortOrder,
+                });
+                continue;
+            }
+
+            existingAttribute.Value = requestedAttribute.Value;
+            existingAttribute.SortOrder = requestedAttribute.SortOrder;
+        }
+    }
+
+    private void SyncHierarchySelections(
+        StoryObject storyObject,
+        IReadOnlyList<StoryObjectHierarchySelection> requestedSelections)
+    {
+        var requestedKeys = requestedSelections
+            .Select(selection => (selection.HierarchyGroupId, selection.HierarchyNodeId))
+            .ToHashSet();
+
+        foreach (var existingSelection in storyObject.HierarchySelections
+            .Where(selection => !requestedKeys.Contains((selection.HierarchyGroupId, selection.HierarchyNodeId)))
+            .ToList())
+        {
+            dbContext.StoryObjectHierarchySelections.Remove(existingSelection);
+            storyObject.HierarchySelections.Remove(existingSelection);
+        }
+
+        foreach (var requestedSelection in requestedSelections)
+        {
+            var existingSelection = storyObject.HierarchySelections.FirstOrDefault(selection =>
+                selection.HierarchyGroupId == requestedSelection.HierarchyGroupId &&
+                selection.HierarchyNodeId == requestedSelection.HierarchyNodeId);
+            if (existingSelection is null)
+            {
+                storyObject.HierarchySelections.Add(new StoryObjectHierarchySelection
+                {
+                    StoryObjectId = storyObject.Id,
+                    HierarchyGroupId = requestedSelection.HierarchyGroupId,
+                    HierarchyNodeId = requestedSelection.HierarchyNodeId,
+                    SortOrder = requestedSelection.SortOrder,
+                });
+                continue;
+            }
+
+            existingSelection.SortOrder = requestedSelection.SortOrder;
+        }
+    }
+
+    private void SyncCatalogSelections(
+        StoryObject storyObject,
+        IReadOnlyList<StoryObjectCatalogSelection> requestedSelections)
+    {
+        var requestedKeys = requestedSelections
+            .Select(selection => (
+                selection.TargetType,
+                selection.CatalogId,
+                selection.CatalogEntryGroupId,
+                selection.CatalogEntryId))
+            .ToHashSet();
+
+        foreach (var existingSelection in storyObject.CatalogSelections
+            .Where(selection => !requestedKeys.Contains((
+                selection.TargetType,
+                selection.CatalogId,
+                selection.CatalogEntryGroupId,
+                selection.CatalogEntryId)))
+            .ToList())
+        {
+            dbContext.StoryObjectCatalogSelections.Remove(existingSelection);
+            storyObject.CatalogSelections.Remove(existingSelection);
+        }
+
+        foreach (var requestedSelection in requestedSelections)
+        {
+            var existingSelection = storyObject.CatalogSelections.FirstOrDefault(selection =>
+                selection.TargetType == requestedSelection.TargetType &&
+                selection.CatalogId == requestedSelection.CatalogId &&
+                selection.CatalogEntryGroupId == requestedSelection.CatalogEntryGroupId &&
+                selection.CatalogEntryId == requestedSelection.CatalogEntryId);
+            if (existingSelection is null)
+            {
+                storyObject.CatalogSelections.Add(new StoryObjectCatalogSelection
+                {
+                    StoryObjectId = storyObject.Id,
+                    TargetType = requestedSelection.TargetType,
+                    CatalogId = requestedSelection.CatalogId,
+                    CatalogEntryGroupId = requestedSelection.CatalogEntryGroupId,
+                    CatalogEntryId = requestedSelection.CatalogEntryId,
+                    SortOrder = requestedSelection.SortOrder,
+                });
+                continue;
+            }
+
+            existingSelection.SortOrder = requestedSelection.SortOrder;
+        }
+    }
+
+    private void SyncOwnerships(
+        StoryObject storyObject,
+        string typeKey,
+        IReadOnlyList<int> ownedItemIds,
+        IReadOnlyList<int> ownerCharacterIds)
+    {
+        IReadOnlyList<int> normalizedOwnedItemIds = typeKey == "characters" ? ownedItemIds : [];
+        IReadOnlyList<int> normalizedOwnerCharacterIds = typeKey == "items" ? ownerCharacterIds : [];
+
+        SyncOwnedItemLinks(storyObject, normalizedOwnedItemIds);
+        SyncOwnerLinks(storyObject, normalizedOwnerCharacterIds);
+    }
+
+    private void SyncOwnedItemLinks(StoryObject storyObject, IReadOnlyList<int> itemIds)
+    {
+        var requestedIds = itemIds.ToHashSet();
+        foreach (var existingOwnership in storyObject.OwnedItems
+            .Where(ownership => !requestedIds.Contains(ownership.ItemObjectId))
+            .ToList())
+        {
+            dbContext.ObjectOwnerships.Remove(existingOwnership);
+            storyObject.OwnedItems.Remove(existingOwnership);
+        }
+
+        foreach (var item in itemIds.Select((id, index) => new { Id = id, SortOrder = index }))
+        {
+            var existingOwnership = storyObject.OwnedItems.FirstOrDefault(ownership => ownership.ItemObjectId == item.Id);
+            if (existingOwnership is null)
+            {
+                storyObject.OwnedItems.Add(new ObjectOwnership
+                {
+                    OwnerCharacterId = storyObject.Id,
+                    ItemObjectId = item.Id,
+                    SortOrder = item.SortOrder,
+                });
+                continue;
+            }
+
+            existingOwnership.SortOrder = item.SortOrder;
+        }
+    }
+
+    private void SyncOwnerLinks(StoryObject storyObject, IReadOnlyList<int> ownerCharacterIds)
+    {
+        var requestedIds = ownerCharacterIds.ToHashSet();
+        foreach (var existingOwnership in storyObject.Owners
+            .Where(ownership => !requestedIds.Contains(ownership.OwnerCharacterId))
+            .ToList())
+        {
+            dbContext.ObjectOwnerships.Remove(existingOwnership);
+            storyObject.Owners.Remove(existingOwnership);
+        }
+
+        foreach (var owner in ownerCharacterIds.Select((id, index) => new { Id = id, SortOrder = index }))
+        {
+            var existingOwnership = storyObject.Owners.FirstOrDefault(ownership => ownership.OwnerCharacterId == owner.Id);
+            if (existingOwnership is null)
+            {
+                storyObject.Owners.Add(new ObjectOwnership
+                {
+                    OwnerCharacterId = owner.Id,
+                    ItemObjectId = storyObject.Id,
+                    SortOrder = owner.SortOrder,
+                });
+                continue;
+            }
+
+            existingOwnership.SortOrder = owner.SortOrder;
+        }
+    }
+
+    private void SyncObjectRelations(
+        StoryObject storyObject,
+        IReadOnlyList<ObjectRelation> requestedRelations)
+    {
+        var requestedKeys = requestedRelations
+            .Select(relation => (relation.RelationType, relation.TargetObjectId))
+            .ToHashSet();
+
+        foreach (var existingRelation in storyObject.OutgoingRelations
+            .Where(relation => !requestedKeys.Contains((relation.RelationType, relation.TargetObjectId)))
+            .ToList())
+        {
+            dbContext.ObjectRelations.Remove(existingRelation);
+            storyObject.OutgoingRelations.Remove(existingRelation);
+        }
+
+        foreach (var requestedRelation in requestedRelations)
+        {
+            var existingRelation = storyObject.OutgoingRelations.FirstOrDefault(relation =>
+                relation.RelationType == requestedRelation.RelationType &&
+                relation.TargetObjectId == requestedRelation.TargetObjectId);
+            if (existingRelation is null)
+            {
+                storyObject.OutgoingRelations.Add(new ObjectRelation
+                {
+                    SourceObjectId = storyObject.Id,
+                    TargetObjectId = requestedRelation.TargetObjectId,
+                    RelationType = requestedRelation.RelationType,
+                    SortOrder = requestedRelation.SortOrder,
+                });
+                continue;
+            }
+
+            existingRelation.SortOrder = requestedRelation.SortOrder;
+        }
+    }
+
+    private void SyncCharacterRelationships(
+        StoryObject storyObject,
+        string typeKey,
+        IReadOnlyList<CharacterRelationshipSelection> requestedRelationships)
+    {
+        IReadOnlyList<CharacterRelationshipSelection> normalizedRelationships =
+            typeKey == "characters" ? requestedRelationships : [];
+        var existingRelationships = storyObject.OutgoingCharacterRelationships
+            .OrderBy(relationship => relationship.SortOrder)
+            .ThenBy(relationship => relationship.Id)
+            .ToList();
+
+        for (var index = normalizedRelationships.Count; index < existingRelationships.Count; index++)
+        {
+            dbContext.CharacterRelationships.Remove(existingRelationships[index]);
+            storyObject.OutgoingCharacterRelationships.Remove(existingRelationships[index]);
+        }
+
+        for (var index = 0; index < normalizedRelationships.Count; index++)
+        {
+            var requestedRelationship = normalizedRelationships[index];
+            if (index >= existingRelationships.Count)
+            {
+                storyObject.OutgoingCharacterRelationships.Add(new CharacterRelationship
+                {
+                    SourceCharacterId = storyObject.Id,
+                    TargetCharacterId = requestedRelationship.TargetCharacterId,
+                    RelationType = requestedRelationship.RelationType,
+                    Strength = requestedRelationship.Strength,
+                    Tension = requestedRelationship.Tension,
+                    IsBidirectional = requestedRelationship.IsBidirectional,
+                    Description = requestedRelationship.Description,
+                    SortOrder = index,
+                });
+                continue;
+            }
+
+            var existingRelationship = existingRelationships[index];
+            existingRelationship.TargetCharacterId = requestedRelationship.TargetCharacterId;
+            existingRelationship.RelationType = requestedRelationship.RelationType;
+            existingRelationship.Strength = requestedRelationship.Strength;
+            existingRelationship.Tension = requestedRelationship.Tension;
+            existingRelationship.IsBidirectional = requestedRelationship.IsBidirectional;
+            existingRelationship.Description = requestedRelationship.Description;
+            existingRelationship.SortOrder = index;
+        }
+    }
 
     private async Task<ObjectRelationsValidationResult> GetValidatedObjectRelations(
         int projectId,
