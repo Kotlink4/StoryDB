@@ -973,7 +973,7 @@ function StoryDbApp() {
   const [editingAttributeDefinitionId, setEditingAttributeDefinitionId] = useState<number | null>(
     null,
   )
-  const [isLoading, setIsLoading] = useState(true)
+  const [areProjectsLoaded, setAreProjectsLoaded] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const t = translations[language]
@@ -989,12 +989,17 @@ function StoryDbApp() {
     custom: t.changeTypeCustom,
   }
   const isWorkspace = routeProjectId !== null && Number.isFinite(routeProjectId)
+  const isLoading = !isAuthChecked || (currentUser !== null && !areProjectsLoaded)
+  const availableProjects = useMemo(
+    () => (currentUser === null && isAuthChecked ? [] : projects),
+    [currentUser, isAuthChecked, projects],
+  )
   const selectedProject = useMemo(
     () =>
       routeProjectId === null
         ? null
-        : projects.find((currentProject) => currentProject.id === routeProjectId) ?? null,
-    [projects, routeProjectId],
+        : availableProjects.find((currentProject) => currentProject.id === routeProjectId) ?? null,
+    [availableProjects, routeProjectId],
   )
   const enabledWorkspaceSections = useMemo<WorkspaceSection[]>(() => {
     const enabledKeys =
@@ -1610,12 +1615,9 @@ function StoryDbApp() {
     }
 
     if (currentUser === null) {
-      setProjects([])
-      setIsLoading(false)
       return undefined
     }
 
-    setIsLoading(true)
     void fetchProjects()
       .then((data) => {
         if (isActive) {
@@ -1629,7 +1631,7 @@ function StoryDbApp() {
       })
       .finally(() => {
         if (isActive) {
-          setIsLoading(false)
+          setAreProjectsLoaded(true)
         }
       })
 
@@ -2106,6 +2108,7 @@ function StoryDbApp() {
           ? await loginRequest(authEmail, authPassword)
           : await registerRequest(authEmail, authPassword, authDisplayName)
 
+      setAreProjectsLoaded(false)
       setCurrentUser(user)
       setAuthPassword('')
       setAuthDisplayName('')
@@ -2120,6 +2123,7 @@ function StoryDbApp() {
       setApiError(null)
       await logoutRequest()
       setCurrentUser(null)
+      setAreProjectsLoaded(false)
       setProjects([])
       setCharacters([])
       navigate('/')
@@ -4269,7 +4273,7 @@ function StoryDbApp() {
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
-    return projects.filter((project) => {
+    return availableProjects.filter((project) => {
       const matchesStatus = status === 'All' || status === 'Active'
       const matchesQuery =
         normalizedQuery.length === 0 ||
@@ -4277,7 +4281,7 @@ function StoryDbApp() {
 
       return matchesStatus && matchesQuery
     })
-  }, [projects, query, status])
+  }, [availableProjects, query, status])
 
   const statusText = (value: ProjectStatus | 'All') => {
     const translationKey = `status${value}` as keyof typeof t

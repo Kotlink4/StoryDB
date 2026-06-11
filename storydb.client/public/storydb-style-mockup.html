@@ -1,0 +1,1527 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StoryDB Style Mockup</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --page: #eef2f7;
+        --surface: #ffffff;
+        --surface-soft: #f8fafc;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #dbe3ef;
+        --line-strong: #cbd5e1;
+        --accent: #101827;
+        --accent-soft: #e8edf5;
+        --green: #166534;
+        --blue: #2563eb;
+        --red: #dc2626;
+        --shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 34rem),
+          linear-gradient(135deg, #f8fafc, var(--page));
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button,
+      .character-card {
+        cursor: pointer;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      .page {
+        padding: 24px;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        min-height: calc(100vh - 48px);
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid var(--line);
+        padding: 16px 22px;
+      }
+
+      .projectbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid var(--line);
+        background: #fbfdff;
+        padding: 14px 22px;
+      }
+
+      .brand,
+      .project-chip,
+      .search,
+      .actions,
+      .object-row,
+      .dossier-head,
+      .stat-row,
+      .event-row,
+      .relation-row {
+        display: flex;
+        align-items: center;
+      }
+
+      .brand {
+        gap: 12px;
+        min-width: 220px;
+      }
+
+      .logo {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        place-items: center;
+        border-radius: 16px;
+        background: var(--accent);
+        color: white;
+        font-weight: 900;
+      }
+
+      .brand-title {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.1;
+      }
+
+      .brand-subtitle,
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .search {
+        flex: 1;
+        max-width: 620px;
+        gap: 10px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--surface-soft);
+        padding: 0 14px;
+      }
+
+      .search input {
+        width: 100%;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        padding: 12px 0;
+        color: var(--ink);
+      }
+
+      .actions {
+        gap: 10px;
+      }
+
+      .mode-tabs {
+        display: inline-flex;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--accent-soft);
+        padding: 5px;
+      }
+
+      .mode-tab {
+        min-height: 36px;
+        border: 0;
+        border-radius: 13px;
+        background: transparent;
+        color: #475569;
+        padding: 0 14px;
+        font-weight: 800;
+      }
+
+      .mode-tab.active {
+        background: var(--accent);
+        color: white;
+      }
+
+      .profile-button {
+        display: grid;
+        width: 40px;
+        height: 40px;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--accent);
+        color: white;
+        font-weight: 900;
+      }
+
+      .settings-panel {
+        display: none;
+        min-width: 330px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: var(--surface);
+        padding: 12px;
+        box-shadow: 0 14px 40px rgba(15, 23, 42, 0.1);
+      }
+
+      .settings-panel.open {
+        display: block;
+      }
+
+      .settings-title {
+        margin: 0 0 8px;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .segmented {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        border-radius: 15px;
+        background: var(--accent-soft);
+        padding: 4px;
+      }
+
+      .segment {
+        border: 0;
+        border-radius: 11px;
+        background: transparent;
+        color: #64748b;
+        padding: 8px 6px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .segment.active {
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+        color: var(--ink);
+        padding: 0 14px;
+        font-weight: 700;
+        cursor: default;
+      }
+
+      .button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: white;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 260px minmax(360px, 1fr) 390px;
+        min-height: 0;
+      }
+
+      .sidebar,
+      .detail {
+        background: var(--surface-soft);
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--line);
+        padding: 18px;
+      }
+
+      .detail {
+        border-left: 1px solid var(--line);
+        padding: 18px;
+      }
+
+      .project-chip {
+        gap: 10px;
+        border-radius: 22px;
+        background: var(--accent);
+        color: white;
+        padding: 16px;
+      }
+
+      .project-chip strong {
+        display: block;
+        margin-bottom: 3px;
+      }
+
+      .nav-section {
+        margin-top: 22px;
+      }
+
+      .section-title {
+        margin: 0 0 10px;
+        padding: 0 8px;
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .nav-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-height: 42px;
+        border: 0;
+        border-radius: 16px;
+        background: transparent;
+        color: var(--muted);
+        padding: 0 12px;
+        text-align: left;
+      }
+
+      .nav-button.active {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      }
+
+      .nav-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+      }
+
+      .count {
+        color: #94a3b8;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .content {
+        min-width: 0;
+        padding: 22px;
+      }
+
+      .content-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .content-head h2,
+      .detail h2 {
+        margin: 0;
+        font-size: 28px;
+        letter-spacing: -0.03em;
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .pill {
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #475569;
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .pill.active {
+        background: var(--accent);
+        color: white;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: var(--surface-soft);
+        padding: 10px;
+      }
+
+      .view-switch {
+        display: flex;
+        gap: 4px;
+      }
+
+      .icon-button {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        border: 0;
+        border-radius: 14px;
+        background: transparent;
+        color: var(--muted);
+      }
+
+      .icon-button.active {
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 14px;
+      }
+
+      .character-card {
+        min-height: 218px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--surface);
+        padding: 14px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+      }
+
+      .character-card.selected {
+        border-color: var(--accent);
+        background: #f8fafc;
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+      }
+
+      .list-view {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .list-view .character-card {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr);
+        min-height: 126px;
+        gap: 14px;
+      }
+
+      .list-view .portrait {
+        height: 96px;
+      }
+
+      .portrait {
+        display: grid;
+        height: 92px;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background:
+          linear-gradient(135deg, rgba(15, 23, 42, 0.08), rgba(37, 99, 235, 0.06)),
+          #f8fafc;
+        color: #94a3b8;
+        font-size: 30px;
+      }
+
+      .card-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .character-card h3 {
+        margin: 0 0 5px;
+        font-size: 16px;
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 14px;
+      }
+
+      .tag {
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #475569;
+        padding: 6px 9px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .detail-card {
+        border: 1px solid var(--line);
+        border-radius: 26px;
+        background: var(--surface);
+        padding: 18px;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+      }
+
+      .dossier-head {
+        align-items: flex-start;
+        gap: 14px;
+      }
+
+      .avatar {
+        display: grid;
+        width: 80px;
+        height: 80px;
+        flex: 0 0 auto;
+        place-items: center;
+        border-radius: 24px;
+        background: var(--accent);
+        color: white;
+        font-size: 30px;
+        font-weight: 900;
+      }
+
+      .fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .field {
+        border-radius: 18px;
+        background: var(--surface-soft);
+        padding: 12px;
+      }
+
+      .field span {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .field strong {
+        display: block;
+        margin-top: 4px;
+      }
+
+      .panel {
+        margin-top: 18px;
+      }
+
+      .panel h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+
+      .stat-row {
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .stat-row span {
+        width: 92px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .bar {
+        height: 8px;
+        flex: 1;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e2e8f0;
+      }
+
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--accent);
+      }
+
+      .note,
+      .relation-row,
+      .event-row {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--surface);
+        padding: 12px;
+      }
+
+      .note {
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .relation-row,
+      .event-row {
+        gap: 10px;
+        margin-top: 8px;
+        font-size: 14px;
+      }
+
+      .icon {
+        display: inline-grid;
+        width: 18px;
+        height: 18px;
+        place-items: center;
+        flex: 0 0 auto;
+        color: #94a3b8;
+      }
+
+      .timeline-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .event-row {
+        display: block;
+      }
+
+      .event-row strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .event-row span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .relations-page,
+      .timeline-page,
+      .settings-page {
+        display: grid;
+        gap: 14px;
+      }
+
+      .relations-canvas {
+        position: relative;
+        min-height: 520px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 26px;
+        background:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px),
+          var(--surface-soft);
+        background-size: 32px 32px;
+      }
+
+      .graph-node {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 150px;
+        border: 1px solid var(--line-strong);
+        border-radius: 18px;
+        background: white;
+        padding: 10px;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1);
+      }
+
+      .graph-line {
+        position: absolute;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--blue);
+        transform-origin: left center;
+      }
+
+      .timeline-track {
+        min-height: 430px;
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 26px;
+        background: var(--surface-soft);
+        padding: 42px 28px;
+      }
+
+      .timeline-axis {
+        position: relative;
+        width: 980px;
+        height: 300px;
+      }
+
+      .timeline-axis::before {
+        content: "";
+        position: absolute;
+        top: 150px;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 999px;
+        background: var(--accent);
+      }
+
+      .timeline-point {
+        position: absolute;
+        width: 190px;
+        transform: translateX(-50%);
+      }
+
+      .timeline-dot {
+        position: absolute;
+        left: 50%;
+        top: 142px;
+        width: 18px;
+        height: 18px;
+        border: 4px solid white;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent);
+        transform: translateX(-50%);
+      }
+
+      .timeline-card {
+        position: absolute;
+        left: 0;
+        width: 190px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: white;
+        padding: 12px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+      }
+
+      .timeline-card.top {
+        bottom: 172px;
+      }
+
+      .timeline-card.bottom {
+        top: 176px;
+      }
+
+      .mock-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        background: rgba(15, 23, 42, 0.42);
+        padding: 24px;
+      }
+
+      .mock-dialog {
+        width: min(620px, 100%);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: white;
+        padding: 22px;
+        box-shadow: var(--shadow);
+      }
+
+      .dialog-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .mock-field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .mock-field span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .mock-field input {
+        min-height: 42px;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        padding: 0 12px;
+        outline: 0;
+      }
+
+      .toast {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 20;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--accent);
+        color: white;
+        padding: 12px 16px;
+        font-weight: 800;
+        box-shadow: var(--shadow);
+      }
+
+      @media (max-width: 1180px) {
+        .workspace {
+          grid-template-columns: 240px minmax(0, 1fr);
+        }
+
+        .detail {
+          display: none;
+        }
+
+        .cards {
+          grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        }
+      }
+
+      @media (max-width: 760px) {
+        .page {
+          padding: 0;
+        }
+
+        .shell {
+          min-height: 100vh;
+          border-radius: 0;
+        }
+
+        .topbar {
+          flex-wrap: wrap;
+        }
+
+        .projectbar {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .mode-tabs {
+          width: 100%;
+        }
+
+        .mode-tab {
+          flex: 1;
+        }
+
+        .search {
+          order: 3;
+          flex-basis: 100%;
+          max-width: none;
+        }
+
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .cards,
+        .timeline-strip {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <header class="topbar">
+          <div class="brand">
+            <div class="logo">S</div>
+            <div>
+              <h1 class="brand-title">StoryDB</h1>
+              <div class="brand-subtitle">База мира и истории</div>
+            </div>
+          </div>
+
+          <label class="search">
+            <span class="icon">⌕</span>
+            <input value="" placeholder="Поиск по персонажам, каталогам, связям..." />
+          </label>
+
+          <div class="actions">
+            <button class="button" id="settingsToggle">⚙ Настройки</button>
+            <button class="profile-button" id="profileButton">A</button>
+            <button class="button primary" id="newObjectButton">＋ Новый объект</button>
+          </div>
+        </header>
+
+        <div class="projectbar">
+          <div>
+            <div class="muted">Проект</div>
+            <strong>история</strong>
+          </div>
+
+          <div class="mode-tabs" role="group" aria-label="Разделы проекта">
+            <button class="mode-tab active" data-tab="database">База данных</button>
+            <button class="mode-tab" data-tab="relations">Связи</button>
+            <button class="mode-tab" data-tab="timeline">Таймлайн</button>
+          </div>
+
+          <div class="settings-panel" id="settingsPanel">
+            <p class="settings-title">Отображение досье объекта</p>
+            <div class="segmented">
+              <button class="segment" data-detail-mode="modal">Окно</button>
+              <button class="segment" data-detail-mode="page">Страница</button>
+              <button class="segment active" data-detail-mode="panel">Правая панель</button>
+            </div>
+          </div>
+        </div>
+
+        <main class="workspace">
+          <aside class="sidebar">
+            <div class="project-chip">
+              <span class="icon">✦</span>
+              <div>
+                <strong>история</strong>
+                <span class="brand-subtitle">4 персонажа · 6 связей · 3 события</span>
+              </div>
+            </div>
+
+            <section class="nav-section">
+              <p class="section-title">База данных</p>
+              <button class="nav-button active" data-section="characters">
+                <span class="nav-label"><span class="icon">👥</span>Персонажи</span>
+                <span class="count">4</span>
+              </button>
+              <button class="nav-button" data-section="items">
+                <span class="nav-label"><span class="icon">◇</span>Предметы</span>
+                <span class="count">12</span>
+              </button>
+              <button class="nav-button" data-section="places">
+                <span class="nav-label"><span class="icon">⌖</span>Места</span>
+                <span class="count">7</span>
+              </button>
+              <button class="nav-button" data-section="organizations">
+                <span class="nav-label"><span class="icon">▣</span>Организации</span>
+                <span class="count">5</span>
+              </button>
+            </section>
+
+            <section class="nav-section">
+              <p class="section-title">Каталоги</p>
+              <button class="nav-button" data-section="attributes">
+                <span class="nav-label"><span class="icon">#</span>Характеристики</span>
+                <span class="count">18</span>
+              </button>
+              <button class="nav-button" data-section="magic">
+                <span class="nav-label"><span class="icon">✺</span>Магия</span>
+                <span class="count">9</span>
+              </button>
+              <button class="nav-button" data-section="races">
+                <span class="nav-label"><span class="icon">↳</span>Расы</span>
+                <span class="count">6</span>
+              </button>
+            </section>
+          </aside>
+
+          <section class="content" id="contentPanel">
+            <div class="content-head">
+              <div>
+                <h2>Персонажи</h2>
+                <div class="muted">Карточки, досье, связи, галерея и события персонажей</div>
+              </div>
+              <div class="filters">
+                <button class="pill active">Все</button>
+                <button class="pill">Активные</button>
+                <button class="pill">Герои</button>
+                <button class="pill">Антагонисты</button>
+              </div>
+            </div>
+
+            <div class="toolbar">
+              <div class="muted">Вид: База данных / Персонажи / Основная группа</div>
+              <div class="view-switch">
+                <button class="icon-button active" data-view="grid">▦</button>
+                <button class="icon-button" data-view="list">☰</button>
+              </div>
+            </div>
+
+            <div class="cards">
+              <article class="character-card selected" data-object="ares">
+                <div class="portrait">A</div>
+                <div class="card-title-row">
+                  <div>
+                    <h3>Арес</h3>
+                    <div class="muted">Главный герой</div>
+                  </div>
+                  <span>★</span>
+                </div>
+                <div class="tag-list">
+                  <span class="tag">мечник</span>
+                  <span class="tag">магия</span>
+                  <span class="tag">конфликт</span>
+                </div>
+              </article>
+
+              <article class="character-card" data-object="arisa">
+                <div class="portrait">А</div>
+                <div class="card-title-row">
+                  <div>
+                    <h3>Ариса</h3>
+                    <div class="muted">Союзник</div>
+                  </div>
+                  <span>☆</span>
+                </div>
+                <div class="tag-list">
+                  <span class="tag">полуангел</span>
+                  <span class="tag">поддержка</span>
+                </div>
+              </article>
+
+              <article class="character-card" data-object="rufus">
+                <div class="portrait">Р</div>
+                <div class="card-title-row">
+                  <div>
+                    <h3>Руфус</h3>
+                    <div class="muted">Наставник</div>
+                  </div>
+                  <span>☆</span>
+                </div>
+                <div class="tag-list">
+                  <span class="tag">маг</span>
+                  <span class="tag">прошлое</span>
+                </div>
+              </article>
+            </div>
+
+            <div class="timeline-strip">
+              <div class="event-row">
+                <strong>Пробуждение</strong>
+                <span>Глава 1 · Арес, Ариса</span>
+              </div>
+              <div class="event-row">
+                <strong>Разговор у руин</strong>
+                <span>Глава 2 · связь усилилась</span>
+              </div>
+              <div class="event-row">
+                <strong>Испытание</strong>
+                <span>Глава 4 · новый статус</span>
+              </div>
+            </div>
+          </section>
+
+          <aside class="detail" id="detailPanel">
+            <div class="detail-card" id="detailCard">
+              <div class="dossier-head">
+                <div class="avatar">A</div>
+                <div>
+                  <div class="section-title" style="padding:0">Досье персонажа</div>
+                  <h2>Арес</h2>
+                  <div class="muted">Обычный человек / абсурдный герой</div>
+                </div>
+              </div>
+
+              <div class="fields">
+                <div class="field"><span>Возраст</span><strong>24</strong></div>
+                <div class="field"><span>Роль</span><strong>Главный герой</strong></div>
+                <div class="field"><span>Фракция</span><strong>Независимый</strong></div>
+                <div class="field"><span>Статус</span><strong>Активен</strong></div>
+              </div>
+
+              <section class="panel">
+                <h3>Характеристики</h3>
+                <div class="stat-row"><span>Смелость</span><div class="bar"><i style="width:72%"></i></div></div>
+                <div class="stat-row"><span>Контроль</span><div class="bar"><i style="width:44%"></i></div></div>
+                <div class="stat-row"><span>Эмпатия</span><div class="bar"><i style="width:86%"></i></div></div>
+              </section>
+
+              <section class="panel">
+                <h3>Описание</h3>
+                <div class="note">
+                  Персонаж с открытым досье: основные поля, характеристики,
+                  связи и события собраны в компактную правую панель.
+                </div>
+              </section>
+
+              <section class="panel">
+                <h3>Связи</h3>
+                <div class="relation-row"><span class="icon">⛓</span>Ариса — союзник</div>
+                <div class="relation-row"><span class="icon">⛓</span>Руфус — наставник</div>
+                <div class="relation-row"><span class="icon">⛓</span>Каэль — напряжение</div>
+              </section>
+
+              <section class="panel">
+                <h3>Каталоги</h3>
+                <div class="tag-list">
+                  <span class="tag">раса: человек</span>
+                  <span class="tag">магия: огонь</span>
+                  <span class="tag">навык: фехтование</span>
+                </div>
+              </section>
+            </div>
+          </aside>
+        </main>
+      </div>
+    </div>
+    <div class="mock-modal" id="mockModal" hidden>
+      <div class="mock-dialog">
+        <div class="dialog-head">
+          <div>
+            <div class="section-title" style="padding:0">Макет формы</div>
+            <h2 id="modalTitle" style="margin:4px 0 0">Новый объект</h2>
+          </div>
+          <button class="icon-button" id="closeModal">✕</button>
+        </div>
+        <div id="modalBody">
+          <div class="form-grid">
+            <label class="mock-field"><span>Имя</span><input value="Новый персонаж" /></label>
+            <label class="mock-field"><span>Роль</span><input value="Союзник" /></label>
+            <label class="mock-field"><span>Возраст</span><input value="24" /></label>
+            <label class="mock-field"><span>Каталог</span><input value="Персонажи" /></label>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
+            <button class="button" id="cancelModal">Отмена</button>
+            <button class="button primary" id="saveModal">Сохранить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="toast" id="toast" hidden>Действие выполнено</div>
+    <script>
+      const objects = {
+        ares: {
+          name: "Арес",
+          letter: "A",
+          role: "Главный герой",
+          age: "24",
+          faction: "Независимый",
+          status: "Активен",
+          archetype: "Обычный человек / абсурдный герой",
+          tags: ["раса: человек", "магия: огонь", "навык: фехтование"],
+          relations: ["Ариса — союзник", "Руфус — наставник", "Каэль — напряжение"],
+          note: "Персонаж с открытым досье: основные поля, характеристики, связи и события собраны в компактную правую панель.",
+        },
+        arisa: {
+          name: "Ариса",
+          letter: "А",
+          role: "Союзник",
+          age: "21",
+          faction: "Орден света",
+          status: "Активна",
+          archetype: "Полуангел / проводник",
+          tags: ["раса: полуангел", "магия: свет", "роль: поддержка"],
+          relations: ["Арес — доверие", "Каэль — осторожность"],
+          note: "Ариса держит группу вместе и помогает Аресу разобраться с последствиями пробуждения силы.",
+        },
+        rufus: {
+          name: "Руфус",
+          letter: "Р",
+          role: "Наставник",
+          age: "58",
+          faction: "Старая академия",
+          status: "Активен",
+          archetype: "Маг / хранитель прошлого",
+          tags: ["магия: архив", "роль: наставник", "секреты"],
+          relations: ["Арес — ученик", "Ариса — союзник"],
+          note: "Руфус знает больше, чем говорит, и связывает текущую историю с давними событиями мира.",
+        },
+      };
+
+      const sectionData = {
+        characters: {
+          title: "Персонажи",
+          subtitle: "Карточки, досье, связи, галерея и события персонажей",
+          crumb: "Вид: База данных / Персонажи / Основная группа",
+          cards: [
+            ["ares", "Арес", "Главный герой", "A", ["мечник", "магия", "конфликт"]],
+            ["arisa", "Ариса", "Союзник", "А", ["полуангел", "поддержка"]],
+            ["rufus", "Руфус", "Наставник", "Р", ["маг", "прошлое"]],
+          ],
+        },
+        items: {
+          title: "Предметы",
+          subtitle: "Артефакты, оружие, инвентарь и владельцы",
+          crumb: "Вид: База данных / Предметы / Все",
+          cards: [
+            ["blade", "Клинок эха", "Оружие", "К", ["артефакт", "владелец: Арес"]],
+            ["seal", "Печать архива", "Реликвия", "П", ["магия", "ключ"]],
+            ["cloak", "Плащ тени", "Экипировка", "П", ["скрытность", "редкий"]],
+          ],
+        },
+        places: {
+          title: "Места",
+          subtitle: "Локации, территории и вложенные области",
+          crumb: "Вид: База данных / Места / Карта мира",
+          cards: [
+            ["city", "Старый город", "Столица", "С", ["центр", "организация"]],
+            ["ruins", "Руины рассвета", "Опасная зона", "Р", ["тайна", "событие"]],
+            ["archive", "Архив", "Подземелье", "А", ["Руфус", "магия"]],
+          ],
+        },
+        organizations: {
+          title: "Организации",
+          subtitle: "Фракции, владельцы территорий и группы влияния",
+          crumb: "Вид: База данных / Организации / Все",
+          cards: [
+            ["order", "Орден света", "Союзники", "О", ["Ариса", "территория"]],
+            ["academy", "Старая академия", "Нейтральные", "А", ["Руфус", "магия"]],
+            ["watchers", "Смотрители", "Антагонисты", "С", ["конфликт", "тайна"]],
+          ],
+        },
+        attributes: {
+          title: "Характеристики",
+          subtitle: "Шаблоны полей, группы и значения для объектов",
+          crumb: "Вид: Каталоги / Характеристики / Основная",
+          cards: [
+            ["race", "Раса", "Текст", "#", ["основная", "персонажи"]],
+            ["height", "Рост", "Число", "#", ["тело", "см"]],
+            ["status", "Статус", "Список", "#", ["жив", "пропал", "мертв"]],
+          ],
+        },
+        magic: {
+          title: "Магия",
+          subtitle: "Каталог школ, заклинаний и связанных эффектов",
+          crumb: "Вид: Каталоги / Магия / Все",
+          cards: [
+            ["fire", "Огонь", "Школа", "✺", ["урон", "стихия"]],
+            ["light", "Свет", "Школа", "✺", ["защита", "Ариса"]],
+            ["archiveSpell", "Архивная печать", "Заклинание", "✺", ["Руфус", "контроль"]],
+          ],
+        },
+        races: {
+          title: "Расы",
+          subtitle: "Иерархический каталог происхождения и народов",
+          crumb: "Вид: Каталоги / Расы / Все",
+          cards: [
+            ["human", "Люди", "Основная ветвь", "↳", ["Арес", "города"]],
+            ["halfAngel", "Полуангелы", "Редкая ветвь", "↳", ["Ариса", "свет"]],
+            ["oldborn", "Древнерожденные", "Миф", "↳", ["тайна", "иерархия"]],
+          ],
+        },
+      };
+
+      let activeTab = "database";
+      let activeSection = "characters";
+      let selectedObject = "ares";
+      let detailMode = "panel";
+      let viewMode = "grid";
+
+      const contentPanel = document.querySelector("#contentPanel");
+      const detailPanel = document.querySelector("#detailPanel");
+      const settingsPanel = document.querySelector("#settingsPanel");
+      const modal = document.querySelector("#mockModal");
+      const modalTitle = document.querySelector("#modalTitle");
+      const modalBody = document.querySelector("#modalBody");
+      const toast = document.querySelector("#toast");
+      const defaultModalBody = modalBody.innerHTML;
+
+      function showToast(text) {
+        toast.textContent = text;
+        toast.hidden = false;
+        window.setTimeout(() => {
+          toast.hidden = true;
+        }, 1700);
+      }
+
+      function renderCards(data) {
+        return data.cards
+          .map(([id, name, role, letter, tags]) => `
+            <article class="character-card ${id === selectedObject ? "selected" : ""}" data-object="${id}">
+              <div class="portrait">${letter}</div>
+              <div class="card-title-row">
+                <div>
+                  <h3>${name}</h3>
+                  <div class="muted">${role}</div>
+                </div>
+                <span>${id === selectedObject ? "★" : "☆"}</span>
+              </div>
+              <div class="tag-list">
+                ${tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
+              </div>
+            </article>
+          `)
+          .join("");
+      }
+
+      function renderDatabase() {
+        const data = sectionData[activeSection] ?? sectionData.characters;
+        contentPanel.innerHTML = `
+          <div class="content-head">
+            <div>
+              <h2>${data.title}</h2>
+              <div class="muted">${data.subtitle}</div>
+            </div>
+            <div class="filters">
+              <button class="pill active">Все</button>
+              <button class="pill">Активные</button>
+              <button class="pill">Герои</button>
+              <button class="pill">Антагонисты</button>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <div class="muted">${data.crumb}</div>
+            <div class="view-switch">
+              <button class="icon-button ${viewMode === "grid" ? "active" : ""}" data-view="grid">▦</button>
+              <button class="icon-button ${viewMode === "list" ? "active" : ""}" data-view="list">☰</button>
+            </div>
+          </div>
+
+          <div class="cards ${viewMode === "list" ? "list-view" : ""}">
+            ${renderCards(data)}
+          </div>
+
+          <div class="timeline-strip">
+            <div class="event-row"><strong>Пробуждение</strong><span>Глава 1 · Арес, Ариса</span></div>
+            <div class="event-row"><strong>Разговор у руин</strong><span>Глава 2 · связь усилилась</span></div>
+            <div class="event-row"><strong>Испытание</strong><span>Глава 4 · новый статус</span></div>
+          </div>
+        `;
+      }
+
+      function renderRelations() {
+        contentPanel.innerHTML = `
+          <div class="content-head">
+            <div>
+              <h2>Связи</h2>
+              <div class="muted">Кликабельный макет графа отношений между персонажами</div>
+            </div>
+            <button class="button primary" id="newRelationButton">＋ Новая связь</button>
+          </div>
+          <div class="relations-page">
+            <div class="toolbar">
+              <div class="muted">Фильтр: персонажи · активные связи · все типы</div>
+              <div class="filters"><button class="pill active">Союз</button><button class="pill">Конфликт</button><button class="pill">Наставничество</button></div>
+            </div>
+            <div class="relations-canvas">
+              <div class="graph-line" style="left:220px;top:170px;width:260px;transform:rotate(26deg);background:var(--green)"></div>
+              <div class="graph-line" style="left:225px;top:330px;width:260px;transform:rotate(-28deg);background:var(--blue)"></div>
+              <div class="graph-line" style="left:470px;top:250px;width:220px;transform:rotate(90deg);background:var(--red)"></div>
+              <button class="graph-node" style="left:160px;top:130px" data-object="ares"><span class="avatar" style="width:44px;height:44px;border-radius:15px;font-size:18px">A</span><strong>Арес</strong></button>
+              <button class="graph-node" style="left:440px;top:230px" data-object="arisa"><span class="avatar" style="width:44px;height:44px;border-radius:15px;font-size:18px">А</span><strong>Ариса</strong></button>
+              <button class="graph-node" style="left:170px;top:355px" data-object="rufus"><span class="avatar" style="width:44px;height:44px;border-radius:15px;font-size:18px">Р</span><strong>Руфус</strong></button>
+              <button class="graph-node" style="left:680px;top:230px"><span class="avatar" style="width:44px;height:44px;border-radius:15px;font-size:18px">К</span><strong>Каэль</strong></button>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderTimeline() {
+        contentPanel.innerHTML = `
+          <div class="content-head">
+            <div>
+              <h2>Таймлайн</h2>
+              <div class="muted">Горизонтальная шкала событий и изменений объектов</div>
+            </div>
+            <button class="button primary" id="newEventButton">＋ Новое событие</button>
+          </div>
+          <div class="timeline-page">
+            <div class="toolbar">
+              <div class="muted">Период: главы 1-6 · участники: все</div>
+              <div class="filters"><button class="pill active">События</button><button class="pill">Изменения</button><button class="pill">Участники</button></div>
+            </div>
+            <div class="timeline-track">
+              <div class="timeline-axis">
+                <div class="timeline-point" style="left:10%"><div class="timeline-dot"></div><div class="timeline-card top"><strong>Глава 1</strong><span>Пробуждение Ареса</span></div></div>
+                <div class="timeline-point" style="left:36%"><div class="timeline-dot"></div><div class="timeline-card bottom"><strong>Глава 2</strong><span>Разговор у руин</span></div></div>
+                <div class="timeline-point" style="left:62%"><div class="timeline-dot"></div><div class="timeline-card top"><strong>Глава 4</strong><span>Испытание в архиве</span></div></div>
+                <div class="timeline-point" style="left:86%"><div class="timeline-dot"></div><div class="timeline-card bottom"><strong>Глава 6</strong><span>Разрыв союза</span></div></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderObjectPage() {
+        const object = objects[selectedObject] ?? objects.ares;
+        contentPanel.innerHTML = `
+          <div class="content-head">
+            <div>
+              <h2>${object.name}</h2>
+              <div class="muted">Отдельная страница досье объекта</div>
+            </div>
+            <button class="button" data-tab="database">← Назад к базе</button>
+          </div>
+          <div class="detail-card">
+            ${detailMarkup(object, false)}
+          </div>
+        `;
+      }
+
+      function detailMarkup(object, includeHeader = true) {
+        return `
+          <div class="dossier-head">
+            <div class="avatar">${object.letter}</div>
+            <div>
+              <div class="section-title" style="padding:0">Досье персонажа</div>
+              <h2>${object.name}</h2>
+              <div class="muted">${object.archetype}</div>
+            </div>
+          </div>
+          <div class="fields">
+            <div class="field"><span>Возраст</span><strong>${object.age}</strong></div>
+            <div class="field"><span>Роль</span><strong>${object.role}</strong></div>
+            <div class="field"><span>Фракция</span><strong>${object.faction}</strong></div>
+            <div class="field"><span>Статус</span><strong>${object.status}</strong></div>
+          </div>
+          <section class="panel">
+            <h3>Характеристики</h3>
+            <div class="stat-row"><span>Смелость</span><div class="bar"><i style="width:72%"></i></div></div>
+            <div class="stat-row"><span>Контроль</span><div class="bar"><i style="width:44%"></i></div></div>
+            <div class="stat-row"><span>Эмпатия</span><div class="bar"><i style="width:86%"></i></div></div>
+          </section>
+          <section class="panel"><h3>Описание</h3><div class="note">${object.note}</div></section>
+          <section class="panel">
+            <h3>Связи</h3>
+            ${object.relations.map((relation) => `<div class="relation-row"><span class="icon">⛓</span>${relation}</div>`).join("")}
+          </section>
+          <section class="panel">
+            <h3>Каталоги</h3>
+            <div class="tag-list">${object.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+          </section>
+        `;
+      }
+
+      function renderDetail() {
+        const object = objects[selectedObject] ?? objects.ares;
+        detailPanel.hidden = detailMode !== "panel" || activeTab !== "database";
+        document.querySelector("#detailCard").innerHTML = detailMarkup(object);
+      }
+
+      function openModal(title, body) {
+        modalTitle.textContent = title;
+        modalBody.innerHTML = body ?? defaultModalBody;
+        modal.hidden = false;
+      }
+
+      function render() {
+        document.querySelectorAll(".mode-tab").forEach((button) => {
+          button.classList.toggle("active", button.dataset.tab === activeTab);
+        });
+        document.querySelectorAll(".nav-button").forEach((button) => {
+          button.classList.toggle("active", button.dataset.section === activeSection && activeTab === "database");
+        });
+        if (activeTab === "relations") {
+          renderRelations();
+        } else if (activeTab === "timeline") {
+          renderTimeline();
+        } else if (detailMode === "page" && selectedObject !== null) {
+          renderObjectPage();
+        } else {
+          renderDatabase();
+        }
+        renderDetail();
+      }
+
+      document.addEventListener("click", (event) => {
+        const tab = event.target.closest("[data-tab]");
+        if (tab) {
+          activeTab = tab.dataset.tab;
+          settingsPanel.classList.remove("open");
+          render();
+          return;
+        }
+
+        const section = event.target.closest("[data-section]");
+        if (section) {
+          activeTab = "database";
+          activeSection = section.dataset.section;
+          selectedObject = activeSection === "characters" ? "ares" : null;
+          render();
+          return;
+        }
+
+        const view = event.target.closest("[data-view]");
+        if (view) {
+          viewMode = view.dataset.view;
+          render();
+          return;
+        }
+
+        const detailModeButton = event.target.closest("[data-detail-mode]");
+        if (detailModeButton) {
+          detailMode = detailModeButton.dataset.detailMode;
+          document.querySelectorAll("[data-detail-mode]").forEach((button) => {
+            button.classList.toggle("active", button.dataset.detailMode === detailMode);
+          });
+          render();
+          return;
+        }
+
+        const objectButton = event.target.closest("[data-object]");
+        if (objectButton) {
+          selectedObject = objectButton.dataset.object;
+          if (detailMode === "modal") {
+            openModal(`Досье: ${objects[selectedObject]?.name ?? "Объект"}`, detailMarkup(objects[selectedObject] ?? objects.ares));
+          }
+          render();
+          return;
+        }
+      });
+
+      document.querySelector("#settingsToggle").addEventListener("click", () => {
+        settingsPanel.classList.toggle("open");
+      });
+
+      document.querySelector("#profileButton").addEventListener("click", () => {
+        openModal("Профиль", `<div class="note">Аккаунт: demo@storydb.local<br />Роль: владелец проекта<br />Статус: макет профиля</div>`);
+      });
+
+      document.querySelector("#newObjectButton").addEventListener("click", () => {
+        openModal("Новый объект");
+      });
+
+      document.querySelector("#closeModal").addEventListener("click", () => {
+        modal.hidden = true;
+      });
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) {
+          modal.hidden = true;
+          return;
+        }
+
+        if (event.target.closest("#cancelModal")) {
+          modal.hidden = true;
+          return;
+        }
+
+        if (event.target.closest("#saveModal")) {
+          modal.hidden = true;
+          showToast("Макет: объект сохранен");
+        }
+      });
+
+      render();
+    </script>
+  </body>
+</html>

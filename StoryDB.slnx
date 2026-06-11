@@ -1,6 +1,9 @@
 <Solution>
+  <Project Path="StoryDB.Api.IntegrationTests/StoryDB.Api.IntegrationTests.csproj" />
+  <Project Path="StoryDB.Api.Tests/StoryDB.Api.Tests.csproj" Id="77e18442-7c60-49c7-867e-98079f822482" />
   <Project Path="StoryDB.Api/StoryDB.Api.csproj" />
   <Project Path="StoryDB.Client/storydb.client.esproj">
     <Build />
   </Project>
+  <Project Path="StoryDB.E2E.Tests/StoryDB.E2E.Tests.csproj" Id="ae85443e-0063-41e5-8c81-4c8d3573f215" />
 </Solution>

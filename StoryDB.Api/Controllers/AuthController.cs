@@ -40,15 +40,15 @@ public class AuthController(StoryDbContext dbContext) : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<AuthUserDto>> Register(AuthRegisterRequest request)
     {
-        var email = NormalizeEmailInput(request.Email);
+        var email = AuthInputValidator.NormalizeEmailInput(request.Email);
         var displayName = request.DisplayName?.Trim();
-        var validationError = ValidateCredentials(email, request.Password);
+        var validationError = AuthInputValidator.ValidateCredentials(email, request.Password);
         if (validationError is not null)
         {
             return BadRequest(validationError);
         }
 
-        var normalizedEmail = NormalizeEmail(email);
+        var normalizedEmail = AuthInputValidator.NormalizeEmail(email);
         var exists = await dbContext.Users.AnyAsync(user => user.NormalizedEmail == normalizedEmail);
         if (exists)
         {
@@ -77,14 +77,14 @@ public class AuthController(StoryDbContext dbContext) : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<AuthUserDto>> Login(AuthLoginRequest request)
     {
-        var email = NormalizeEmailInput(request.Email);
-        var validationError = ValidateCredentials(email, request.Password);
+        var email = AuthInputValidator.NormalizeEmailInput(request.Email);
+        var validationError = AuthInputValidator.ValidateCredentials(email, request.Password);
         if (validationError is not null)
         {
             return BadRequest(validationError);
         }
 
-        var normalizedEmail = NormalizeEmail(email);
+        var normalizedEmail = AuthInputValidator.NormalizeEmail(email);
         var user = await dbContext.Users.FirstOrDefaultAsync(currentUser =>
             currentUser.NormalizedEmail == normalizedEmail);
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordHash))
@@ -141,25 +141,6 @@ public class AuthController(StoryDbContext dbContext) : ControllerBase
         var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return int.TryParse(value, out var userId) ? userId : null;
     }
-
-    private static string? ValidateCredentials(string email, string password)
-    {
-        if (string.IsNullOrWhiteSpace(email) || email.Length > 254 || !email.Contains('@'))
-        {
-            return "Valid email is required.";
-        }
-
-        if (string.IsNullOrWhiteSpace(password) || password.Length < 6 || password.Length > 128)
-        {
-            return "Password must be between 6 and 128 characters.";
-        }
-
-        return null;
-    }
-
-    private static string NormalizeEmailInput(string email) => email.Trim();
-
-    private static string NormalizeEmail(string email) => email.Trim().ToUpperInvariant();
 
     private static AuthUserDto ToDto(AppUser user) => new(user.Id, user.Email ?? string.Empty, user.DisplayName);
 }
