@@ -1,21 +1,73 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
+import { scaleLinear, type ScaleLinear } from 'd3-scale'
+import { select } from 'd3-selection'
+import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior, type ZoomTransform } from 'd3-zoom'
+import {
+  Activity,
+  Atom,
+  BookOpen,
+  Brain,
+  Circle,
+  Dumbbell,
+  Eye,
+  Flame,
+  Heart,
+  Leaf,
+  Shield,
+  Sparkles,
+  Star,
+  Sword,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
+import {
+  Background,
+  BackgroundVariant,
+  Controls,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position,
+  ReactFlow,
+  applyNodeChanges,
+  type Edge,
+  type Node,
+  type NodeChange,
+  type NodeProps,
+} from '@xyflow/react'
+import type { ElkNode } from 'elkjs/lib/elk-api'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   addObjectGalleryImageRequest,
+  addTimelineEventGalleryImageRequest,
   createAttributeDefinitionRequest,
   createAttributeGroupRequest,
   createCatalogEntryRequest,
   createCatalogEntryGroupRequest,
+  createCatalogFieldDefinitionRequest,
   createCatalogRequest,
   createObjectRequest,
   createTimelineEventRequest,
+  createTimelineEventLinkRequest,
   deleteAttributeDefinitionRequest,
   deleteAttributeGroupRequest,
   deleteCatalogEntryRequest,
   deleteObjectGalleryImageRequest,
   deleteCatalogEntryGroupRequest,
+  deleteCatalogFieldDefinitionRequest,
   deleteCatalogRequest,
   deleteObjectRequest,
+  deleteTimelineEventRequest,
+  deleteTimelineEventGalleryImageRequest,
+  deleteTimelineEventLinkRequest,
   fetchAttributeDefinitions,
   fetchAttributeGroups,
   fetchCatalogs,
@@ -26,17 +78,28 @@ import {
   fetchObject,
   fetchObjects,
   fetchProjects,
+  fetchRelationGraph,
+  fetchRelationGraphLayout,
   fetchTimelineEvents,
+  fetchTimelineEventLinks,
+  fetchTimelineInfo,
+  fetchTimelineLayout,
+  fetchTimelineLayoutRules,
+  generateTimelineLayoutRequest,
   loginRequest,
   logoutRequest,
   registerRequest,
   resolveAssetUrl,
+  saveRelationGraphLayoutRequest,
   updateObjectRequest,
   updateAttributeDefinitionRequest,
   updateAttributeGroupRequest,
+  updateCurrentUserRequest,
   updateCatalogEntryRequest,
   updateCatalogEntryGroupRequest,
+  updateCatalogFieldDefinitionRequest,
   updateCatalogRequest,
+  updateTimelineEventRequest,
   uploadImageRequest,
 } from './api'
 import type {
@@ -49,6 +112,9 @@ import type {
   CatalogEntry,
   CatalogEntryDraft,
   CatalogEntryGroup,
+  CatalogFieldDataType,
+  CatalogFieldDefinition,
+  CatalogFieldDraft,
   DraftAttribute,
   DraftCatalogSelection,
   DraftCharacterRelationship,
@@ -57,11 +123,36 @@ import type {
   HierarchyNode,
   ObjectAttribute,
   ObjectTypeKey,
+  RelationGraph,
+  RelationGraphEdge,
+  RelationGraphLayout,
+  RelationGraphNode,
   StoryObject,
   StoryProject,
   TimelineEvent,
+  TimelineChangeDraft,
   TimelineEventDraft,
+  TimelineEventLink,
+  TimelineEventLinkDraft,
+  TimelineInfo,
+  TimelineLayout,
+  TimelineLayoutItem,
+  TimelineLayoutRules,
 } from './types'
+import {
+  getTimelineEventValidationMessage,
+  validateAttributeDefinitionDraft,
+  validateAttributeGroupDraft,
+  validateAuthDraft,
+  validateCatalogDraft,
+  validateCatalogEntryDraft,
+  validateCatalogFieldDraft,
+  validateCatalogGroupDraft,
+  validateObjectDraft,
+  validateProfileDraft,
+  validateTimelineLinkDraft,
+} from './validation'
+import '@xyflow/react/dist/style.css'
 import './StylePreview.css'
 
 type PreviewTab = 'database' | 'relations' | 'timeline'
@@ -69,14 +160,25 @@ type DetailMode = 'panel' | 'modal' | 'page'
 type GroupDisplayMode = 'blocks' | 'subtabs'
 type PreviewTheme = 'light' | 'dark'
 type PreviewLanguage = 'ru' | 'en'
+type UtilityPage = 'profile' | 'settings' | null
 type PreviewSection = ObjectTypeKey | 'attributes' | 'catalogs'
 type ObjectEditorTab = 'main' | 'attributes' | 'catalogs' | 'hierarchy' | 'relations' | 'timeline'
 type ObjectDossierTab = 'main' | 'relations' | 'timeline' | 'gallery'
+type TimelineEventDossierTab = 'main' | 'participants' | 'links' | 'changes' | 'gallery'
+type CatalogDialogTab = 'main' | 'template'
+type TimelineChange = TimelineEvent['changes'][number]
+const TIMELINE_DURATION_TITLE_HEIGHT = 34
+const TIMELINE_DURATION_POINT_BAND_HEIGHT = 30
+type DraftTimelineParticipation = {
+  timelineEventId: string
+  role: string
+}
 type PreviewDialogKind =
   | 'auth'
   | 'object'
   | 'profile'
   | 'detail'
+  | 'relationDetail'
   | 'objectLegacy'
   | 'confirmDeleteObject'
   | 'attributeGroup'
@@ -90,23 +192,118 @@ type PreviewDialogKind =
   | 'catalogEntryDetail'
   | 'confirmDeleteCatalogEntry'
   | 'timelineEvent'
+  | 'timelineEventDetail'
+  | 'timelineLink'
+  | 'confirmDeleteTimelineEvent'
   | null
 
 const emptyAttributeDefinitionDraft: AttributeDefinitionDraft = {
   name: '',
   dataType: 'text',
   groupName: '',
+  iconKey: '',
   minValue: '',
   maxValue: '',
   unit: '',
   optionsText: '',
 }
 
+const attributeIconOptions: Array<{ key: string; label: string; Icon: LucideIcon }> = [
+  { key: 'none', label: 'Нет', Icon: Circle },
+  { key: 'star', label: 'Звезда', Icon: Star },
+  { key: 'heart', label: 'Сердце', Icon: Heart },
+  { key: 'brain', label: 'Разум', Icon: Brain },
+  { key: 'activity', label: 'Активность', Icon: Activity },
+  { key: 'dumbbell', label: 'Сила', Icon: Dumbbell },
+  { key: 'eye', label: 'Взгляд', Icon: Eye },
+  { key: 'flame', label: 'Огонь', Icon: Flame },
+  { key: 'leaf', label: 'Природа', Icon: Leaf },
+  { key: 'sparkles', label: 'Магия', Icon: Sparkles },
+  { key: 'zap', label: 'Энергия', Icon: Zap },
+  { key: 'shield', label: 'Защита', Icon: Shield },
+  { key: 'sword', label: 'Бой', Icon: Sword },
+  { key: 'book', label: 'Знание', Icon: BookOpen },
+  { key: 'atom', label: 'Система', Icon: Atom },
+]
+
 const attributeDataTypeLabels: Record<AttributeDataType, { ru: string; en: string }> = {
   text: { ru: 'Текст', en: 'Text' },
   number: { ru: 'Число', en: 'Number' },
   select: { ru: 'Список', en: 'List' },
 }
+
+const emptyCatalogFieldDraft: CatalogFieldDraft = {
+  name: '',
+  dataType: 'text',
+  isRequired: false,
+  minValue: '',
+  maxValue: '',
+  optionsText: '',
+  referenceCatalogId: '',
+}
+
+const emptyTimelineEventDraft: TimelineEventDraft = {
+  title: '',
+  eventType: 'point',
+  parentEventId: '',
+  description: '',
+  startLabel: '',
+  endLabel: '',
+  startValue: '',
+  endValue: '',
+  category: '',
+  color: '',
+  imagePath: null,
+  participants: [],
+  changes: [],
+}
+
+const catalogFieldDataTypes: CatalogFieldDataType[] = [
+  'text',
+  'longText',
+  'number',
+  'select',
+  'entryReference',
+  'multipleEntryReference',
+]
+
+const catalogFieldDataTypeLabels: Record<CatalogFieldDataType, { ru: string; en: string }> = {
+  text: { ru: 'Текст', en: 'Text' },
+  longText: { ru: 'Длинный текст', en: 'Long text' },
+  number: { ru: 'Число', en: 'Number' },
+  select: { ru: 'Список', en: 'List' },
+  entryReference: { ru: 'Ссылка на запись', en: 'Entry link' },
+  multipleEntryReference: { ru: 'Несколько ссылок', en: 'Multiple links' },
+}
+
+const catalogTemplateLabels = {
+  ru: {
+    addField: '+ Поле шаблона',
+    dataType: 'Тип данных',
+    fields: 'Поля шаблона',
+    max: 'Максимум',
+    min: 'Минимум',
+    noFields: 'Поля шаблона пока не настроены.',
+    options: 'Варианты',
+    optionsPlaceholder: 'Например: огонь, вода, воздух',
+    referenceCatalog: 'Каталог для ссылки',
+    required: 'Обязательное',
+    template: 'Шаблон записи',
+  },
+  en: {
+    addField: '+ Template field',
+    dataType: 'Data type',
+    fields: 'Template fields',
+    max: 'Maximum',
+    min: 'Minimum',
+    noFields: 'No template fields yet.',
+    options: 'Options',
+    optionsPlaceholder: 'Example: fire, water, air',
+    referenceCatalog: 'Reference catalog',
+    required: 'Required',
+    template: 'Entry template',
+  },
+} satisfies Record<PreviewLanguage, Record<string, string>>
 
 const objectSections: Array<{ key: ObjectTypeKey; labelKey: 'characters' | 'items' | 'places' | 'organizations'; icon: 'characters' | 'items' | 'places' | 'organizations' }> = [
   { key: 'characters', labelKey: 'characters', icon: 'characters' },
@@ -128,6 +325,7 @@ const previewText = {
     allCatalogs: 'Все каталоги',
     appSubtitle: 'База мира и истории',
     attributes: 'Характеристики',
+    avatar: 'Аватар',
     cancel: 'Отмена',
     catalog: 'Каталог',
     catalogNoSelection: 'Каталог не выбран',
@@ -149,6 +347,7 @@ const previewText = {
     detailModal: 'Окно',
     detailPage: 'Страница',
     detailPanel: 'Правая панель',
+    displayName: 'Отображаемое имя',
     dossier: 'Досье объекта',
     edit: 'Изменить',
     editor: 'Редактор объекта',
@@ -180,8 +379,14 @@ const previewText = {
     password: 'Пароль',
     places: 'Места',
     profile: 'Профиль',
+    profileData: 'Данные профиля',
+    profileProjects: 'Выбор проекта',
+    profileSignIn: 'Для профиля нужен вход в аккаунт.',
     project: 'Проект',
+    projectSearch: 'Поиск по проектам...',
     projectNotSelected: 'Проект не выбран',
+    projects: 'Проекты',
+    objectsCount: 'объектов',
     realCatalogs: 'Реальные справочники проекта',
     register: 'Регистрация',
     relations: 'Связи',
@@ -189,6 +394,7 @@ const previewText = {
     save: 'Сохранить',
     saveTimelineChange: 'Сохранить как изменение таймлайна',
     searchPlaceholder: 'Поиск по объектам, каталогам, связям...',
+    selectProject: 'Открыть проект',
     settings: 'Настройки',
     surname: 'Фамилия',
     theme: 'Тема',
@@ -211,6 +417,7 @@ const previewText = {
     allCatalogs: 'All catalogs',
     appSubtitle: 'World and story database',
     attributes: 'Attributes',
+    avatar: 'Avatar',
     cancel: 'Cancel',
     catalog: 'Catalog',
     catalogNoSelection: 'No catalog selected',
@@ -232,6 +439,7 @@ const previewText = {
     detailModal: 'Modal',
     detailPage: 'Page',
     detailPanel: 'Right panel',
+    displayName: 'Display name',
     dossier: 'Object dossier',
     edit: 'Edit',
     editor: 'Object editor',
@@ -263,8 +471,14 @@ const previewText = {
     password: 'Password',
     places: 'Places',
     profile: 'Profile',
+    profileData: 'Profile data',
+    profileProjects: 'Project selection',
+    profileSignIn: 'Sign in to manage your profile.',
     project: 'Project',
+    projectSearch: 'Search projects...',
     projectNotSelected: 'No project selected',
+    projects: 'Projects',
+    objectsCount: 'objects',
     realCatalogs: 'Real project reference catalogs',
     register: 'Register',
     relations: 'Relations',
@@ -272,6 +486,7 @@ const previewText = {
     save: 'Save',
     saveTimelineChange: 'Save as timeline change',
     searchPlaceholder: 'Search objects, catalogs, relations...',
+    selectProject: 'Open project',
     settings: 'Settings',
     surname: 'Surname',
     theme: 'Theme',
@@ -360,6 +575,8 @@ const parseStylePreviewPath = (pathname: string) => {
       catalogId: null,
       objectId: null,
       projectId: null,
+      utilityPage:
+        parts[0] === 'profile' ? 'profile' as UtilityPage : parts[0] === 'settings' ? 'settings' as UtilityPage : null,
     }
   }
 
@@ -370,6 +587,7 @@ const parseStylePreviewPath = (pathname: string) => {
       catalogId: null,
       objectId: null,
       projectId,
+      utilityPage: null,
     }
   }
 
@@ -380,6 +598,7 @@ const parseStylePreviewPath = (pathname: string) => {
       catalogId: parsePositiveNumber(parts[3]),
       objectId: null,
       projectId,
+      utilityPage: null,
     }
   }
 
@@ -390,6 +609,7 @@ const parseStylePreviewPath = (pathname: string) => {
       catalogId: null,
       objectId: null,
       projectId,
+      utilityPage: null,
     }
   }
 
@@ -402,6 +622,7 @@ const parseStylePreviewPath = (pathname: string) => {
       catalogId: null,
       objectId: parts[4] === 'objects' ? parsePositiveNumber(parts[5]) : null,
       projectId,
+      utilityPage: null,
     }
   }
 
@@ -411,6 +632,7 @@ const parseStylePreviewPath = (pathname: string) => {
     catalogId: null,
     objectId: null,
     projectId,
+    utilityPage: null,
   }
 }
 
@@ -584,9 +806,22 @@ export function StylePreview() {
   const [objects, setObjects] = useState<StoryObject[]>([])
   const [catalogs, setCatalogs] = useState<Catalog[]>([])
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([])
+  const [timelineLinks, setTimelineLinks] = useState<TimelineEventLink[]>([])
+  const [timelineInfo, setTimelineInfo] = useState<TimelineInfo | null>(null)
+  const [timelineLayout, setTimelineLayout] = useState<TimelineLayout | null>(null)
+  const [timelineLayoutRules, setTimelineLayoutRules] = useState<TimelineLayoutRules | null>(null)
+  const [isTimelineGenerating, setIsTimelineGenerating] = useState(false)
+  const [selectedTimelineEventId, setSelectedTimelineEventId] = useState<number | null>(null)
+  const [editingTimelineEventId, setEditingTimelineEventId] = useState<number | null>(null)
+  const [pendingDeleteTimelineEventId, setPendingDeleteTimelineEventId] = useState<number | null>(null)
+  const [relationGraph, setRelationGraph] = useState<RelationGraph>({ nodes: [], edges: [] })
+  const [relationGraphLayout, setRelationGraphLayout] = useState<RelationGraphLayout | null>(null)
+  const [isRelationLayoutGenerating, setIsRelationLayoutGenerating] = useState(false)
   const [selectedObjectId, setSelectedObjectId] = useState<number | null>(
     routeState.objectId ?? initialPreviewState.selectedObjectId ?? null,
   )
+  const [selectedRelationEdgeId, setSelectedRelationEdgeId] = useState<string | null>(null)
+  const [selectedRelationObjectId, setSelectedRelationObjectId] = useState<number | null>(null)
   const [detailMode, setDetailMode] = useState<DetailMode>(initialPreviewState.detailMode ?? 'panel')
   const [groupDisplayMode, setGroupDisplayMode] = useState<GroupDisplayMode>(
     initialPreviewState.groupDisplayMode ?? 'blocks',
@@ -595,16 +830,24 @@ export function StylePreview() {
   const [previewLanguage, setPreviewLanguage] = useState<PreviewLanguage>(initialPreviewState.previewLanguage ?? 'ru')
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isSettingsPageOpen, setIsSettingsPageOpen] = useState(false)
+  const [isSettingsPageOpen, setIsSettingsPageOpen] = useState(routeState.utilityPage === 'settings')
+  const [isProfilePageOpen, setIsProfilePageOpen] = useState(routeState.utilityPage === 'profile')
   const [isObjectPageOpen, setIsObjectPageOpen] = useState(
     routeState.objectId !== null || initialPreviewState.isObjectPageOpen === true,
   )
+  const [isRelationPageOpen, setIsRelationPageOpen] = useState(false)
+  const [isTimelineEventPageOpen, setIsTimelineEventPageOpen] = useState(false)
   const [activeObjectMenuId, setActiveObjectMenuId] = useState<number | null>(null)
   const [dialog, setDialog] = useState<PreviewDialogKind>(null)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authDisplayName, setAuthDisplayName] = useState('')
+  const [profileDisplayName, setProfileDisplayName] = useState('')
+  const [profileEmail, setProfileEmail] = useState('')
+  const [profileAvatarImagePath, setProfileAvatarImagePath] = useState<string | null>(null)
+  const [profileProjectQuery, setProfileProjectQuery] = useState('')
+  const [isProfileSaving, setIsProfileSaving] = useState(false)
   const [editingObjectId, setEditingObjectId] = useState<number | null>(null)
   const [objectName, setObjectName] = useState('')
   const [objectSurname, setObjectSurname] = useState('')
@@ -614,6 +857,7 @@ export function StylePreview() {
   const [objectImagePath, setObjectImagePath] = useState<string | null>(null)
   const [objectEditorTab, setObjectEditorTab] = useState<ObjectEditorTab>('main')
   const [dossierTab, setDossierTab] = useState<ObjectDossierTab>('main')
+  const [dossierTimelineEventId, setDossierTimelineEventId] = useState('')
   const [draftAttributes, setDraftAttributes] = useState<DraftAttribute[]>([])
   const [draftHierarchySelections, setDraftHierarchySelections] = useState<DraftHierarchySelection[]>([])
   const [draftCatalogSelections, setDraftCatalogSelections] = useState<DraftCatalogSelection[]>([])
@@ -627,6 +871,7 @@ export function StylePreview() {
   const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([])
   const [selectedAttributeGroupId, setSelectedAttributeGroupId] = useState<number | null>(null)
   const [attributeGroupName, setAttributeGroupName] = useState('')
+  const [attributeGroupIconKey, setAttributeGroupIconKey] = useState('')
   const [editingAttributeGroupId, setEditingAttributeGroupId] = useState<number | null>(null)
   const [editingAttributeDefinitionId, setEditingAttributeDefinitionId] = useState<number | null>(null)
   const [pendingDeleteAttributeGroupId, setPendingDeleteAttributeGroupId] = useState<number | null>(null)
@@ -645,17 +890,24 @@ export function StylePreview() {
   })
   const [catalogEntriesByCatalogId, setCatalogEntriesByCatalogId] = useState<Record<number, CatalogEntry[]>>({})
   const [catalogGroupsByCatalogId, setCatalogGroupsByCatalogId] = useState<Record<number, CatalogEntryGroup[]>>({})
+  const [catalogFieldsByCatalogId, setCatalogFieldsByCatalogId] = useState<Record<number, CatalogFieldDefinition[]>>({})
   const [galleryImagePath, setGalleryImagePath] = useState<string | null>(null)
   const [galleryImageCaption, setGalleryImageCaption] = useState('')
+  const [timelineGalleryImagePath, setTimelineGalleryImagePath] = useState<string | null>(null)
+  const [timelineGalleryImageCaption, setTimelineGalleryImageCaption] = useState('')
   const [editorTimelineEventId, setEditorTimelineEventId] = useState('')
   const [saveObjectAsTimelineChange, setSaveObjectAsTimelineChange] = useState(false)
+  const [draftTimelineParticipations, setDraftTimelineParticipations] = useState<DraftTimelineParticipation[]>([])
   const [selectedCatalogId, setSelectedCatalogId] = useState<number | null>(routeState.catalogId)
   const [catalogEntries, setCatalogEntries] = useState<CatalogEntry[]>([])
   const [catalogGroups, setCatalogGroups] = useState<CatalogEntryGroup[]>([])
   const [catalogName, setCatalogName] = useState('')
   const [catalogDescription, setCatalogDescription] = useState('')
   const [catalogSupportsHierarchy, setCatalogSupportsHierarchy] = useState(false)
+  const [catalogDialogTab, setCatalogDialogTab] = useState<CatalogDialogTab>('main')
   const [editingCatalogId, setEditingCatalogId] = useState<number | null>(null)
+  const [editingCatalogFieldId, setEditingCatalogFieldId] = useState<number | null>(null)
+  const [catalogFieldDraft, setCatalogFieldDraft] = useState<CatalogFieldDraft>(emptyCatalogFieldDraft)
   const [pendingDeleteCatalogId, setPendingDeleteCatalogId] = useState<number | null>(null)
   const [catalogGroupName, setCatalogGroupName] = useState('')
   const [editingCatalogGroupId, setEditingCatalogGroupId] = useState<number | null>(null)
@@ -671,27 +923,24 @@ export function StylePreview() {
     parentEntryIds: [],
     fieldValues: {},
   })
-  const [timelineDraft, setTimelineDraft] = useState<TimelineEventDraft>({
-    title: '',
+  const [timelineDraft, setTimelineDraft] = useState<TimelineEventDraft>(emptyTimelineEventDraft)
+  const [timelineLinkDraft, setTimelineLinkDraft] = useState<TimelineEventLinkDraft>({
+    sourceEventId: '',
+    targetEventId: '',
+    linkType: 'precedes',
     description: '',
-    startLabel: '',
-    endLabel: '',
-    startValue: '',
-    endValue: '',
-    category: '',
-    color: '',
-    participants: [],
-    changes: [],
   })
   const [isLoading, setIsLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
   const [isObjectSaving, setIsObjectSaving] = useState(false)
   const ui = previewText[previewLanguage]
+  const catalogTemplateUi = catalogTemplateLabels[previewLanguage]
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   )
+  const currentUserAvatarUrl = resolveAssetUrl(currentUser?.avatarImagePath ?? null)
   const visibleObjects = useMemo(
     () => (selectedProjectId === null ? [] : objects),
     [objects, selectedProjectId],
@@ -704,14 +953,41 @@ export function StylePreview() {
     () => (selectedProjectId === null ? [] : timelineEvents),
     [selectedProjectId, timelineEvents],
   )
+  const timelineDraftIsRangeEvent = timelineDraft.eventType === 'duration' || timelineDraft.eventType === 'era'
+  const timelineDraftIsPointEvent = timelineDraft.eventType === 'point'
+  const timelineDraftParentOptions = useMemo(
+    () =>
+      visibleTimelineEvents.filter(
+        (event) =>
+          event.id !== editingTimelineEventId &&
+          (event.eventType === 'duration' || event.eventType === 'era'),
+      ),
+    [editingTimelineEventId, visibleTimelineEvents],
+  )
+  const selectedTimelineEvent = useMemo(
+    () => visibleTimelineEvents.find((event) => event.id === selectedTimelineEventId) ?? null,
+    [selectedTimelineEventId, visibleTimelineEvents],
+  )
   const selectedObject = useMemo(
     () => visibleObjects.find((storyObject) => storyObject.id === selectedObjectId) ?? null,
     [selectedObjectId, visibleObjects],
+  )
+  const selectedRelationEdge = useMemo(
+    () => relationGraph.edges.find((edge) => edge.id === selectedRelationEdgeId) ?? null,
+    [relationGraph.edges, selectedRelationEdgeId],
   )
   const selectedCatalog = useMemo(
     () => visibleCatalogs.find((catalog) => catalog.id === selectedCatalogId) ?? visibleCatalogs[0] ?? null,
     [selectedCatalogId, visibleCatalogs],
   )
+  const selectedCatalogFields = useMemo(
+    () => (selectedCatalog === null ? [] : catalogFieldsByCatalogId[selectedCatalog.id] ?? []),
+    [catalogFieldsByCatalogId, selectedCatalog],
+  )
+  const catalogDialogFields = useMemo(() => {
+    const targetCatalogId = editingCatalogId ?? selectedCatalog?.id ?? null
+    return targetCatalogId === null ? [] : catalogFieldsByCatalogId[targetCatalogId] ?? []
+  }, [catalogFieldsByCatalogId, editingCatalogId, selectedCatalog])
   const selectedCatalogEntry = useMemo(
     () =>
       catalogEntries.find((entry) => entry.id === selectedCatalogEntryId) ??
@@ -770,7 +1046,11 @@ export function StylePreview() {
       if (routeState.activeSection !== null) {
         setActiveSection(routeState.activeSection)
         setIsSettingsPageOpen(false)
+        setIsProfilePageOpen(false)
       }
+
+      setIsSettingsPageOpen(routeState.utilityPage === 'settings')
+      setIsProfilePageOpen(routeState.utilityPage === 'profile')
 
       setSelectedObjectId(routeState.objectId)
       setIsObjectPageOpen(routeState.objectId !== null)
@@ -789,6 +1069,7 @@ export function StylePreview() {
     routeState.catalogId,
     routeState.objectId,
     routeState.projectId,
+    routeState.utilityPage,
   ])
 
   const navigateToWorkspace = (
@@ -798,6 +1079,16 @@ export function StylePreview() {
     catalogId: number | null = selectedCatalogId,
   ) => {
     setIsSettingsPageOpen(false)
+    setIsProfilePageOpen(false)
+    if (tab !== 'relations') {
+      setSelectedRelationEdgeId(null)
+      setSelectedRelationObjectId(null)
+      setIsRelationPageOpen(false)
+    }
+    if (tab !== 'timeline') {
+      setSelectedTimelineEventId(null)
+      setIsTimelineEventPageOpen(false)
+    }
     navigateToPreview(selectedProjectId, tab, section, objectId, catalogId)
   }
 
@@ -845,7 +1136,12 @@ export function StylePreview() {
   }, [loadProjects])
 
   useEffect(() => {
-    if (routeState.projectId === null && selectedProjectId !== null && projects.length > 0) {
+    if (
+      routeState.utilityPage === null &&
+      routeState.projectId === null &&
+      selectedProjectId !== null &&
+      projects.length > 0
+    ) {
       navigateToPreview(selectedProjectId, activeTab, activeSection, selectedObjectId, selectedCatalogId, true)
     }
   }, [
@@ -854,10 +1150,17 @@ export function StylePreview() {
     navigateToPreview,
     projects.length,
     routeState.projectId,
+    routeState.utilityPage,
     selectedCatalogId,
     selectedObjectId,
     selectedProjectId,
   ])
+
+  useEffect(() => {
+    setProfileDisplayName(currentUser?.displayName ?? '')
+    setProfileEmail(currentUser?.email ?? '')
+    setProfileAvatarImagePath(currentUser?.avatarImagePath ?? null)
+  }, [currentUser])
 
   useEffect(() => {
     savePreviewState({
@@ -885,6 +1188,46 @@ export function StylePreview() {
     document.addEventListener('pointerdown', closeFloatingMenus)
     return () => document.removeEventListener('pointerdown', closeFloatingMenus)
   }, [])
+
+  useEffect(() => {
+    let isActive = true
+
+    if (selectedProjectId === null) {
+      setRelationGraph({ nodes: [], edges: [] })
+      setRelationGraphLayout(null)
+      return undefined
+    }
+
+    fetchRelationGraph(selectedProjectId)
+      .then((graph) => {
+        if (isActive) {
+          setRelationGraph(graph)
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setRelationGraph({ nodes: [], edges: [] })
+          setMessage('Не удалось загрузить граф связей.')
+        }
+      })
+
+    fetchRelationGraphLayout(selectedProjectId)
+      .then((layout) => {
+        if (isActive) {
+          setRelationGraphLayout(layout)
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setRelationGraphLayout(null)
+          setMessage('Граф загружен без сохраненной раскладки.')
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedProjectId])
 
   useEffect(() => {
     let isActive = true
@@ -998,6 +1341,10 @@ export function StylePreview() {
     let isActive = true
 
     if (selectedProjectId === null) {
+      setTimelineInfo(null)
+      setTimelineLayout(null)
+      setTimelineLayoutRules(null)
+      setTimelineLinks([])
       return undefined
     }
 
@@ -1040,9 +1387,19 @@ export function StylePreview() {
         }
       }
 
-      const loadedEvents = await fetchTimelineEvents(selectedProjectId)
+      const [loadedEvents, loadedTimelineInfo, loadedTimelineLayout, loadedTimelineLinks, loadedTimelineRules] = await Promise.all([
+        fetchTimelineEvents(selectedProjectId),
+        fetchTimelineInfo(selectedProjectId),
+        fetchTimelineLayout(selectedProjectId),
+        fetchTimelineEventLinks(selectedProjectId),
+        fetchTimelineLayoutRules(selectedProjectId),
+      ])
       if (isActive) {
         setTimelineEvents(loadedEvents)
+        setTimelineInfo(loadedTimelineInfo)
+        setTimelineLayout(loadedTimelineLayout)
+        setTimelineLinks(loadedTimelineLinks)
+        setTimelineLayoutRules(loadedTimelineRules)
       }
     }
 
@@ -1102,18 +1459,25 @@ export function StylePreview() {
     let isActive = true
 
     if (selectedProjectId === null || selectedCatalogId === null || activeSection !== 'catalogs') {
+      setCatalogEntries([])
+      setCatalogGroups([])
       return undefined
     }
 
     const loadCatalogWorkspace = async () => {
-      const [loadedEntries, loadedGroups] = await Promise.all([
+      const [loadedEntries, loadedGroups, loadedFields] = await Promise.all([
         fetchCatalogEntries(selectedProjectId, selectedCatalogId),
         fetchCatalogEntryGroups(selectedProjectId, selectedCatalogId),
+        fetchCatalogFieldDefinitions(selectedProjectId, selectedCatalogId),
       ])
 
       if (isActive) {
         setCatalogEntries(loadedEntries)
         setCatalogGroups(loadedGroups)
+        setCatalogFieldsByCatalogId((currentFieldsByCatalogId) => ({
+          ...currentFieldsByCatalogId,
+          [selectedCatalogId]: loadedFields,
+        }))
       }
     }
 
@@ -1195,6 +1559,16 @@ export function StylePreview() {
   )
 
   const submitAuth = async () => {
+    const validationMessage = validateAuthDraft(
+      authEmail,
+      authPassword,
+      authMode === 'register' ? authDisplayName : null,
+    )
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
+      return
+    }
+
     try {
       const user =
         authMode === 'login'
@@ -1214,10 +1588,58 @@ export function StylePreview() {
     setProjects([])
     setSelectedProjectId(null)
     setObjects([])
+    setIsProfilePageOpen(false)
+    setIsSettingsPageOpen(false)
+    navigate(previewRouteBase)
+  }
+
+  const uploadProfileAvatar = async (file: File) => {
+    try {
+      const result = await uploadImageRequest(file)
+      setProfileAvatarImagePath(result.path)
+    } catch {
+      setMessage('Не удалось загрузить аватар.')
+    }
+  }
+
+  const saveProfile = async () => {
+    if (isProfileSaving || currentUser === null) {
+      return
+    }
+
+    const validationMessage = validateProfileDraft(profileEmail, profileDisplayName, profileAvatarImagePath)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
+      return
+    }
+
+    try {
+      setIsProfileSaving(true)
+      const updatedUser = await updateCurrentUserRequest(profileEmail, profileDisplayName, profileAvatarImagePath)
+      setCurrentUser(updatedUser)
+      setMessage('Профиль сохранен.')
+    } catch {
+      setMessage('Не удалось сохранить профиль.')
+    } finally {
+      setIsProfileSaving(false)
+    }
   }
 
   const createObject = async () => {
-    if (selectedProjectId === null || !isObjectSection(activeSection) || objectName.trim().length === 0) {
+    if (selectedProjectId === null || !isObjectSection(activeSection)) {
+      return
+    }
+
+    const validationMessage = validateObjectDraft(
+      objectName,
+      '',
+      objectDescription,
+      objectAge,
+      objectRole,
+      objectImagePath,
+    )
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
       return
     }
 
@@ -1289,6 +1711,7 @@ export function StylePreview() {
     setParentObjectIds([])
     setEditorTimelineEventId('')
     setSaveObjectAsTimelineChange(false)
+    setDraftTimelineParticipations([])
   }
 
   const openCreateObjectDialog = () => {
@@ -1344,25 +1767,312 @@ export function StylePreview() {
       })),
     )
     setDraftCharacterRelationships(
-      objectToEdit.outgoingCharacterRelationships.map((relationship) => ({
-        targetCharacterId: String(relationship.character.id),
-        relationType: relationship.relationType,
-        strength: String(relationship.strength),
-        tension: String(relationship.tension),
-        isBidirectional: relationship.isBidirectional,
-        description: relationship.description ?? '',
-      })),
+      [
+        ...objectToEdit.outgoingCharacterRelationships.map((relationship) => ({
+          id: relationship.id,
+          sourceCharacterId: String(objectToEdit.id),
+          targetCharacterId: String(relationship.character.id),
+          relationType: relationship.relationType,
+          strength: String(relationship.strength),
+          tension: String(relationship.tension),
+          isBidirectional: relationship.isBidirectional,
+          description: relationship.description ?? '',
+          direction: 'outgoing' as const,
+        })),
+        ...objectToEdit.incomingCharacterRelationships.map((relationship) => ({
+          id: relationship.id,
+          sourceCharacterId: String(relationship.character.id),
+          targetCharacterId: String(objectToEdit.id),
+          relationType: relationship.relationType,
+          strength: String(relationship.strength),
+          tension: String(relationship.tension),
+          isBidirectional: relationship.isBidirectional,
+          description: relationship.description ?? '',
+          direction: 'incoming' as const,
+        })),
+      ],
     )
     setOwnedItemIds(objectToEdit.ownedItems.map((item) => item.id))
     setOwnerCharacterIds(objectToEdit.owners.map((owner) => owner.id))
     setTerritoryPlaceIds(objectToEdit.territoryPlaces.map((place) => place.id))
     setOwnerOrganizationIds(objectToEdit.ownerOrganizations.map((organization) => organization.id))
     setParentObjectIds(objectToEdit.hierarchyParents.map((parent) => parent.id))
+    setDraftTimelineParticipations(
+      timelineEvents
+        .filter((event) =>
+          event.participants.some(
+            (participant) => participant.targetType === 'storyObject' && participant.targetId === objectToEdit.id,
+          ),
+        )
+        .map((event) => ({
+          timelineEventId: String(event.id),
+          role:
+            event.participants.find(
+              (participant) => participant.targetType === 'storyObject' && participant.targetId === objectToEdit.id,
+            )?.role ?? '',
+        })),
+    )
     setDialog('object')
   }
 
+  const syncObjectTimelineParticipations = async (
+    projectId: number,
+    objectId: number,
+    participations: DraftTimelineParticipation[],
+  ) => {
+    const desiredRolesByEventId = new Map<number, string>()
+
+    participations.forEach((participation) => {
+      const eventId = Number(participation.timelineEventId)
+      if (Number.isInteger(eventId) && eventId > 0) {
+        desiredRolesByEventId.set(eventId, participation.role)
+      }
+    })
+
+    const eventsToUpdate = timelineEvents.filter((event) => {
+      const currentParticipant = event.participants.find(
+        (participant) => participant.targetType === 'storyObject' && participant.targetId === objectId,
+      )
+      const nextRole = desiredRolesByEventId.get(event.id)
+
+      if (currentParticipant === undefined) {
+        return nextRole !== undefined
+      }
+
+      return nextRole === undefined || (currentParticipant.role ?? '') !== nextRole
+    })
+
+    if (eventsToUpdate.length === 0) {
+      return
+    }
+
+    const updatedEvents = await Promise.all(
+      eventsToUpdate.map((event) => {
+        const nextParticipants = event.participants
+          .filter((participant) => !(participant.targetType === 'storyObject' && participant.targetId === objectId))
+          .map((participant) => ({
+            targetType: participant.targetType,
+            targetId: String(participant.targetId),
+            role: participant.role ?? '',
+          }))
+        const nextRole = desiredRolesByEventId.get(event.id)
+
+        if (nextRole !== undefined) {
+          nextParticipants.push({
+            targetType: 'storyObject',
+            targetId: String(objectId),
+            role: nextRole,
+          })
+        }
+
+        return updateTimelineEventRequest(projectId, event.id, {
+          ...toTimelineEventDraft(event),
+          participants: nextParticipants,
+        })
+      }),
+    )
+
+    const updatedEventsById = new Map(updatedEvents.map((event) => [event.id, event]))
+    setTimelineEvents((currentEvents) =>
+      currentEvents.map((event) => updatedEventsById.get(event.id) ?? event),
+    )
+    setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+  }
+
+  const normalizeTimelineChangeText = (value: string | null | undefined) => {
+    const normalizedValue = value?.trim() ?? ''
+    return normalizedValue.length === 0 ? '' : normalizedValue
+  }
+
+  const stableJson = (value: unknown) => JSON.stringify(value)
+
+  const buildObjectTimelineChanges = (baseObject: StoryObject, targetObjectId: number): TimelineChangeDraft[] => {
+    const changes: TimelineChangeDraft[] = []
+    const addChange = (
+      changeType: TimelineChangeDraft['changeType'],
+      fieldName: string,
+      oldValue: string | null | undefined,
+      newValue: string | null | undefined,
+      notes = '',
+    ) => {
+      const normalizedOldValue = normalizeTimelineChangeText(oldValue)
+      const normalizedNewValue = normalizeTimelineChangeText(newValue)
+
+      if (normalizedOldValue === normalizedNewValue) {
+        return
+      }
+
+      changes.push({
+        changeType,
+        targetType: 'storyObject',
+        targetId: String(targetObjectId),
+        fieldName,
+        oldValue: normalizedOldValue,
+        newValue: normalizedNewValue,
+        notes,
+      })
+    }
+
+    addChange('field', 'name', baseObject.name, objectName)
+    addChange('field', 'surname', baseObject.surname, objectSurname)
+    addChange('field', 'description', baseObject.description, objectDescription)
+    addChange('field', 'age', baseObject.age, objectAge)
+    addChange('field', 'role', baseObject.role, objectRole)
+    addChange('field', 'imagePath', baseObject.imagePath, objectImagePath)
+
+    const currentAttributes = new Map(
+      baseObject.attributes.map((attribute) => [attribute.name.trim().toLowerCase(), attribute.value ?? '']),
+    )
+    const nextAttributes = new Map(
+      draftAttributes
+        .map((attribute) => ({ name: attribute.name.trim(), value: attribute.value.trim() }))
+        .filter((attribute) => attribute.name.length > 0)
+        .map((attribute) => [attribute.name.toLowerCase(), attribute.value] as const),
+    )
+    const attributeNames = new Set([...currentAttributes.keys(), ...nextAttributes.keys()])
+
+    attributeNames.forEach((attributeKey) => {
+      const displayName =
+        draftAttributes.find((attribute) => attribute.name.trim().toLowerCase() === attributeKey)?.name.trim() ||
+        baseObject.attributes.find((attribute) => attribute.name.trim().toLowerCase() === attributeKey)?.name ||
+        attributeKey
+
+      addChange('attribute', displayName, currentAttributes.get(attributeKey), nextAttributes.get(attributeKey))
+    })
+
+    const currentCatalogSelections = baseObject.catalogSelections
+      .map((selection) => ({
+        targetType: selection.targetType,
+        catalogId: selection.catalogId,
+        catalogEntryGroupId: selection.catalogEntryGroupId,
+        catalogEntryId: selection.catalogEntryId,
+      }))
+      .sort((left, right) => stableJson(left).localeCompare(stableJson(right)))
+    const nextCatalogSelections = draftCatalogSelections
+      .filter((selection) => selection.catalogId.trim().length > 0)
+      .map((selection) => ({
+        targetType: selection.targetType,
+        catalogId: Number(selection.catalogId),
+        catalogEntryGroupId:
+          selection.catalogEntryGroupId.trim().length === 0 ? null : Number(selection.catalogEntryGroupId),
+        catalogEntryId: selection.catalogEntryId.trim().length === 0 ? null : Number(selection.catalogEntryId),
+      }))
+      .sort((left, right) => stableJson(left).localeCompare(stableJson(right)))
+
+    addChange(
+      'catalogSelection',
+      'catalogSelections',
+      stableJson(currentCatalogSelections),
+      stableJson(nextCatalogSelections),
+    )
+
+    const currentHierarchySelections = baseObject.hierarchySelections
+      .map((selection) => ({
+        groupId: selection.groupId,
+        nodeIds: selection.nodes.map((node) => node.id).sort((left, right) => left - right),
+      }))
+      .sort((left, right) => left.groupId - right.groupId)
+    const nextHierarchySelections = draftHierarchySelections
+      .filter((selection) => selection.groupId > 0)
+      .map((selection) => ({
+        groupId: selection.groupId,
+        nodeIds: [...selection.nodeIds].sort((left, right) => left - right),
+      }))
+      .sort((left, right) => left.groupId - right.groupId)
+
+    addChange(
+      'hierarchySelection',
+      'hierarchySelections',
+      stableJson(currentHierarchySelections),
+      stableJson(nextHierarchySelections),
+    )
+
+    addChange(
+      'ownership',
+      'ownedItemIds',
+      stableJson(baseObject.ownedItems.map((item) => item.id).sort((left, right) => left - right)),
+      stableJson([...ownedItemIds].sort((left, right) => left - right)),
+    )
+    addChange(
+      'ownership',
+      'ownerCharacterIds',
+      stableJson(baseObject.owners.map((owner) => owner.id).sort((left, right) => left - right)),
+      stableJson([...ownerCharacterIds].sort((left, right) => left - right)),
+    )
+    addChange(
+      'location',
+      'territoryPlaceIds',
+      stableJson(baseObject.territoryPlaces.map((place) => place.id).sort((left, right) => left - right)),
+      stableJson([...territoryPlaceIds].sort((left, right) => left - right)),
+    )
+    addChange(
+      'ownership',
+      'ownerOrganizationIds',
+      stableJson(baseObject.ownerOrganizations.map((organization) => organization.id).sort((left, right) => left - right)),
+      stableJson([...ownerOrganizationIds].sort((left, right) => left - right)),
+    )
+    addChange(
+      'hierarchySelection',
+      'parentObjectIds',
+      stableJson(baseObject.hierarchyParents.map((parent) => parent.id).sort((left, right) => left - right)),
+      stableJson([...parentObjectIds].sort((left, right) => left - right)),
+    )
+
+    const currentRelationships = [
+      ...baseObject.outgoingCharacterRelationships.map((relationship) => ({
+        direction: 'outgoing',
+        characterId: relationship.character.id,
+        relationType: relationship.relationType,
+        strength: relationship.strength,
+        tension: relationship.tension,
+        isBidirectional: relationship.isBidirectional,
+        description: relationship.description ?? '',
+      })),
+      ...baseObject.incomingCharacterRelationships.map((relationship) => ({
+        direction: 'incoming',
+        characterId: relationship.character.id,
+        relationType: relationship.relationType,
+        strength: relationship.strength,
+        tension: relationship.tension,
+        isBidirectional: relationship.isBidirectional,
+        description: relationship.description ?? '',
+      })),
+    ].sort((left, right) => stableJson(left).localeCompare(stableJson(right)))
+    const nextRelationships = draftCharacterRelationships
+      .map((relationship) => ({
+        direction: relationship.direction,
+        characterId: Number(
+          relationship.direction === 'incoming' ? relationship.sourceCharacterId : relationship.targetCharacterId,
+        ),
+        relationType: relationship.relationType.trim(),
+        strength: Number(relationship.strength),
+        tension: Number(relationship.tension),
+        isBidirectional: relationship.isBidirectional,
+        description: relationship.description.trim(),
+      }))
+      .filter((relationship) => Number.isInteger(relationship.characterId) && relationship.characterId > 0)
+      .sort((left, right) => stableJson(left).localeCompare(stableJson(right)))
+
+    addChange('relationship', 'characterRelationships', stableJson(currentRelationships), stableJson(nextRelationships))
+
+    return changes
+  }
+
   const saveObject = async () => {
-    if (isObjectSaving || selectedProjectId === null || !isObjectSection(activeSection) || objectName.trim().length === 0) {
+    if (isObjectSaving || selectedProjectId === null || !isObjectSection(activeSection)) {
+      return
+    }
+
+    const validationMessage = validateObjectDraft(
+      objectName,
+      objectSurname,
+      objectDescription,
+      objectAge,
+      objectRole,
+      objectImagePath,
+    )
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
       return
     }
 
@@ -1370,6 +2080,79 @@ export function StylePreview() {
     const section = activeSection
     const objectId = editingObjectId
     const previousObject = selectedObject
+    const timelineParticipationsToSave = draftTimelineParticipations
+
+    if (saveObjectAsTimelineChange) {
+      const targetEventId = Number(editorTimelineEventId)
+      const baseObject =
+        objectId === null
+          ? null
+          : previousObject?.id === objectId
+            ? previousObject
+            : objects.find((storyObject) => storyObject.id === objectId) ?? null
+      const targetEvent = timelineEvents.find((event) => event.id === targetEventId) ?? null
+
+      if (objectId === null || baseObject === null) {
+        setMessage('Сначала нужно сохранить объект, потом можно записывать изменения во времени.')
+        return
+      }
+
+      if (!Number.isInteger(targetEventId) || targetEventId <= 0 || targetEvent === null) {
+        setMessage('Выбери событие таймлайна для сохранения изменений.')
+        return
+      }
+
+      const objectChanges = buildObjectTimelineChanges(baseObject, objectId)
+
+      if (objectChanges.length === 0) {
+        setMessage('Изменений для таймлайна пока нет.')
+        return
+      }
+
+      try {
+        setIsObjectSaving(true)
+        const changedFieldNames = new Set(objectChanges.map((change) => `${change.changeType}:${change.fieldName}`))
+        const eventDraft = toTimelineEventDraft(targetEvent)
+        const retainedChanges = eventDraft.changes.filter(
+          (change) =>
+            !(
+              change.targetType === 'storyObject' &&
+              Number(change.targetId) === objectId &&
+              changedFieldNames.has(`${change.changeType}:${change.fieldName}`)
+            ),
+        )
+        const participationRole =
+          timelineParticipationsToSave.find((participation) => participation.timelineEventId === String(targetEvent.id))
+            ?.role ?? ''
+        const participants = [
+          ...eventDraft.participants.filter(
+            (participant) => !(participant.targetType === 'storyObject' && Number(participant.targetId) === objectId),
+          ),
+          { targetType: 'storyObject', targetId: String(objectId), role: participationRole },
+        ]
+        const savedEvent = await updateTimelineEventRequest(projectId, targetEvent.id, {
+          ...eventDraft,
+          participants,
+          changes: [...retainedChanges, ...objectChanges],
+        })
+
+        setTimelineEvents((currentEvents) =>
+          currentEvents.map((event) => (event.id === savedEvent.id ? savedEvent : event)),
+        )
+        setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+        setSelectedTimelineEventId(savedEvent.id)
+        setDialog(null)
+        resetObjectForm()
+        setMessage('Изменения сохранены в таймлайне.')
+      } catch {
+        setMessage('Не удалось сохранить изменения в таймлайне.')
+      } finally {
+        setIsObjectSaving(false)
+      }
+
+      return
+    }
+
     const temporaryObjectId = objectId === null ? -Date.now() : objectId
     const optimisticObject =
       objectId === null || (previousObject !== null && previousObject.id === objectId)
@@ -1493,6 +2276,11 @@ export function StylePreview() {
       )
       setSelectedObjectId(saved.id)
       navigateToPreview(projectId, 'database', section, saved.id)
+      try {
+        await syncObjectTimelineParticipations(projectId, saved.id, timelineParticipationsToSave)
+      } catch {
+        setMessage('Объект сохранен, но участие в событиях таймлайна не обновилось.')
+      }
       void fetchObject(projectId, saved.id)
         .then((loadedObject) => {
           setObjects((currentObjects) =>
@@ -1500,6 +2288,16 @@ export function StylePreview() {
           )
         })
         .catch(() => undefined)
+      void fetchRelationGraph(projectId)
+        .then((graph) => {
+          setRelationGraph(graph)
+          setRelationGraphLayout((currentLayout) =>
+            currentLayout === null ? null : { ...currentLayout, isStale: true },
+          )
+        })
+        .catch(() => {
+          setMessage('Объект сохранен, но граф связей не удалось обновить.')
+        })
     } catch {
       if (optimisticObject !== null && previousObject !== null) {
         setObjects((currentObjects) =>
@@ -1524,6 +2322,21 @@ export function StylePreview() {
     try {
       await deleteObjectRequest(selectedProjectId, selectedObject.id)
       setObjects((currentObjects) => currentObjects.filter((storyObject) => storyObject.id !== selectedObject.id))
+      setRelationGraph((currentGraph) => ({
+        nodes: currentGraph.nodes.filter((node) => node.id !== selectedObject.id),
+        edges: currentGraph.edges.filter(
+          (edge) => edge.sourceId !== selectedObject.id && edge.targetId !== selectedObject.id,
+        ),
+      }))
+      setRelationGraphLayout((currentLayout) =>
+        currentLayout === null
+          ? null
+          : {
+              ...currentLayout,
+              isStale: true,
+              items: currentLayout.items.filter((item) => item.storyObjectId !== selectedObject.id),
+            },
+      )
       setSelectedObjectId(null)
       navigateToPreview(selectedProjectId, 'database', activeSection)
       setDialog(null)
@@ -1605,8 +2418,79 @@ export function StylePreview() {
     }
   }
 
+  const openRelationDetail = (edgeId: string) => {
+    setSelectedRelationEdgeId(edgeId)
+    setSelectedRelationObjectId(null)
+    setActiveTab('relations')
+    setIsRelationPageOpen(detailMode === 'page')
+
+    if (detailMode === 'modal') {
+      setDialog('relationDetail')
+    } else {
+      setDialog(null)
+    }
+
+    if (selectedProjectId !== null) {
+      navigateToPreview(selectedProjectId, 'relations', activeSection)
+    }
+  }
+
+  const openRelationObjectDetail = (storyObject: StoryObject) => {
+    if (detailMode === 'page') {
+      openObjectDetail(storyObject)
+      return
+    }
+
+    setSelectedCatalogEntryId(null)
+    setSelectedRelationEdgeId(null)
+    setSelectedRelationObjectId(storyObject.id)
+    setSelectedObjectId(storyObject.id)
+    setActiveTab('relations')
+    setIsRelationPageOpen(false)
+    setIsObjectPageOpen(false)
+    setObjects((currentObjects) =>
+      currentObjects.some((currentObject) => currentObject.id === storyObject.id)
+        ? currentObjects.map((currentObject) => (currentObject.id === storyObject.id ? storyObject : currentObject))
+        : [storyObject, ...currentObjects],
+    )
+
+    if (detailMode === 'modal') {
+      setDialog('detail')
+    } else {
+      setDialog(null)
+    }
+  }
+
+  const openTimelineEventDetail = (eventId: number) => {
+    setSelectedTimelineEventId(eventId)
+    setActiveTab('timeline')
+    setIsObjectPageOpen(false)
+    setIsRelationPageOpen(false)
+    setIsTimelineEventPageOpen(detailMode === 'page')
+
+    if (detailMode === 'modal') {
+      setDialog('timelineEventDetail')
+    } else {
+      setDialog(null)
+    }
+
+    if (selectedProjectId !== null) {
+      navigateToPreview(selectedProjectId, 'timeline', activeSection)
+    }
+  }
+
+  const openTimelineEventFromDossier = (event: TimelineEvent) => {
+    openTimelineEventDetail(event.id)
+  }
+
   const saveAttributeGroup = async () => {
-    if (selectedProjectId === null || attributeGroupName.trim().length === 0) {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    const validationMessage = validateAttributeGroupDraft(attributeGroupName, attributeGroupIconKey)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
       return
     }
 
@@ -1617,8 +2501,14 @@ export function StylePreview() {
           : attributeGroups.find((group) => group.id === editingAttributeGroupId)?.name ?? null
       const saved =
         editingAttributeGroupId === null
-          ? await createAttributeGroupRequest(selectedProjectId, 'characters', attributeGroupName)
-          : await updateAttributeGroupRequest(selectedProjectId, 'characters', editingAttributeGroupId, attributeGroupName)
+          ? await createAttributeGroupRequest(selectedProjectId, 'characters', attributeGroupName, attributeGroupIconKey)
+          : await updateAttributeGroupRequest(
+              selectedProjectId,
+              'characters',
+              editingAttributeGroupId,
+              attributeGroupName,
+              attributeGroupIconKey,
+            )
       setAttributeGroups((currentGroups) =>
         editingAttributeGroupId === null
           ? [...currentGroups, saved]
@@ -1633,6 +2523,7 @@ export function StylePreview() {
       }
       setSelectedAttributeGroupId(saved.id)
       setAttributeGroupName('')
+      setAttributeGroupIconKey('')
       setEditingAttributeGroupId(null)
       setDialog(null)
     } catch {
@@ -1641,7 +2532,13 @@ export function StylePreview() {
   }
 
   const saveAttributeDefinition = async () => {
-    if (selectedProjectId === null || attributeDefinitionDraft.name.trim().length === 0) {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    const validationMessage = validateAttributeDefinitionDraft(attributeDefinitionDraft)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
       return
     }
 
@@ -1674,6 +2571,7 @@ export function StylePreview() {
   const openEditAttributeGroup = (group: AttributeGroup) => {
     setEditingAttributeGroupId(group.id)
     setAttributeGroupName(group.name)
+    setAttributeGroupIconKey(group.iconKey ?? '')
     setDialog('attributeGroup')
   }
 
@@ -1686,6 +2584,7 @@ export function StylePreview() {
       name: definition.name,
       dataType: definition.dataType,
       groupName: definition.groupName ?? '',
+      iconKey: definition.iconKey ?? '',
       minValue: definition.minValue === null ? '' : String(definition.minValue),
       maxValue: definition.maxValue === null ? '' : String(definition.maxValue),
       unit: definition.unit ?? '',
@@ -1733,7 +2632,13 @@ export function StylePreview() {
   }
 
   const saveCatalog = async () => {
-    if (selectedProjectId === null || catalogName.trim().length === 0) {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    const validationMessage = validateCatalogDraft(catalogName, catalogDescription)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
       return
     }
 
@@ -1798,7 +2703,13 @@ export function StylePreview() {
   }
 
   const saveCatalogGroup = async () => {
-    if (selectedProjectId === null || selectedCatalog === null || catalogGroupName.trim().length === 0) {
+    if (selectedProjectId === null || selectedCatalog === null) {
+      return
+    }
+
+    const validationMessage = validateCatalogGroupDraft(catalogGroupName)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
       return
     }
 
@@ -1827,13 +2738,112 @@ export function StylePreview() {
     }
   }
 
-  const saveCatalogEntry = async () => {
-    if (selectedProjectId === null || selectedCatalog === null || catalogEntryDraft.name.trim().length === 0) {
+  const saveCatalogField = async () => {
+    const targetCatalogId = editingCatalogId ?? selectedCatalog?.id ?? null
+    if (selectedProjectId === null || targetCatalogId === null) {
+      return
+    }
+
+    const validationMessage = validateCatalogFieldDraft(catalogFieldDraft)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
       return
     }
 
     try {
-      const fieldDefinitions = await fetchCatalogFieldDefinitions(selectedProjectId, selectedCatalog.id)
+      const saved =
+        editingCatalogFieldId === null
+          ? await createCatalogFieldDefinitionRequest(selectedProjectId, targetCatalogId, catalogFieldDraft)
+          : await updateCatalogFieldDefinitionRequest(
+              selectedProjectId,
+              targetCatalogId,
+              editingCatalogFieldId,
+              catalogFieldDraft,
+            )
+
+      setCatalogFieldsByCatalogId((currentFieldsByCatalogId) => ({
+        ...currentFieldsByCatalogId,
+        [targetCatalogId]:
+          editingCatalogFieldId === null
+            ? [...(currentFieldsByCatalogId[targetCatalogId] ?? []), saved]
+            : (currentFieldsByCatalogId[targetCatalogId] ?? []).map((field) =>
+                field.id === saved.id ? saved : field,
+              ),
+      }))
+      setCatalogFieldDraft(emptyCatalogFieldDraft)
+      setEditingCatalogFieldId(null)
+    } catch {
+      setMessage('Не удалось сохранить поле шаблона.')
+    }
+  }
+
+  const editCatalogField = (field: CatalogFieldDefinition) => {
+    setEditingCatalogFieldId(field.id)
+    setCatalogFieldDraft({
+      name: field.name,
+      dataType: field.dataType,
+      isRequired: field.isRequired,
+      minValue: field.minValue === null ? '' : String(field.minValue),
+      maxValue: field.maxValue === null ? '' : String(field.maxValue),
+      optionsText: field.options.join(', '),
+      referenceCatalogId: field.referenceCatalogId === null ? '' : String(field.referenceCatalogId),
+    })
+    setCatalogDialogTab('template')
+  }
+
+  const deleteCatalogField = async (fieldId: number) => {
+    const targetCatalogId = editingCatalogId ?? selectedCatalog?.id ?? null
+    if (selectedProjectId === null || targetCatalogId === null) {
+      return
+    }
+
+    try {
+      await deleteCatalogFieldDefinitionRequest(selectedProjectId, targetCatalogId, fieldId)
+      setCatalogFieldsByCatalogId((currentFieldsByCatalogId) => ({
+        ...currentFieldsByCatalogId,
+        [targetCatalogId]: (currentFieldsByCatalogId[targetCatalogId] ?? []).filter((field) => field.id !== fieldId),
+      }))
+      setCatalogEntries((currentEntries) =>
+        currentEntries.map((entry) => ({
+          ...entry,
+          fieldValues: entry.fieldValues.filter((fieldValue) => fieldValue.fieldDefinitionId !== fieldId),
+        })),
+      )
+      setCatalogEntriesByCatalogId((currentEntriesByCatalogId) => ({
+        ...currentEntriesByCatalogId,
+        [targetCatalogId]: (currentEntriesByCatalogId[targetCatalogId] ?? []).map((entry) => ({
+          ...entry,
+          fieldValues: entry.fieldValues.filter((fieldValue) => fieldValue.fieldDefinitionId !== fieldId),
+        })),
+      }))
+      setCatalogEntryDraft((draft) => {
+        const fieldValues = { ...draft.fieldValues }
+        delete fieldValues[fieldId]
+        return { ...draft, fieldValues }
+      })
+      if (editingCatalogFieldId === fieldId) {
+        setEditingCatalogFieldId(null)
+        setCatalogFieldDraft(emptyCatalogFieldDraft)
+      }
+    } catch {
+      setMessage('Не удалось удалить поле шаблона.')
+    }
+  }
+
+  const saveCatalogEntry = async () => {
+    if (selectedProjectId === null || selectedCatalog === null) {
+      return
+    }
+
+    const validationMessage = validateCatalogEntryDraft(catalogEntryDraft)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
+      return
+    }
+
+    try {
+      const fieldDefinitions =
+        catalogFieldsByCatalogId[selectedCatalog.id] ?? (await fetchCatalogFieldDefinitions(selectedProjectId, selectedCatalog.id))
       const saved =
         editingCatalogEntryId === null
           ? await createCatalogEntryRequest(selectedProjectId, selectedCatalog.id, catalogEntryDraft, fieldDefinitions)
@@ -1893,6 +2903,19 @@ export function StylePreview() {
     setCatalogName(catalog.name)
     setCatalogDescription(catalog.description ?? '')
     setCatalogSupportsHierarchy(catalog.supportsHierarchy)
+    setCatalogDialogTab('main')
+    setEditingCatalogFieldId(null)
+    setCatalogFieldDraft(emptyCatalogFieldDraft)
+    if (selectedProjectId !== null) {
+      void fetchCatalogFieldDefinitions(selectedProjectId, catalog.id)
+        .then((fields) =>
+          setCatalogFieldsByCatalogId((currentFieldsByCatalogId) => ({
+            ...currentFieldsByCatalogId,
+            [catalog.id]: fields,
+          })),
+        )
+        .catch(() => setMessage('Не удалось загрузить шаблон каталога.'))
+    }
     setDialog('catalog')
   }
 
@@ -1962,6 +2985,13 @@ export function StylePreview() {
 
     return Array.from(objectsById.values())
   }, [objectsByType, selectedObject, visibleObjects])
+  const selectedRelationObject = useMemo(
+    () =>
+      selectedRelationObjectId === null
+        ? null
+        : linkableObjects.find((storyObject) => storyObject.id === selectedRelationObjectId) ?? null,
+    [linkableObjects, selectedRelationObjectId],
+  )
 
   const catalogEntryLinkTargets = useMemo(() => {
     const entriesById = new Map<number, CatalogEntryLinkTarget>()
@@ -2037,26 +3067,77 @@ export function StylePreview() {
     }
   }
 
+  const toTimelineEventDraft = (event: TimelineEvent): TimelineEventDraft => ({
+    title: event.title,
+    eventType: event.eventType,
+    parentEventId: event.parentEventId === null ? '' : String(event.parentEventId),
+    description: event.description ?? '',
+    startLabel: event.startLabel ?? '',
+    endLabel: event.endLabel ?? '',
+    startValue: event.startValue === null ? '' : String(event.startValue),
+    endValue: event.endValue === null ? '' : String(event.endValue),
+    category: event.category ?? '',
+    color: event.color ?? '',
+    imagePath: event.imagePath,
+    participants: event.participants.map((participant) => ({
+      targetType: participant.targetType,
+      targetId: String(participant.targetId),
+      role: participant.role ?? '',
+    })),
+    changes: event.changes.map((change) => ({
+      changeType: change.changeType,
+      targetType: change.targetType,
+      targetId: String(change.targetId),
+      fieldName: change.fieldName ?? change.fieldKey ?? '',
+      oldValue: change.oldValueJson ?? '',
+      newValue: change.newValueJson ?? '',
+      notes: change.notes ?? '',
+    })),
+  })
+
+  const openTimelineEventEditor = (event: TimelineEvent | null = null) => {
+    setEditingTimelineEventId(event?.id ?? null)
+    setTimelineDraft(event === null ? emptyTimelineEventDraft : toTimelineEventDraft(event))
+    setDialog('timelineEvent')
+  }
+
+  const updateTimelineDraftEventType = (eventType: TimelineEventDraft['eventType']) => {
+    const isRangeEvent = eventType === 'duration' || eventType === 'era'
+
+    setTimelineDraft((draft) => ({
+      ...draft,
+      eventType,
+      parentEventId: eventType === 'point' ? draft.parentEventId : '',
+      endLabel: isRangeEvent ? draft.endLabel : '',
+      endValue: isRangeEvent ? draft.endValue : '',
+    }))
+  }
+
   const saveTimelineEvent = async () => {
-    if (selectedProjectId === null || timelineDraft.title.trim().length === 0) {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    const validationMessage = getTimelineEventValidationMessage(timelineDraft)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
       return
     }
 
     try {
-      const created = await createTimelineEventRequest(selectedProjectId, timelineDraft)
-      setTimelineEvents((currentEvents) => [...currentEvents, created])
-      setTimelineDraft({
-        title: '',
-        description: '',
-        startLabel: '',
-        endLabel: '',
-        startValue: '',
-        endValue: '',
-        category: '',
-        color: '',
-        participants: [],
-        changes: [],
-      })
+      const saved =
+        editingTimelineEventId === null
+          ? await createTimelineEventRequest(selectedProjectId, timelineDraft)
+          : await updateTimelineEventRequest(selectedProjectId, editingTimelineEventId, timelineDraft)
+      setTimelineEvents((currentEvents) =>
+        editingTimelineEventId === null
+          ? [...currentEvents, saved]
+          : currentEvents.map((event) => (event.id === saved.id ? saved : event)),
+      )
+      setSelectedTimelineEventId(saved.id)
+      setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+      setTimelineDraft(emptyTimelineEventDraft)
+      setEditingTimelineEventId(null)
       setDialog(null)
       setActiveTab('timeline')
     } catch {
@@ -2064,7 +3145,260 @@ export function StylePreview() {
     }
   }
 
+  const updateSelectedTimelineEvent = (updatedEvent: TimelineEvent) => {
+    setTimelineEvents((currentEvents) =>
+      currentEvents.map((event) => (event.id === updatedEvent.id ? updatedEvent : event)),
+    )
+    setSelectedTimelineEventId(updatedEvent.id)
+  }
+
+  const addTimelineGalleryImage = async () => {
+    if (selectedProjectId === null || selectedTimelineEvent === null || timelineGalleryImagePath === null) {
+      return
+    }
+
+    try {
+      const updatedEvent = await addTimelineEventGalleryImageRequest(
+        selectedProjectId,
+        selectedTimelineEvent.id,
+        timelineGalleryImagePath,
+        timelineGalleryImageCaption,
+      )
+      updateSelectedTimelineEvent(updatedEvent)
+      setTimelineGalleryImagePath(null)
+      setTimelineGalleryImageCaption('')
+    } catch {
+      setMessage('Не удалось добавить изображение в галерею события.')
+    }
+  }
+
+  const deleteTimelineGalleryImage = async (imageId: number) => {
+    if (selectedProjectId === null || selectedTimelineEvent === null) {
+      return
+    }
+
+    try {
+      const updatedEvent = await deleteTimelineEventGalleryImageRequest(
+        selectedProjectId,
+        selectedTimelineEvent.id,
+        imageId,
+      )
+      updateSelectedTimelineEvent(updatedEvent)
+    } catch {
+      setMessage('Не удалось удалить изображение из галереи события.')
+    }
+  }
+
+  const uploadTimelineGalleryImage = async (file: File | null) => {
+    if (file === null) {
+      return
+    }
+
+    try {
+      const result = await uploadImageRequest(file)
+      setTimelineGalleryImagePath(result.path)
+    } catch {
+      setMessage('Не удалось загрузить изображение для галереи события.')
+    }
+  }
+
+  const deletePendingTimelineEvent = async () => {
+    if (selectedProjectId === null || pendingDeleteTimelineEventId === null) {
+      return
+    }
+
+    try {
+      await deleteTimelineEventRequest(selectedProjectId, pendingDeleteTimelineEventId)
+      setTimelineEvents((currentEvents) =>
+        currentEvents.filter((event) => event.id !== pendingDeleteTimelineEventId),
+      )
+      setTimelineLinks((currentLinks) =>
+        currentLinks.filter(
+          (link) =>
+            link.sourceEventId !== pendingDeleteTimelineEventId &&
+            link.targetEventId !== pendingDeleteTimelineEventId,
+        ),
+      )
+      setSelectedTimelineEventId((currentId) => (currentId === pendingDeleteTimelineEventId ? null : currentId))
+      setEditingTimelineEventId((currentId) => (currentId === pendingDeleteTimelineEventId ? null : currentId))
+      setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+      setPendingDeleteTimelineEventId(null)
+      setDialog(null)
+    } catch {
+      setMessage('РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ СЃРѕР±С‹С‚РёРµ.')
+    }
+  }
+
+  const saveTimelineLink = async () => {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    const validationMessage = validateTimelineLinkDraft(timelineLinkDraft)
+    if (validationMessage !== null) {
+      setMessage(validationMessage)
+      return
+    }
+
+    try {
+      const created = await createTimelineEventLinkRequest(selectedProjectId, timelineLinkDraft)
+      setTimelineLinks((currentLinks) => [...currentLinks, created])
+      setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+      setTimelineLinkDraft({
+        sourceEventId: '',
+        targetEventId: '',
+        linkType: 'precedes',
+        description: '',
+      })
+      setDialog(null)
+    } catch {
+      setMessage('Не удалось создать связь событий.')
+    }
+  }
+
+  const deleteTimelineLink = async (linkId: number) => {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    try {
+      await deleteTimelineEventLinkRequest(selectedProjectId, linkId)
+      setTimelineLinks((currentLinks) => currentLinks.filter((link) => link.id !== linkId))
+      setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+    } catch {
+      setMessage('Не удалось удалить связь событий.')
+    }
+  }
+
+  const generateTimelineLayout = async () => {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    setIsTimelineGenerating(true)
+    try {
+      const layout = await generateTimelineLayoutRequest(selectedProjectId)
+      setTimelineLayout(layout)
+    } catch {
+      setMessage('РќРµ СѓРґР°Р»РѕСЃСЊ СЃС„РѕСЂРјРёСЂРѕРІР°С‚СЊ С‚Р°Р№РјР»Р°Р№РЅ.')
+    } finally {
+      setIsTimelineGenerating(false)
+    }
+  }
+
+  const generateRelationGraphLayout = async () => {
+    if (selectedProjectId === null || relationGraph.nodes.length === 0) {
+      return
+    }
+
+    setIsRelationLayoutGenerating(true)
+    try {
+      const positions = await calculateRelationLayout(relationGraph, linkableObjects)
+      const layout = await saveRelationGraphLayoutRequest(selectedProjectId, {
+        items: relationGraph.nodes.map((node) => {
+          const position = positions.get(node.id) ?? { x: 0, y: 0 }
+
+          return {
+            storyObjectId: node.id,
+            x: position.x,
+            y: position.y,
+            width: relationNodeWidth,
+            height: relationNodeHeight,
+            isPinned: false,
+          }
+        }),
+      })
+      setRelationGraphLayout(layout)
+    } catch {
+      setMessage('Не удалось сформировать граф связей.')
+    } finally {
+      setIsRelationLayoutGenerating(false)
+    }
+  }
+
+  const saveRelationGraphNodePosition = async (
+    storyObjectId: number,
+    position: {
+      x: number
+      y: number
+    },
+  ) => {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    const graphNodeIds = new Set(relationGraph.nodes.map((node) => node.id))
+    const existingItems = new Map(
+      (relationGraphLayout?.items ?? [])
+        .filter((item) => graphNodeIds.has(item.storyObjectId))
+        .map((item) => [item.storyObjectId, item]),
+    )
+    const currentItem = existingItems.get(storyObjectId)
+
+    existingItems.set(storyObjectId, {
+      id: currentItem?.id ?? 0,
+      storyObjectId,
+      x: position.x,
+      y: position.y,
+      width: currentItem?.width ?? relationNodeWidth,
+      height: currentItem?.height ?? relationNodeHeight,
+      isPinned: true,
+    })
+
+    const optimisticLayout: RelationGraphLayout = {
+      id: relationGraphLayout?.id ?? 0,
+      projectId: selectedProjectId,
+      algorithmVersion: relationGraphLayout?.algorithmVersion ?? 'relation-elk-v1',
+      isDefault: true,
+      isStale: relationGraphLayout?.isStale ?? false,
+      generatedAt: relationGraphLayout?.generatedAt ?? new Date().toISOString(),
+      items: Array.from(existingItems.values()),
+    }
+    setRelationGraphLayout(optimisticLayout)
+
+    try {
+      const savedLayout = await saveRelationGraphLayoutRequest(selectedProjectId, {
+        items: optimisticLayout.items.map((item) => ({
+          storyObjectId: item.storyObjectId,
+          x: item.x,
+          y: item.y,
+          width: item.width,
+          height: item.height,
+          isPinned: item.isPinned,
+        })),
+      })
+      setRelationGraphLayout(savedLayout)
+    } catch {
+      setMessage('Не удалось сохранить положение узла графа.')
+    }
+  }
+
   const renderContent = () => {
+    if (isProfilePageOpen) {
+      return (
+        <ProfilePage
+          avatarImagePath={profileAvatarImagePath}
+          currentUser={currentUser}
+          displayName={profileDisplayName}
+          email={profileEmail}
+          isSaving={isProfileSaving}
+          projectQuery={profileProjectQuery}
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          ui={ui}
+          onAvatarUpload={(file) => void uploadProfileAvatar(file)}
+          onDisplayNameChange={setProfileDisplayName}
+          onEmailChange={setProfileEmail}
+          onOpenProject={(project) => {
+            setIsProfilePageOpen(false)
+            navigateToPreview(project.id, 'database', 'characters')
+          }}
+          onProjectQueryChange={setProfileProjectQuery}
+          onSave={() => void saveProfile()}
+        />
+      )
+    }
+
     if (isSettingsPageOpen) {
       return (
         <SettingsPage
@@ -2095,11 +3429,109 @@ export function StylePreview() {
     }
 
     if (activeTab === 'relations') {
-      return <RelationsPage objects={visibleObjects} ui={ui} onSelect={openObjectDetail} />
+      if (detailMode === 'page' && isRelationPageOpen && selectedRelationEdge !== null) {
+        return (
+          <div className="sp-object-page">
+            <div className="sp-content-head">
+              <div>
+                <h2>{getRelationLabel(selectedRelationEdge.relationType)}</h2>
+                <p>Отдельная страница связи</p>
+              </div>
+              <button
+                className="sp-button sp-back-button"
+                type="button"
+                onClick={() => setIsRelationPageOpen(false)}
+              >
+                Назад к графу
+              </button>
+            </div>
+            <RelationDetail
+              edge={selectedRelationEdge}
+              graph={relationGraph}
+              objects={linkableObjects}
+              ui={ui}
+              onClose={() => setIsRelationPageOpen(false)}
+              onOpenObject={openRelationObjectDetail}
+            />
+          </div>
+        )
+      }
+
+      return (
+        <RelationsPage
+          graph={relationGraph}
+          isLayoutGenerating={isRelationLayoutGenerating}
+          layout={relationGraphLayout}
+          objects={linkableObjects}
+          selectedEdgeId={selectedRelationEdgeId}
+          ui={ui}
+          onGenerateLayout={() => void generateRelationGraphLayout()}
+          onSaveNodePosition={(storyObjectId, position) => void saveRelationGraphNodePosition(storyObjectId, position)}
+          onSelectEdge={openRelationDetail}
+          onSelect={openRelationObjectDetail}
+        />
+      )
     }
 
     if (activeTab === 'timeline') {
-      return <TimelinePage events={visibleTimelineEvents} ui={ui} onCreate={() => setDialog('timelineEvent')} />
+      if (detailMode === 'page' && isTimelineEventPageOpen && selectedTimelineEvent !== null) {
+        return (
+          <div className="sp-object-page">
+            <div className="sp-content-head">
+              <div>
+                <h2>{selectedTimelineEvent.title}</h2>
+                <p>Отдельная страница события</p>
+              </div>
+              <button
+                className="sp-button sp-back-button"
+                type="button"
+                onClick={() => setIsTimelineEventPageOpen(false)}
+              >
+                Назад к таймлайну
+              </button>
+            </div>
+            <TimelineEventDetail
+              event={selectedTimelineEvent}
+              events={visibleTimelineEvents}
+              galleryImageCaption={timelineGalleryImageCaption}
+              galleryImagePath={timelineGalleryImagePath}
+              links={timelineLinks}
+              objects={linkableObjects}
+              ui={ui}
+              onAddGalleryImage={() => void addTimelineGalleryImage()}
+              onClose={() => setIsTimelineEventPageOpen(false)}
+              onDelete={(eventId) => {
+                setPendingDeleteTimelineEventId(eventId)
+                setDialog('confirmDeleteTimelineEvent')
+              }}
+              onDeleteGalleryImage={(imageId) => void deleteTimelineGalleryImage(imageId)}
+              onEdit={openTimelineEventEditor}
+              onGalleryCaptionChange={setTimelineGalleryImageCaption}
+              onGalleryImageUpload={(file) => void uploadTimelineGalleryImage(file)}
+              onOpenEvent={openTimelineEventDetail}
+              onOpenObject={openObjectDetail}
+            />
+          </div>
+        )
+      }
+
+      return (
+        <TimelinePage
+          events={visibleTimelineEvents}
+          isGenerating={isTimelineGenerating}
+          layout={timelineLayout}
+          layoutRules={timelineLayoutRules}
+          links={timelineLinks}
+          selectedEvent={selectedTimelineEvent}
+          timeline={timelineInfo}
+          ui={ui}
+          onCreate={() => openTimelineEventEditor()}
+          onCreateLink={() => setDialog('timelineLink')}
+          onDeleteLink={(linkId) => void deleteTimelineLink(linkId)}
+          onGenerate={() => void generateTimelineLayout()}
+          onSelectEvent={openTimelineEventDetail}
+        />
+      )
     }
 
     if (detailMode === 'page' && isObjectPageOpen && selectedObject !== null) {
@@ -2121,6 +3553,8 @@ export function StylePreview() {
           <ObjectDetail
             activeTab={dossierTab}
             attributeDefinitions={attributeDefinitions}
+            attributeGroups={attributeGroups}
+            dossierTimelineEventId={dossierTimelineEventId}
             galleryImageCaption={galleryImageCaption}
             galleryImagePath={galleryImagePath}
             storyObject={selectedObject}
@@ -2138,6 +3572,8 @@ export function StylePreview() {
                 setGalleryImagePath(result.path)
               }
             }}
+            onDossierTimelineEventIdChange={setDossierTimelineEventId}
+            onOpenTimelineEvent={openTimelineEventFromDossier}
             onTabChange={setDossierTab}
           />
         </div>
@@ -2159,6 +3595,7 @@ export function StylePreview() {
           <CatalogEntryDetail
             catalog={selectedCatalog}
             catalogEntryLinksById={catalogEntryLinksById}
+            fieldDefinitions={selectedCatalogFields}
             entry={selectedCatalogEntry}
             textLinkTargets={textLinkTargets}
             ui={ui}
@@ -2227,6 +3664,7 @@ export function StylePreview() {
         <AttributesWorkspace
           attributeDefinitionDraft={attributeDefinitionDraft}
           attributeDefinitions={attributeDefinitions}
+          attributeGroupIconKey={attributeGroupIconKey}
           attributeGroupName={attributeGroupName}
           attributeGroups={attributeGroups}
           groupDisplayMode={groupDisplayMode}
@@ -2238,6 +3676,7 @@ export function StylePreview() {
             setAttributeDefinitionDraft(emptyAttributeDefinitionDraft)
           }}
           onAttributeDefinitionDraftChange={setAttributeDefinitionDraft}
+          onAttributeGroupIconChange={setAttributeGroupIconKey}
           onAttributeGroupNameChange={setAttributeGroupName}
           onCreateAttribute={() => void saveAttributeDefinition()}
           onCreateGroup={() => void saveAttributeGroup()}
@@ -2263,6 +3702,11 @@ export function StylePreview() {
             <h2>{isObjectSection(activeSection) ? getObjectSectionLabel(activeSection) : ui.database}</h2>
             <p>{ui.objectData}</p>
           </div>
+          {currentUser !== null && (
+            <button className="sp-button primary sp-content-create" type="button" onClick={openCreateObjectDialog}>
+              + {ui.newObject}
+            </button>
+          )}
           <div className="sp-filters">
             <button className="sp-pill active" type="button">{ui.all}</button>
             <button className="sp-pill" type="button">Активные</button>
@@ -2372,7 +3816,10 @@ export function StylePreview() {
   }
 
   return (
-    <main className={`style-preview ${previewTheme === 'dark' ? 'theme-dark' : 'theme-light'}`} lang={previewLanguage}>
+    <main
+      className={`style-preview ${previewTheme === 'dark' ? 'theme-dark' : 'theme-light'} tab-${activeTab}`}
+      lang={previewLanguage}
+    >
       <div className="sp-shell">
         <header className="sp-topbar">
           <div className="sp-brand">
@@ -2381,6 +3828,20 @@ export function StylePreview() {
               <h1>StoryDB</h1>
               <span>{ui.appSubtitle}</span>
             </div>
+          </div>
+          <div className="sp-tabs sp-main-tabs">
+            {(['database', 'relations', 'timeline'] as PreviewTab[]).map((tab) => (
+              <button
+                className={activeTab === tab ? 'active' : ''}
+                key={tab}
+                type="button"
+                onClick={() => {
+                  navigateToWorkspace(tab, activeSection, null, selectedCatalogId)
+                }}
+              >
+                {tab === 'database' ? ui.database : tab === 'relations' ? ui.relations : ui.timeline}
+              </button>
+            ))}
           </div>
           <label className="sp-search">
             <svg aria-hidden="true" className="sp-search-svg" fill="none" viewBox="0 0 24 24">
@@ -2395,7 +3856,11 @@ export function StylePreview() {
             </button>
             <div className="sp-profile">
             <button className="sp-avatar-button" type="button" onClick={() => setIsSettingsOpen((value) => !value)}>
-              {currentUser?.displayName.slice(0, 1).toUpperCase() ?? 'A'}
+              {currentUserAvatarUrl === null ? (
+                currentUser?.displayName.slice(0, 1).toUpperCase() ?? 'A'
+              ) : (
+                <img alt="" src={currentUserAvatarUrl} />
+              )}
             </button>
             {isSettingsOpen && (
               <div className="sp-profile-menu">
@@ -2403,12 +3868,31 @@ export function StylePreview() {
                   type="button"
                   onClick={() => {
                     setIsSettingsOpen(false)
+                    setIsProfilePageOpen(true)
+                    setIsSettingsPageOpen(false)
+                    setDialog(null)
+                    navigate(`${previewRouteBase}/profile`)
+                  }}
+                >
+                  {ui.profile}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsOpen(false)
+                    setIsProfilePageOpen(false)
                     setIsSettingsPageOpen(true)
                     setDialog(null)
+                    navigate(`${previewRouteBase}/settings`)
                   }}
                 >
                   {ui.settings}
                 </button>
+                {currentUser !== null && (
+                  <button type="button" onClick={() => void logout()}>
+                    {ui.logout}
+                  </button>
+                )}
               </div>
             )}
             </div>
@@ -2465,14 +3949,26 @@ export function StylePreview() {
 
         <div
           className={`sp-workspace ${
+            isSettingsPageOpen || isProfilePageOpen
+              ? 'utility-page'
+              : ''
+          } ${
+            !isSettingsPageOpen && !isProfilePageOpen && activeTab === 'timeline'
+              ? 'no-sidebar'
+              : ''
+          } ${
             !isSettingsPageOpen &&
+            !isProfilePageOpen &&
             detailMode === 'panel' &&
-            activeTab === 'database' &&
-            (selectedObject !== null || (activeSection === 'catalogs' && selectedCatalogEntry !== null))
+            ((activeTab === 'database' &&
+              (selectedObject !== null || (activeSection === 'catalogs' && selectedCatalogEntry !== null))) ||
+              (activeTab === 'relations' && (selectedRelationEdge !== null || selectedRelationObject !== null)) ||
+              (activeTab === 'timeline' && selectedTimelineEvent !== null))
               ? 'with-detail'
               : ''
           }`}
         >
+          {activeTab !== 'timeline' && (
           <aside className="sp-sidebar">
             <nav className="sp-sidebar-tabs" aria-label={ui.project}>
               {(['database', 'relations', 'timeline'] as PreviewTab[]).map((tab) => (
@@ -2632,6 +4128,9 @@ export function StylePreview() {
                     setCatalogName('')
                     setCatalogDescription('')
                     setCatalogSupportsHierarchy(false)
+                    setCatalogDialogTab('main')
+                    setEditingCatalogFieldId(null)
+                    setCatalogFieldDraft(emptyCatalogFieldDraft)
                     setDialog('catalog')
                   }}
                 >
@@ -2640,16 +4139,21 @@ export function StylePreview() {
               )}
             </section>
           </aside>
+          )}
 
-          <section className="sp-content">
+          <section
+            className={`sp-content${activeTab === 'timeline' ? ' timeline-content' : ''}${activeTab === 'relations' ? ' relations-content' : ''}`}
+          >
             {isLoading ? <div className="sp-empty">{ui.loading}</div> : renderContent()}
           </section>
 
-          {!isSettingsPageOpen && detailMode === 'panel' && activeTab === 'database' && selectedObject !== null && (
+          {!isSettingsPageOpen && !isProfilePageOpen && detailMode === 'panel' && activeTab === 'database' && selectedObject !== null && (
             <aside className="sp-detail">
               <ObjectDetail
                 activeTab={dossierTab}
                 attributeDefinitions={attributeDefinitions}
+                attributeGroups={attributeGroups}
+                dossierTimelineEventId={dossierTimelineEventId}
                 galleryImageCaption={galleryImageCaption}
                 galleryImagePath={galleryImagePath}
                 storyObject={selectedObject}
@@ -2667,11 +4171,96 @@ export function StylePreview() {
                     setGalleryImagePath(result.path)
                   }
                 }}
+                onDossierTimelineEventIdChange={setDossierTimelineEventId}
+                onOpenTimelineEvent={openTimelineEventFromDossier}
                 onTabChange={setDossierTab}
               />
             </aside>
           )}
           {!isSettingsPageOpen &&
+            !isProfilePageOpen &&
+            detailMode === 'panel' &&
+            activeTab === 'relations' &&
+            selectedRelationObject !== null && (
+              <aside className="sp-detail">
+                <ObjectDetail
+                  activeTab={dossierTab}
+                  attributeDefinitions={attributeDefinitions}
+                  attributeGroups={attributeGroups}
+                  dossierTimelineEventId={dossierTimelineEventId}
+                  galleryImageCaption={galleryImageCaption}
+                  galleryImagePath={galleryImagePath}
+                  storyObject={selectedRelationObject}
+                  textLinkTargets={textLinkTargets}
+                  timelineEvents={timelineEvents}
+                  ui={ui}
+                  onAddGalleryImage={() => void addGalleryImage()}
+                  onDelete={() => {
+                    setSelectedObjectId(selectedRelationObject.id)
+                    setDialog('confirmDeleteObject')
+                  }}
+                  onDeleteGalleryImage={(imageId) => void deleteGalleryImage(imageId)}
+                  onEdit={() => openEditObjectDialog(selectedRelationObject)}
+                  onGalleryCaptionChange={setGalleryImageCaption}
+                  onGalleryImageUpload={async (file) => {
+                    if (file !== null) {
+                      const result = await uploadImageRequest(file)
+                      setGalleryImagePath(result.path)
+                    }
+                  }}
+                  onDossierTimelineEventIdChange={setDossierTimelineEventId}
+                  onOpenTimelineEvent={openTimelineEventFromDossier}
+                  onTabChange={setDossierTab}
+                />
+              </aside>
+            )}
+          {!isSettingsPageOpen &&
+            !isProfilePageOpen &&
+            detailMode === 'panel' &&
+            activeTab === 'relations' &&
+            selectedRelationEdge !== null && (
+              <aside className="sp-detail">
+                <RelationDetail
+                  edge={selectedRelationEdge}
+                  graph={relationGraph}
+                  objects={linkableObjects}
+                  ui={ui}
+                  onClose={() => setSelectedRelationEdgeId(null)}
+                  onOpenObject={openRelationObjectDetail}
+                />
+              </aside>
+            )}
+          {!isSettingsPageOpen &&
+            !isProfilePageOpen &&
+            detailMode === 'panel' &&
+            activeTab === 'timeline' &&
+            selectedTimelineEvent !== null && (
+              <aside className="sp-detail">
+                <TimelineEventDetail
+                  event={selectedTimelineEvent}
+                  events={visibleTimelineEvents}
+                  galleryImageCaption={timelineGalleryImageCaption}
+                  galleryImagePath={timelineGalleryImagePath}
+                  links={timelineLinks}
+                  objects={linkableObjects}
+                  ui={ui}
+                  onAddGalleryImage={() => void addTimelineGalleryImage()}
+                  onClose={() => setSelectedTimelineEventId(null)}
+                  onDelete={(eventId) => {
+                    setPendingDeleteTimelineEventId(eventId)
+                    setDialog('confirmDeleteTimelineEvent')
+                  }}
+                  onDeleteGalleryImage={(imageId) => void deleteTimelineGalleryImage(imageId)}
+                  onEdit={openTimelineEventEditor}
+                  onGalleryCaptionChange={setTimelineGalleryImageCaption}
+                  onGalleryImageUpload={(file) => void uploadTimelineGalleryImage(file)}
+                  onOpenEvent={openTimelineEventDetail}
+                  onOpenObject={openObjectDetail}
+                />
+              </aside>
+            )}
+          {!isSettingsPageOpen &&
+            !isProfilePageOpen &&
             detailMode === 'panel' &&
             activeTab === 'database' &&
             activeSection === 'catalogs' &&
@@ -2681,6 +4270,7 @@ export function StylePreview() {
                 <CatalogEntryDetail
                   catalog={selectedCatalog}
                   catalogEntryLinksById={catalogEntryLinksById}
+                  fieldDefinitions={selectedCatalogFields}
                   entry={selectedCatalogEntry}
                   textLinkTargets={textLinkTargets}
                   ui={ui}
@@ -2757,6 +4347,8 @@ export function StylePreview() {
             draftCatalogSelections={draftCatalogSelections}
             draftCharacterRelationships={draftCharacterRelationships}
             draftHierarchySelections={draftHierarchySelections}
+            draftTimelineParticipations={draftTimelineParticipations}
+            editingObjectId={editingObjectId}
             editorTimelineEventId={editorTimelineEventId}
             hierarchyGroups={hierarchyGroups}
             hierarchyNodesByGroupId={hierarchyNodesByGroupId}
@@ -2781,6 +4373,7 @@ export function StylePreview() {
             onDraftCatalogSelectionsChange={setDraftCatalogSelections}
             onDraftCharacterRelationshipsChange={setDraftCharacterRelationships}
             onDraftHierarchySelectionsChange={setDraftHierarchySelections}
+            onDraftTimelineParticipationsChange={setDraftTimelineParticipations}
             onEditorTimelineEventIdChange={setEditorTimelineEventId}
             onImageUpload={uploadObjectImage}
             onObjectAgeChange={setObjectAge}
@@ -2816,6 +4409,8 @@ export function StylePreview() {
                 draftCatalogSelections={draftCatalogSelections}
                 draftCharacterRelationships={draftCharacterRelationships}
                 draftHierarchySelections={draftHierarchySelections}
+                draftTimelineParticipations={draftTimelineParticipations}
+                editingObjectId={editingObjectId}
                 editorTimelineEventId={editorTimelineEventId}
                 hierarchyGroups={hierarchyGroups}
                 hierarchyNodesByGroupId={hierarchyNodesByGroupId}
@@ -2840,6 +4435,7 @@ export function StylePreview() {
                 onDraftCatalogSelectionsChange={setDraftCatalogSelections}
                 onDraftCharacterRelationshipsChange={setDraftCharacterRelationships}
                 onDraftHierarchySelectionsChange={setDraftHierarchySelections}
+                onDraftTimelineParticipationsChange={setDraftTimelineParticipations}
                 onEditorTimelineEventIdChange={setEditorTimelineEventId}
                 onImageUpload={uploadObjectImage}
                 onObjectAgeChange={setObjectAge}
@@ -2897,6 +4493,8 @@ export function StylePreview() {
           <ObjectDetail
             activeTab={dossierTab}
             attributeDefinitions={attributeDefinitions}
+            attributeGroups={attributeGroups}
+            dossierTimelineEventId={dossierTimelineEventId}
             galleryImageCaption={galleryImageCaption}
             galleryImagePath={galleryImagePath}
             storyObject={selectedObject}
@@ -2914,7 +4512,64 @@ export function StylePreview() {
                 setGalleryImagePath(result.path)
               }
             }}
+            onDossierTimelineEventIdChange={setDossierTimelineEventId}
+            onOpenTimelineEvent={openTimelineEventFromDossier}
             onTabChange={setDossierTab}
+          />
+        </PreviewDialog>
+      )}
+      {dialog === 'relationDetail' && selectedRelationEdge !== null && (
+        <PreviewDialog
+          title={`Связь: ${getRelationLabel(selectedRelationEdge.relationType)}`}
+          onClose={() => {
+            setDialog(null)
+            setSelectedRelationEdgeId(null)
+          }}
+        >
+          <RelationDetail
+            edge={selectedRelationEdge}
+            graph={relationGraph}
+            objects={linkableObjects}
+            ui={ui}
+            onClose={() => {
+              setDialog(null)
+              setSelectedRelationEdgeId(null)
+            }}
+            onOpenObject={openRelationObjectDetail}
+          />
+        </PreviewDialog>
+      )}
+      {dialog === 'timelineEventDetail' && selectedTimelineEvent !== null && (
+        <PreviewDialog
+          title={`Событие: ${selectedTimelineEvent.title}`}
+          onClose={() => {
+            setDialog(null)
+            setSelectedTimelineEventId(null)
+          }}
+        >
+          <TimelineEventDetail
+            event={selectedTimelineEvent}
+            events={visibleTimelineEvents}
+            galleryImageCaption={timelineGalleryImageCaption}
+            galleryImagePath={timelineGalleryImagePath}
+            links={timelineLinks}
+            objects={linkableObjects}
+            ui={ui}
+            onAddGalleryImage={() => void addTimelineGalleryImage()}
+            onClose={() => {
+              setDialog(null)
+              setSelectedTimelineEventId(null)
+            }}
+            onDelete={(eventId) => {
+              setPendingDeleteTimelineEventId(eventId)
+              setDialog('confirmDeleteTimelineEvent')
+            }}
+            onDeleteGalleryImage={(imageId) => void deleteTimelineGalleryImage(imageId)}
+            onEdit={openTimelineEventEditor}
+            onGalleryCaptionChange={setTimelineGalleryImageCaption}
+            onGalleryImageUpload={(file) => void uploadTimelineGalleryImage(file)}
+            onOpenEvent={openTimelineEventDetail}
+            onOpenObject={openObjectDetail}
           />
         </PreviewDialog>
       )}
@@ -2941,6 +4596,10 @@ export function StylePreview() {
             <label className="wide">
               Название группы
               <input value={attributeGroupName} onChange={(event) => setAttributeGroupName(event.target.value)} />
+            </label>
+            <label className="wide">
+              Иконка
+              <AttributeIconPicker value={attributeGroupIconKey} onChange={setAttributeGroupIconKey} />
             </label>
             <div className="sp-dialog-actions">
               <button className="sp-button" type="button" onClick={() => setDialog(null)}>
@@ -2990,6 +4649,25 @@ export function StylePreview() {
 
       {dialog === 'catalog' && (
         <PreviewDialog title={editingCatalogId === null ? ui.newCatalog : ui.edit} onClose={() => setDialog(null)}>
+          <div className="sp-catalog-editor">
+            <div className="sp-object-editor-tabs">
+              <button
+                className={catalogDialogTab === 'main' ? 'active' : ''}
+                type="button"
+                onClick={() => setCatalogDialogTab('main')}
+              >
+                {ui.main}
+              </button>
+              <button
+                className={catalogDialogTab === 'template' ? 'active' : ''}
+                disabled={editingCatalogId === null}
+                type="button"
+                onClick={() => setCatalogDialogTab('template')}
+              >
+                {catalogTemplateUi.template}
+              </button>
+            </div>
+            {catalogDialogTab === 'main' && (
           <div className="sp-form">
             <label>
               Название
@@ -3017,6 +4695,149 @@ export function StylePreview() {
                 {editingCatalogId === null ? ui.create : ui.save}
               </button>
             </div>
+          </div>
+            )}
+            {catalogDialogTab === 'template' && (
+              <div className="sp-template-editor">
+                <div className="sp-form sp-template-form">
+                  <label>
+                    {ui.firstName}
+                    <input
+                      value={catalogFieldDraft.name}
+                      onChange={(event) =>
+                        setCatalogFieldDraft((draft) => ({ ...draft, name: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {catalogTemplateUi.dataType}
+                    <select
+                      value={catalogFieldDraft.dataType}
+                      onChange={(event) =>
+                        setCatalogFieldDraft((draft) => ({
+                          ...draft,
+                          dataType: event.target.value as CatalogFieldDataType,
+                        }))
+                      }
+                    >
+                      {catalogFieldDataTypes.map((dataType) => (
+                        <option key={dataType} value={dataType}>
+                          {catalogFieldDataTypeLabels[dataType][previewLanguage]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="sp-checkbox-field">
+                    {catalogTemplateUi.required}
+                    <input
+                      checked={catalogFieldDraft.isRequired}
+                      type="checkbox"
+                      onChange={(event) =>
+                        setCatalogFieldDraft((draft) => ({ ...draft, isRequired: event.target.checked }))
+                      }
+                    />
+                  </label>
+                  {catalogFieldDraft.dataType === 'number' && (
+                    <>
+                      <label>
+                        {catalogTemplateUi.min}
+                        <input
+                          type="number"
+                          value={catalogFieldDraft.minValue}
+                          onChange={(event) =>
+                            setCatalogFieldDraft((draft) => ({ ...draft, minValue: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        {catalogTemplateUi.max}
+                        <input
+                          type="number"
+                          value={catalogFieldDraft.maxValue}
+                          onChange={(event) =>
+                            setCatalogFieldDraft((draft) => ({ ...draft, maxValue: event.target.value }))
+                          }
+                        />
+                      </label>
+                    </>
+                  )}
+                  {catalogFieldDraft.dataType === 'select' && (
+                    <label className="wide">
+                      {catalogTemplateUi.options}
+                      <input
+                        placeholder={catalogTemplateUi.optionsPlaceholder}
+                        value={catalogFieldDraft.optionsText}
+                        onChange={(event) =>
+                          setCatalogFieldDraft((draft) => ({ ...draft, optionsText: event.target.value }))
+                        }
+                      />
+                    </label>
+                  )}
+                  {(catalogFieldDraft.dataType === 'entryReference' ||
+                    catalogFieldDraft.dataType === 'multipleEntryReference') && (
+                    <label className="wide">
+                      {catalogTemplateUi.referenceCatalog}
+                      <select
+                        value={catalogFieldDraft.referenceCatalogId}
+                        onChange={(event) =>
+                          setCatalogFieldDraft((draft) => ({ ...draft, referenceCatalogId: event.target.value }))
+                        }
+                      >
+                        <option value="">-</option>
+                        {visibleCatalogs.map((catalog) => (
+                          <option key={catalog.id} value={catalog.id}>
+                            {catalog.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <div className="sp-dialog-actions">
+                    {editingCatalogFieldId !== null && (
+                      <button
+                        className="sp-button"
+                        type="button"
+                        onClick={() => {
+                          setEditingCatalogFieldId(null)
+                          setCatalogFieldDraft(emptyCatalogFieldDraft)
+                        }}
+                      >
+                        {ui.cancel}
+                      </button>
+                    )}
+                    <button className="sp-button primary" type="button" onClick={() => void saveCatalogField()}>
+                      {editingCatalogFieldId === null ? catalogTemplateUi.addField : ui.save}
+                    </button>
+                  </div>
+                </div>
+                <section className="sp-panel">
+                  <h3>{catalogTemplateUi.fields}</h3>
+                  {catalogDialogFields.length === 0 ? (
+                    <p>{catalogTemplateUi.noFields}</p>
+                  ) : (
+                    catalogDialogFields.map((field) => (
+                      <div className="sp-row with-menu" key={field.id}>
+                        <span>
+                          {field.name}
+                          {field.isRequired ? ' *' : ''}
+                        </span>
+                        <strong>{formatCatalogFieldDefinition(field, visibleCatalogs, previewLanguage)}</strong>
+                        <KebabMenu
+                          ui={ui}
+                          onDelete={() => void deleteCatalogField(field.id)}
+                          onEdit={() => editCatalogField(field)}
+                        />
+                      </div>
+                    ))
+                  )}
+                </section>
+                <div className="sp-dialog-actions">
+                  <button className="sp-button" type="button" onClick={() => setDialog(null)}>
+                    {ui.cancel}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </PreviewDialog>
       )}
@@ -3081,6 +4902,33 @@ export function StylePreview() {
                 onChange={(event) => setCatalogEntryDraft((draft) => ({ ...draft, description: event.target.value }))}
               />
             </label>
+            <section className="sp-form-section wide">
+              <h3>{catalogTemplateUi.template}</h3>
+              {selectedCatalogFields.length === 0 ? (
+                <p>{catalogTemplateUi.noFields}</p>
+              ) : (
+                <div className="sp-template-field-grid">
+                  {selectedCatalogFields.map((field) => (
+                    <CatalogEntryFieldInput
+                      catalogEntriesByCatalogId={catalogEntriesByCatalogId}
+                      field={field}
+                      key={field.id}
+                      language={previewLanguage}
+                      value={catalogEntryDraft.fieldValues[field.id] ?? ''}
+                      onChange={(value) =>
+                        setCatalogEntryDraft((draft) => ({
+                          ...draft,
+                          fieldValues: {
+                            ...draft.fieldValues,
+                            [field.id]: value,
+                          },
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
             <div className="sp-dialog-actions">
               <button className="sp-button" type="button" onClick={() => setDialog(null)}>
                 {ui.cancel}
@@ -3098,6 +4946,7 @@ export function StylePreview() {
           <CatalogEntryDetail
             catalog={selectedCatalog}
             catalogEntryLinksById={catalogEntryLinksById}
+            fieldDefinitions={selectedCatalogFields}
             entry={selectedCatalogEntry}
             textLinkTargets={textLinkTargets}
             ui={ui}
@@ -3161,9 +5010,97 @@ export function StylePreview() {
         </PreviewDialog>
       )}
 
-      {dialog === 'timelineEvent' && (
-        <PreviewDialog title={ui.newEvent} onClose={() => setDialog(null)}>
+      {dialog === 'timelineLink' && (
+        <PreviewDialog title="Связь событий" onClose={() => setDialog(null)}>
           <div className="sp-form">
+            <label>
+              Исходное событие
+              <select
+                value={timelineLinkDraft.sourceEventId}
+                onChange={(event) =>
+                  setTimelineLinkDraft((draft) => ({ ...draft, sourceEventId: event.target.value }))
+                }
+              >
+                <option value="">Выбери событие</option>
+                {timelineEvents.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Целевое событие
+              <select
+                value={timelineLinkDraft.targetEventId}
+                onChange={(event) =>
+                  setTimelineLinkDraft((draft) => ({ ...draft, targetEventId: event.target.value }))
+                }
+              >
+                <option value="">Выбери событие</option>
+                {timelineEvents.map((event) => (
+                  <option key={event.id} value={event.id} disabled={String(event.id) === timelineLinkDraft.sourceEventId}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Тип связи
+              <select
+                value={timelineLinkDraft.linkType}
+                onChange={(event) =>
+                  setTimelineLinkDraft((draft) => ({
+                    ...draft,
+                    linkType: event.target.value as TimelineEventLinkDraft['linkType'],
+                  }))
+                }
+              >
+                <option value="precedes">Предшествует</option>
+                <option value="causes">Причина / следствие</option>
+                <option value="simultaneous">Одновременно</option>
+                <option value="partOf">Часть события</option>
+                <option value="related">Связано тематически</option>
+              </select>
+            </label>
+            <label className="wide">
+              Описание
+              <textarea
+                value={timelineLinkDraft.description}
+                onChange={(event) =>
+                  setTimelineLinkDraft((draft) => ({ ...draft, description: event.target.value }))
+                }
+              />
+            </label>
+            <div className="sp-dialog-actions">
+              <button className="sp-button" type="button" onClick={() => setDialog(null)}>
+                Отмена
+              </button>
+              <button className="sp-button primary" type="button" onClick={() => void saveTimelineLink()}>
+                Создать
+              </button>
+            </div>
+          </div>
+        </PreviewDialog>
+      )}
+
+      {dialog === 'timelineEvent' && (
+        <PreviewDialog title={editingTimelineEventId === null ? ui.newEvent : 'Редактор события'} onClose={() => setDialog(null)}>
+          <div className="sp-form">
+            <label>
+              Тип события
+              <select
+                value={timelineDraft.eventType}
+                onChange={(event) =>
+                  updateTimelineDraftEventType(event.target.value as TimelineEventDraft['eventType'])
+                }
+              >
+                <option value="point">Точечное событие</option>
+                <option value="duration">Длительное событие</option>
+                <option value="era">Эпоха / фон</option>
+                <option value="chapter">Глава / разделитель</option>
+              </select>
+            </label>
             <label>
               Название
               <input
@@ -3172,6 +5109,64 @@ export function StylePreview() {
               />
             </label>
             <label>
+              {timelineDraft.eventType === 'point'
+                ? 'Момент'
+                : timelineDraft.eventType === 'chapter'
+                  ? 'Подпись главы'
+                  : 'Начало'}
+              <input
+                value={timelineDraft.startLabel}
+                onChange={(event) => setTimelineDraft((draft) => ({ ...draft, startLabel: event.target.value }))}
+              />
+            </label>
+            <label>
+              {timelineDraft.eventType === 'point'
+                ? 'Позиция на шкале'
+                : timelineDraft.eventType === 'chapter'
+                  ? 'Позиция главы'
+                  : 'Позиция начала'}
+              <input
+                inputMode="decimal"
+                value={timelineDraft.startValue}
+                onChange={(event) => setTimelineDraft((draft) => ({ ...draft, startValue: event.target.value }))}
+              />
+            </label>
+            {timelineDraftIsRangeEvent && (
+              <>
+                <label>
+                  Конец
+                  <input
+                    value={timelineDraft.endLabel}
+                    onChange={(event) => setTimelineDraft((draft) => ({ ...draft, endLabel: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Позиция конца
+                  <input
+                    inputMode="decimal"
+                    value={timelineDraft.endValue}
+                    onChange={(event) => setTimelineDraft((draft) => ({ ...draft, endValue: event.target.value }))}
+                  />
+                </label>
+              </>
+            )}
+            {timelineDraftIsPointEvent && (
+              <label>
+                Лента / эпоха
+                <select
+                  value={timelineDraft.parentEventId}
+                  onChange={(event) => setTimelineDraft((draft) => ({ ...draft, parentEventId: event.target.value }))}
+                >
+                  <option value="">Без ленты</option>
+                  {timelineDraftParentOptions.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
               Категория
               <input
                 value={timelineDraft.category}
@@ -3179,19 +5174,26 @@ export function StylePreview() {
               />
             </label>
             <label>
-              Начало
+              Цвет
               <input
-                value={timelineDraft.startLabel}
-                onChange={(event) => setTimelineDraft((draft) => ({ ...draft, startLabel: event.target.value }))}
+                type="color"
+                value={timelineDraft.color || '#2563eb'}
+                onChange={(event) => setTimelineDraft((draft) => ({ ...draft, color: event.target.value }))}
               />
             </label>
-            <label>
-              Значение начала
-              <input
-                value={timelineDraft.startValue}
-                onChange={(event) => setTimelineDraft((draft) => ({ ...draft, startValue: event.target.value }))}
-              />
-            </label>
+            <CoverDropzone
+              className="wide"
+              imagePath={timelineDraft.imagePath}
+              label="Обложка события"
+              onFileSelected={async (file) => {
+                try {
+                  const result = await uploadImageRequest(file)
+                  setTimelineDraft((draft) => ({ ...draft, imagePath: result.path }))
+                } catch {
+                  setMessage('Не удалось загрузить обложку события.')
+                }
+              }}
+            />
             <label className="wide">
               Описание
               <textarea
@@ -3199,14 +5201,110 @@ export function StylePreview() {
                 onChange={(event) => setTimelineDraft((draft) => ({ ...draft, description: event.target.value }))}
               />
             </label>
+            <section className="sp-form-section wide">
+              <div className="sp-section-title-row">
+                <h3>Участники</h3>
+                <button
+                  className="sp-button"
+                  type="button"
+                  onClick={() =>
+                    setTimelineDraft((draft) => ({
+                      ...draft,
+                      participants: [
+                        ...draft.participants,
+                        { targetType: 'storyObject', targetId: '', role: '' },
+                      ],
+                    }))
+                  }
+                >
+                  + Участник
+                </button>
+              </div>
+              {timelineDraft.participants.length === 0 ? (
+                <p>Участников пока нет.</p>
+              ) : (
+                <div className="sp-timeline-participant-editor">
+                  {timelineDraft.participants.map((participant, index) => (
+                    <div className="sp-form-row" key={index}>
+                      <label>
+                        Объект
+                        <select
+                          value={participant.targetId}
+                          onChange={(event) =>
+                            setTimelineDraft((draft) => ({
+                              ...draft,
+                              participants: draft.participants.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, targetType: 'storyObject', targetId: event.target.value }
+                                  : item,
+                              ),
+                            }))
+                          }
+                        >
+                          <option value="">Выберите объект</option>
+                          {linkableObjects.map((storyObject) => (
+                            <option key={storyObject.id} value={storyObject.id}>
+                              {getObjectFullName(storyObject)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Роль
+                        <input
+                          value={participant.role}
+                          onChange={(event) =>
+                            setTimelineDraft((draft) => ({
+                              ...draft,
+                              participants: draft.participants.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, role: event.target.value } : item,
+                              ),
+                            }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="sp-icon-button danger"
+                        type="button"
+                        onClick={() =>
+                          setTimelineDraft((draft) => ({
+                            ...draft,
+                            participants: draft.participants.filter((_, itemIndex) => itemIndex !== index),
+                          }))
+                        }
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
             <div className="sp-dialog-actions">
               <button className="sp-button" type="button" onClick={() => setDialog(null)}>
                 Отмена
               </button>
               <button className="sp-button primary" type="button" onClick={() => void saveTimelineEvent()}>
-                Создать
+                {editingTimelineEventId === null ? 'Создать' : 'Сохранить'}
               </button>
             </div>
+          </div>
+        </PreviewDialog>
+      )}
+
+      {dialog === 'confirmDeleteTimelineEvent' && (
+        <PreviewDialog title="Удалить событие" onClose={() => setDialog(null)}>
+          <div className="sp-note">
+            <strong>{timelineEvents.find((event) => event.id === pendingDeleteTimelineEventId)?.title ?? 'Событие'}</strong>
+            <span>Событие и его связи на таймлайне будут удалены.</span>
+          </div>
+          <div className="sp-dialog-actions">
+            <button className="sp-button" type="button" onClick={() => setDialog(null)}>
+              Отмена
+            </button>
+            <button className="sp-button danger" type="button" onClick={() => void deletePendingTimelineEvent()}>
+              Удалить
+            </button>
           </div>
         </PreviewDialog>
       )}
@@ -3337,6 +5435,47 @@ function KebabMenu({
   )
 }
 
+function AttributeIcon({ iconKey }: { iconKey: string | null | undefined }) {
+  const option = attributeIconOptions.find((item) => item.key === iconKey)
+  if (option === undefined || option.key === 'none') {
+    return null
+  }
+
+  const Icon = option.Icon
+  return (
+    <span className="sp-attribute-icon" aria-hidden="true">
+      <Icon size={16} strokeWidth={2.4} />
+    </span>
+  )
+}
+
+function AttributeIconPicker({
+  value,
+  onChange,
+}: {
+  value: string | null | undefined
+  onChange: (iconKey: string) => void
+}) {
+  const normalizedValue = value === null || value === undefined || value.length === 0 ? 'none' : value
+
+  return (
+    <div className="sp-icon-picker">
+      {attributeIconOptions.map(({ key, label, Icon }) => (
+        <button
+          aria-label={label}
+          className={normalizedValue === key ? 'active' : ''}
+          key={key}
+          title={label}
+          type="button"
+          onClick={() => onChange(key === 'none' ? '' : key)}
+        >
+          <Icon size={18} strokeWidth={2.4} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function CoverDropzone({
   className = '',
   imagePath,
@@ -3389,6 +5528,165 @@ function CoverDropzone({
         )}
       </label>
     </div>
+  )
+}
+
+function ProfilePage({
+  avatarImagePath,
+  currentUser,
+  displayName,
+  email,
+  isSaving,
+  projectQuery,
+  projects,
+  selectedProjectId,
+  ui,
+  onAvatarUpload,
+  onDisplayNameChange,
+  onEmailChange,
+  onOpenProject,
+  onProjectQueryChange,
+  onSave,
+}: {
+  avatarImagePath: string | null
+  currentUser: AuthUser | null
+  displayName: string
+  email: string
+  isSaving: boolean
+  projectQuery: string
+  projects: StoryProject[]
+  selectedProjectId: number | null
+  ui: PreviewText
+  onAvatarUpload: (file: File) => void
+  onDisplayNameChange: (value: string) => void
+  onEmailChange: (value: string) => void
+  onOpenProject: (project: StoryProject) => void
+  onProjectQueryChange: (value: string) => void
+  onSave: () => void
+}) {
+  const normalizedQuery = projectQuery.trim().toLowerCase()
+  const visibleProjects = projects.filter((project) =>
+    normalizedQuery.length === 0 ? true : project.name.toLowerCase().includes(normalizedQuery),
+  )
+
+  if (currentUser === null) {
+    return (
+      <section className="sp-profile-page">
+        <div className="sp-empty">
+          <strong>{ui.profile}</strong>
+          <span>{ui.profileSignIn}</span>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="sp-profile-page">
+      <div className="sp-content-head">
+        <div>
+          <h2>{ui.profile}</h2>
+          <p>{currentUser.email}</p>
+        </div>
+      </div>
+
+      <div className="sp-profile-grid">
+        <article className="sp-profile-card">
+          <div className="sp-profile-card-head">
+            <CoverDropzone
+              className="avatar"
+              imagePath={avatarImagePath}
+              label={ui.avatar}
+              onFileSelected={onAvatarUpload}
+            />
+            <div>
+              <span>{ui.profileData}</span>
+              <h3>{displayName || currentUser.displayName}</h3>
+              <p>{email || currentUser.email}</p>
+            </div>
+          </div>
+          <div className="sp-form sp-profile-form">
+            <label>
+              {ui.displayName}
+              <input value={displayName} onChange={(event) => onDisplayNameChange(event.target.value)} />
+            </label>
+            <label>
+              {ui.email}
+              <input value={email} onChange={(event) => onEmailChange(event.target.value)} />
+            </label>
+          </div>
+          <div className="sp-dialog-actions">
+            <button className="sp-button primary" disabled={isSaving} type="button" onClick={onSave}>
+              {isSaving ? ui.loading : ui.save}
+            </button>
+          </div>
+        </article>
+
+        <article className="sp-profile-card sp-profile-projects">
+          <div className="sp-content-head compact">
+            <div>
+              <h3>{ui.profileProjects}</h3>
+              <p>
+                {projects.length} {ui.projects}
+              </p>
+            </div>
+          </div>
+          <label className="sp-profile-project-search">
+            <input
+              type="search"
+              value={projectQuery}
+              onChange={(event) => onProjectQueryChange(event.target.value)}
+              placeholder={ui.projectSearch}
+            />
+          </label>
+          <div className="sp-profile-project-grid">
+            {visibleProjects.map((project) => (
+              <ProfileProjectCard
+                isSelected={project.id === selectedProjectId}
+                key={project.id}
+                project={project}
+                ui={ui}
+                onOpen={() => onOpenProject(project)}
+              />
+            ))}
+            {visibleProjects.length === 0 && (
+              <div className="sp-empty">
+                <strong>{ui.projectNotSelected}</strong>
+                <span>{ui.projectSearch}</span>
+              </div>
+            )}
+          </div>
+        </article>
+      </div>
+    </section>
+  )
+}
+
+function ProfileProjectCard({
+  isSelected,
+  project,
+  ui,
+  onOpen,
+}: {
+  isSelected: boolean
+  project: StoryProject
+  ui: PreviewText
+  onOpen: () => void
+}) {
+  const coverUrl = resolveAssetUrl(project.coverImagePath)
+
+  return (
+    <button className={`sp-profile-project-card ${isSelected ? 'selected' : ''}`} type="button" onClick={onOpen}>
+      <div className="sp-profile-project-cover">
+        {coverUrl === null ? getInitials(project.name) : <img alt="" src={coverUrl} />}
+      </div>
+      <div>
+        <strong>{project.name}</strong>
+        <span>
+          {project.objectCount} {ui.objectsCount}
+        </span>
+      </div>
+      <em>{ui.selectProject}</em>
+    </button>
   )
 }
 
@@ -3478,6 +5776,7 @@ function SettingsPage({
 function AttributesWorkspace({
   attributeDefinitionDraft,
   attributeDefinitions,
+  attributeGroupIconKey,
   attributeGroupName,
   attributeGroups,
   groupDisplayMode,
@@ -3486,6 +5785,7 @@ function AttributesWorkspace({
   ui,
   onCancelAttributeEdit,
   onAttributeDefinitionDraftChange,
+  onAttributeGroupIconChange,
   onAttributeGroupNameChange,
   onCreateAttribute,
   onCreateGroup,
@@ -3497,6 +5797,7 @@ function AttributesWorkspace({
 }: {
   attributeDefinitionDraft: AttributeDefinitionDraft
   attributeDefinitions: AttributeDefinition[]
+  attributeGroupIconKey: string
   attributeGroupName: string
   attributeGroups: AttributeGroup[]
   groupDisplayMode: GroupDisplayMode
@@ -3505,6 +5806,7 @@ function AttributesWorkspace({
   ui: PreviewText
   onCancelAttributeEdit: () => void
   onAttributeDefinitionDraftChange: (draft: AttributeDefinitionDraft) => void
+  onAttributeGroupIconChange: (iconKey: string) => void
   onAttributeGroupNameChange: (name: string) => void
   onCreateAttribute: () => void
   onCreateGroup: () => void
@@ -3556,7 +5858,10 @@ function AttributesWorkspace({
               type="button"
               onClick={() => onSelectGroup(group.id)}
             >
-              <strong>{group.name}</strong>
+              <strong className="sp-label-with-icon">
+                <AttributeIcon iconKey={group.iconKey} />
+                {group.name}
+              </strong>
               <span>{attributeDefinitions.filter((definition) => definition.groupName === group.name).length}</span>
             </button>
             <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group)} onEdit={() => onEditGroup(group)} />
@@ -3571,6 +5876,7 @@ function AttributesWorkspace({
             <button className="sp-button primary" type="button" onClick={onCreateGroup}>
               +
             </button>
+            <AttributeIconPicker value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
           </div>
         </aside>
         )}
@@ -3585,6 +5891,7 @@ function AttributesWorkspace({
               <button className="sp-button primary" type="button" onClick={onCreateGroup}>
                 +
               </button>
+              <AttributeIconPicker value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
             </div>
           )}
           <div className="sp-attribute-definition-form">
@@ -3629,6 +5936,10 @@ function AttributesWorkspace({
                 </label>
               )}
             </div>
+            <label className="sp-wide-label">
+              Иконка
+              <AttributeIconPicker value={attributeDefinitionDraft.iconKey} onChange={(iconKey) => updateDraft({ iconKey })} />
+            </label>
             {attributeDefinitionDraft.dataType === 'number' && (
               <div className="sp-form-row">
                 <label>
@@ -3676,7 +5987,10 @@ function AttributesWorkspace({
             definitionsByGroup.map((group) => (
               <article className="sp-attribute-group" key={group.name}>
                 <div className="sp-attribute-group-head">
-                  <strong>{group.name}</strong>
+                  <strong className="sp-label-with-icon">
+                    <AttributeIcon iconKey={attributeGroups.find((item) => item.name === group.name)?.iconKey} />
+                    {group.name}
+                  </strong>
                   <span>{group.attributes.length}</span>
                 </div>
                 {group.attributes.map((attribute) => {
@@ -3684,7 +5998,10 @@ function AttributesWorkspace({
 
                   return (
                     <div className="sp-row with-menu" key={attribute.id}>
-                      <span>{attribute.name}</span>
+                      <span className="sp-label-with-icon">
+                        <AttributeIcon iconKey={definition?.iconKey} />
+                        {attribute.name}
+                      </span>
                       <strong>{attribute.value ?? '-'}</strong>
                       {definition !== undefined && (
                         <KebabMenu
@@ -3716,6 +6033,8 @@ function ObjectEditor({
   draftCatalogSelections,
   draftCharacterRelationships,
   draftHierarchySelections,
+  draftTimelineParticipations,
+  editingObjectId,
   editorTimelineEventId,
   hierarchyGroups,
   hierarchyNodesByGroupId,
@@ -3740,6 +6059,7 @@ function ObjectEditor({
   onDraftCatalogSelectionsChange,
   onDraftCharacterRelationshipsChange,
   onDraftHierarchySelectionsChange,
+  onDraftTimelineParticipationsChange,
   onEditorTimelineEventIdChange,
   onImageUpload,
   onObjectAgeChange,
@@ -3766,6 +6086,8 @@ function ObjectEditor({
   draftCatalogSelections: DraftCatalogSelection[]
   draftCharacterRelationships: DraftCharacterRelationship[]
   draftHierarchySelections: DraftHierarchySelection[]
+  draftTimelineParticipations: DraftTimelineParticipation[]
+  editingObjectId: number | null
   editorTimelineEventId: string
   hierarchyGroups: HierarchyGroup[]
   hierarchyNodesByGroupId: Record<number, HierarchyNode[]>
@@ -3790,6 +6112,7 @@ function ObjectEditor({
   onDraftCatalogSelectionsChange: (selections: DraftCatalogSelection[]) => void
   onDraftCharacterRelationshipsChange: (relationships: DraftCharacterRelationship[]) => void
   onDraftHierarchySelectionsChange: (selections: DraftHierarchySelection[]) => void
+  onDraftTimelineParticipationsChange: (participations: DraftTimelineParticipation[]) => void
   onEditorTimelineEventIdChange: (eventId: string) => void
   onImageUpload: (file: File | null) => void
   onObjectAgeChange: (value: string) => void
@@ -3857,8 +6180,98 @@ function ObjectEditor({
   const addRelationship = () =>
     onDraftCharacterRelationshipsChange([
       ...draftCharacterRelationships,
-      { targetCharacterId: '', relationType: '', strength: '50', tension: '0', isBidirectional: true, description: '' },
+      {
+        id: null,
+        sourceCharacterId: editingObjectId === null ? '' : String(editingObjectId),
+        targetCharacterId: '',
+        relationType: '',
+        strength: '50',
+        tension: '0',
+        isBidirectional: true,
+        description: '',
+        direction: 'outgoing',
+      },
     ])
+  const updateRelationship = (index: number, patch: Partial<DraftCharacterRelationship>) =>
+    onDraftCharacterRelationshipsChange(
+      draftCharacterRelationships.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
+    )
+  const getRelationshipCharacterId = (relationship: DraftCharacterRelationship) =>
+    relationship.direction === 'incoming' ? relationship.sourceCharacterId : relationship.targetCharacterId
+  const updateRelationshipCharacter = (index: number, characterId: string) => {
+    const relationship = draftCharacterRelationships[index]
+
+    if (relationship === undefined) {
+      return
+    }
+
+    updateRelationship(
+      index,
+      relationship.direction === 'incoming'
+        ? { sourceCharacterId: characterId, targetCharacterId: editingObjectId === null ? '' : String(editingObjectId) }
+        : { sourceCharacterId: editingObjectId === null ? '' : String(editingObjectId), targetCharacterId: characterId },
+    )
+  }
+  const updateRelationshipDirection = (index: number, direction: DraftCharacterRelationship['direction']) => {
+    const relationship = draftCharacterRelationships[index]
+
+    if (relationship === undefined) {
+      return
+    }
+
+    const relatedCharacterId = getRelationshipCharacterId(relationship)
+
+    updateRelationship(
+      index,
+      direction === 'incoming'
+        ? {
+            direction,
+            sourceCharacterId: relatedCharacterId,
+            targetCharacterId: editingObjectId === null ? '' : String(editingObjectId),
+          }
+        : {
+            direction,
+            sourceCharacterId: editingObjectId === null ? '' : String(editingObjectId),
+            targetCharacterId: relatedCharacterId,
+          },
+    )
+  }
+  const relationshipCharacters = objectsByType.characters.filter((character) => character.id !== editingObjectId)
+  const getTimelineParticipation = (eventId: number) =>
+    draftTimelineParticipations.find((participation) => participation.timelineEventId === String(eventId))
+  const toggleTimelineParticipation = (eventId: number, isSelected: boolean) => {
+    const eventIdText = String(eventId)
+
+    if (isSelected) {
+      if (draftTimelineParticipations.some((participation) => participation.timelineEventId === eventIdText)) {
+        return
+      }
+
+      onDraftTimelineParticipationsChange([
+        ...draftTimelineParticipations,
+        { timelineEventId: eventIdText, role: '' },
+      ])
+      return
+    }
+
+    onDraftTimelineParticipationsChange(
+      draftTimelineParticipations.filter((participation) => participation.timelineEventId !== eventIdText),
+    )
+  }
+  const updateTimelineParticipationRole = (eventId: number, role: string) => {
+    const eventIdText = String(eventId)
+    const hasParticipation = draftTimelineParticipations.some(
+      (participation) => participation.timelineEventId === eventIdText,
+    )
+
+    onDraftTimelineParticipationsChange(
+      hasParticipation
+        ? draftTimelineParticipations.map((participation) =>
+            participation.timelineEventId === eventIdText ? { ...participation, role } : participation,
+          )
+        : [...draftTimelineParticipations, { timelineEventId: eventIdText, role }],
+    )
+  }
 
   return (
     <section className="sp-object-editor">
@@ -4144,65 +6557,93 @@ function ObjectEditor({
                 {ui.addCharacterRelationship}
               </button>
               {draftCharacterRelationships.map((relationship, index) => (
-                <div className="sp-editor-row multi" key={index}>
-                  <select
-                    value={relationship.targetCharacterId}
-                    onChange={(event) =>
-                      onDraftCharacterRelationshipsChange(
-                        draftCharacterRelationships.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, targetCharacterId: event.target.value } : item,
-                        ),
-                      )
-                    }
-                  >
-                    <option value="">{ui.characters}</option>
-                    {objectsByType.characters.map((character) => (
-                      <option key={character.id} value={character.id}>
-                        {character.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    placeholder="Тип связи"
-                    value={relationship.relationType}
-                    onChange={(event) =>
-                      onDraftCharacterRelationshipsChange(
-                        draftCharacterRelationships.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, relationType: event.target.value } : item,
-                        ),
-                      )
-                    }
-                  />
-                  <input
-                    min={0}
-                    max={100}
-                    type="number"
-                    value={relationship.strength}
-                    onChange={(event) =>
-                      onDraftCharacterRelationshipsChange(
-                        draftCharacterRelationships.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, strength: event.target.value } : item,
-                        ),
-                      )
-                    }
-                  />
-                  <input
-                    min={0}
-                    max={100}
-                    type="number"
-                    value={relationship.tension}
-                    onChange={(event) =>
-                      onDraftCharacterRelationshipsChange(
-                        draftCharacterRelationships.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, tension: event.target.value } : item,
-                        ),
-                      )
-                    }
-                  />
-                  <button type="button" onClick={() => onDraftCharacterRelationshipsChange(draftCharacterRelationships.filter((_, itemIndex) => itemIndex !== index))}>
-                    {ui.delete}
-                  </button>
-                </div>
+                <section className="sp-editor-block sp-relationship-editor" key={`${relationship.id ?? 'new'}-${index}`}>
+                  <div className="sp-editor-row multi">
+                    <label>
+                      Направление
+                      <select
+                        value={relationship.direction}
+                        onChange={(event) =>
+                          updateRelationshipDirection(index, event.target.value as DraftCharacterRelationship['direction'])
+                        }
+                      >
+                        <option value="outgoing">От этого персонажа</option>
+                        <option value="incoming" disabled={editingObjectId === null}>
+                          К этому персонажу
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      Персонаж
+                      <select
+                        value={getRelationshipCharacterId(relationship)}
+                        onChange={(event) => updateRelationshipCharacter(index, event.target.value)}
+                      >
+                        <option value="">{ui.characters}</option>
+                        {relationshipCharacters.map((character) => (
+                          <option key={character.id} value={character.id}>
+                            {getObjectFullName(character)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Тип связи
+                      <input
+                        placeholder="Союз, конфликт, семья..."
+                        value={relationship.relationType}
+                        onChange={(event) => updateRelationship(index, { relationType: event.target.value })}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onDraftCharacterRelationshipsChange(
+                          draftCharacterRelationships.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                    >
+                      {ui.delete}
+                    </button>
+                  </div>
+                  <div className="sp-editor-row multi">
+                    <label>
+                      Сила связи
+                      <input
+                        min={0}
+                        max={100}
+                        type="number"
+                        value={relationship.strength}
+                        onChange={(event) => updateRelationship(index, { strength: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Напряжение
+                      <input
+                        min={0}
+                        max={100}
+                        type="number"
+                        value={relationship.tension}
+                        onChange={(event) => updateRelationship(index, { tension: event.target.value })}
+                      />
+                    </label>
+                    <label className="sp-checkline">
+                      <input
+                        checked={relationship.isBidirectional}
+                        type="checkbox"
+                        onChange={(event) => updateRelationship(index, { isBidirectional: event.target.checked })}
+                      />
+                      Двусторонняя
+                    </label>
+                  </div>
+                  <label>
+                    Описание связи
+                    <textarea
+                      value={relationship.description}
+                      onChange={(event) => updateRelationship(index, { description: event.target.value })}
+                    />
+                  </label>
+                </section>
               ))}
             </>
           )}
@@ -4239,6 +6680,41 @@ function ObjectEditor({
               </option>
             ))}
           </select>
+          <section className="sp-editor-block">
+            <strong>Участие в событиях</strong>
+            {timelineEvents.length === 0 ? (
+              <p className="sp-editor-hint">Событий пока нет.</p>
+            ) : (
+              <div className="sp-timeline-participation-list">
+                {timelineEvents.map((event) => {
+                  const participation = getTimelineParticipation(event.id)
+                  const isSelected = participation !== undefined
+
+                  return (
+                    <div className="sp-timeline-participation-row" key={event.id}>
+                      <label className="sp-checkline">
+                        <input
+                          checked={isSelected}
+                          type="checkbox"
+                          onChange={(inputEvent) => toggleTimelineParticipation(event.id, inputEvent.target.checked)}
+                        />
+                        <span>
+                          <strong>{event.title}</strong>
+                          <em>{[event.startLabel, event.endLabel].filter(Boolean).join(' - ') || event.category || 'Событие'}</em>
+                        </span>
+                      </label>
+                      <input
+                        disabled={!isSelected}
+                        placeholder="Роль в событии"
+                        value={participation?.role ?? ''}
+                        onChange={(inputEvent) => updateTimelineParticipationRole(event.id, inputEvent.target.value)}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
           <p className="sp-editor-hint">
             Сейчас событие можно выбрать для привязки контекста. Полное сохранение изменений по времени будет отдельным шагом.
           </p>
@@ -4293,6 +6769,8 @@ function MultiObjectPicker({
 function ObjectDetail({
   activeTab = 'main',
   attributeDefinitions,
+  attributeGroups: attributeGroupDefinitions,
+  dossierTimelineEventId = '',
   galleryImageCaption = '',
   galleryImagePath = null,
   storyObject,
@@ -4305,10 +6783,14 @@ function ObjectDetail({
   onEdit,
   onGalleryCaptionChange,
   onGalleryImageUpload,
+  onDossierTimelineEventIdChange,
+  onOpenTimelineEvent,
   onTabChange,
 }: {
   activeTab?: ObjectDossierTab
   attributeDefinitions: AttributeDefinition[]
+  attributeGroups: AttributeGroup[]
+  dossierTimelineEventId?: string
   galleryImageCaption?: string
   galleryImagePath?: string | null
   storyObject: StoryObject
@@ -4321,13 +6803,24 @@ function ObjectDetail({
   onEdit?: () => void
   onGalleryCaptionChange?: (caption: string) => void
   onGalleryImageUpload?: (file: File | null) => void
+  onDossierTimelineEventIdChange?: (eventId: string) => void
+  onOpenTimelineEvent?: (event: TimelineEvent) => void
   onTabChange?: (tab: ObjectDossierTab) => void
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const dossierTimelineEvent =
+    timelineEvents.find((event) => String(event.id) === dossierTimelineEventId) ?? null
+  const objectTimelineChanges =
+    dossierTimelineEvent?.changes.filter(
+      (change) => change.targetType === 'storyObject' && change.targetId === storyObject.id,
+    ) ?? []
+  const displayStoryObject = applyTimelineChangesToObject(storyObject, objectTimelineChanges)
   const relatedTimelineEvents = timelineEvents.filter((event) =>
-    event.participants.some((participant) => participant.targetId === storyObject.id),
+    event.participants.some(
+      (participant) => participant.targetType === 'storyObject' && participant.targetId === storyObject.id,
+    ),
   )
-  const attributeGroups = groupAttributesByDefinition(storyObject.attributes, attributeDefinitions, 'Основная')
+  const attributeGroups = groupAttributesByDefinition(displayStoryObject.attributes, attributeDefinitions, 'Основная')
   const characterRelationships = [
     ...storyObject.outgoingCharacterRelationships,
     ...storyObject.incomingCharacterRelationships,
@@ -4381,31 +6874,63 @@ function ObjectDetail({
         </div>
       )}
       <div className="sp-dossier-head">
-        <ObjectPortrait storyObject={storyObject} />
+        <ObjectPortrait storyObject={displayStoryObject} />
         <div>
           <span>{ui.dossier}</span>
-          <h2>{getObjectFullName(storyObject)}</h2>
+          <h2>{getObjectFullName(displayStoryObject)}</h2>
           <p>
-            <LinkedText targets={textLinkTargets} text={storyObject.role ?? storyObject.typeKey} />
+            <LinkedText targets={textLinkTargets} text={displayStoryObject.role ?? displayStoryObject.typeKey} />
           </p>
         </div>
       </div>
       <div className="sp-fields">
-        <div><span>{ui.yearAge}</span><strong>{storyObject.age ?? '-'}</strong></div>
+        <div><span>{ui.yearAge}</span><strong>{displayStoryObject.age ?? '-'}</strong></div>
         <div>
           <span>{ui.role}</span>
           <strong>
-            <LinkedText emptyText="-" targets={textLinkTargets} text={storyObject.role} />
+            <LinkedText emptyText="-" targets={textLinkTargets} text={displayStoryObject.role} />
           </strong>
         </div>
-        <div><span>{ui.objectType}</span><strong>{storyObject.typeKey}</strong></div>
+        <div><span>{ui.objectType}</span><strong>{displayStoryObject.typeKey}</strong></div>
       </div>
+      {timelineEvents.length > 0 && (
+        <section className="sp-panel sp-timeline-context-panel">
+          <div>
+            <span>Временной контекст</span>
+            <strong>{dossierTimelineEvent?.title ?? 'Базовое состояние'}</strong>
+          </div>
+          <select
+            value={dossierTimelineEventId}
+            onChange={(event) => onDossierTimelineEventIdChange?.(event.target.value)}
+          >
+            <option value="">Базовое состояние</option>
+            {timelineEvents.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.title}
+              </option>
+            ))}
+          </select>
+        </section>
+      )}
       <section className="sp-panel">
         <h3>{ui.description}</h3>
         <p>
-          <LinkedText emptyText={ui.unknownDescription} targets={textLinkTargets} text={storyObject.description} />
+          <LinkedText emptyText={ui.unknownDescription} targets={textLinkTargets} text={displayStoryObject.description} />
         </p>
       </section>
+      {dossierTimelineEvent !== null && objectTimelineChanges.length > 0 && (
+        <section className="sp-panel sp-context-change-list">
+          <h3>Изменения выбранного события</h3>
+          {objectTimelineChanges.map((change) => (
+            <div className="sp-row" key={change.id}>
+              <span>{change.fieldName ?? change.fieldKey ?? change.changeType}</span>
+              <strong>
+                {formatTimelineChangeValue(change.oldValueJson)} → {formatTimelineChangeValue(change.newValueJson)}
+              </strong>
+            </div>
+          ))}
+        </section>
+      )}
       <section className="sp-panel">
         <div className="sp-object-editor-tabs">
           {[
@@ -4429,23 +6954,33 @@ function ObjectDetail({
         <>
           <section className="sp-panel">
             <h3>{ui.attributes}</h3>
-            {storyObject.attributes.length === 0 ? (
+            {displayStoryObject.attributes.length === 0 ? (
               <p>Характеристик пока нет.</p>
             ) : (
               attributeGroups.map((group) => (
                 <article className="sp-attribute-group" key={group.name}>
                   <div className="sp-attribute-group-head">
-                    <strong>{group.name}</strong>
+                    <strong className="sp-label-with-icon">
+                      <AttributeIcon iconKey={attributeGroupDefinitions.find((item) => item.name === group.name)?.iconKey} />
+                      {group.name}
+                    </strong>
                     <span>{group.attributes.length}</span>
                   </div>
-                  {group.attributes.map((attribute) => (
-                    <div className="sp-row" key={attribute.id}>
-                      <span>{attribute.name}</span>
-                      <strong>
-                        <LinkedText emptyText="-" targets={textLinkTargets} text={attribute.value} />
-                      </strong>
-                    </div>
-                  ))}
+                  {group.attributes.map((attribute) => {
+                    const definition = attributeDefinitions.find((item) => item.id === attribute.attributeDefinitionId)
+
+                    return (
+                      <div className="sp-row" key={attribute.id}>
+                        <span className="sp-label-with-icon">
+                          <AttributeIcon iconKey={definition?.iconKey} />
+                          {attribute.name}
+                        </span>
+                        <strong>
+                          <LinkedText emptyText="-" targets={textLinkTargets} text={attribute.value} />
+                        </strong>
+                      </div>
+                    )
+                  })}
                 </article>
               ))
             )}
@@ -4526,7 +7061,15 @@ function ObjectDetail({
             relatedTimelineEvents.map((event) => (
               <div className="sp-row" key={event.id}>
                 <span>{event.startLabel ?? event.category ?? 'Событие'}</span>
-                <strong>{event.title}</strong>
+                <strong>
+                  {onOpenTimelineEvent === undefined ? (
+                    event.title
+                  ) : (
+                    <button className="sp-link-button" type="button" onClick={() => onOpenTimelineEvent(event)}>
+                      {event.title}
+                    </button>
+                  )}
+                </strong>
               </div>
             ))
           )}
@@ -4601,9 +7144,179 @@ function CatalogsPage({ catalogs }: { catalogs: Catalog[] }) {
   )
 }
 
+const formatCatalogFieldDefinition = (
+  field: CatalogFieldDefinition,
+  catalogs: Catalog[],
+  language: PreviewLanguage,
+) => {
+  const parts = [catalogFieldDataTypeLabels[field.dataType][language]]
+
+  if (field.dataType === 'number') {
+    const bounds = [field.minValue ?? '', field.maxValue ?? ''].join(' - ').trim()
+    if (bounds.length > 0) {
+      parts.push(bounds)
+    }
+  }
+
+  if (field.dataType === 'select' && field.options.length > 0) {
+    parts.push(field.options.join(', '))
+  }
+
+  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
+    parts.push(catalogs.find((catalog) => catalog.id === field.referenceCatalogId)?.name ?? '-')
+  }
+
+  return parts.join(' · ')
+}
+
+function CatalogEntryFieldInput({
+  catalogEntriesByCatalogId,
+  field,
+  language,
+  value,
+  onChange,
+}: {
+  catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
+  field: CatalogFieldDefinition
+  language: PreviewLanguage
+  value: string
+  onChange: (value: string) => void
+}) {
+  const requiredLabel = catalogTemplateLabels[language].required
+
+  if (field.dataType === 'longText') {
+    return (
+      <label className="wide">
+        {field.name}
+        <textarea value={value} onChange={(event) => onChange(event.target.value)} />
+      </label>
+    )
+  }
+
+  if (field.dataType === 'select') {
+    return (
+      <label>
+        {field.name}
+        <select value={value} onChange={(event) => onChange(event.target.value)}>
+          <option value="">{field.isRequired ? requiredLabel : '-'}</option>
+          {field.options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+
+  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
+    const referenceEntries =
+      field.referenceCatalogId === null ? [] : catalogEntriesByCatalogId[field.referenceCatalogId] ?? []
+    const selectedIds = value
+      .split(',')
+      .map((entryId) => Number(entryId))
+      .filter((entryId) => Number.isInteger(entryId) && entryId > 0)
+
+    if (field.dataType === 'multipleEntryReference') {
+      return (
+        <label className="wide">
+          {field.name}
+          <select
+            multiple
+            value={selectedIds.map(String)}
+            onChange={(event) =>
+              onChange(
+                Array.from(event.target.selectedOptions)
+                  .map((option) => option.value)
+                  .join(','),
+              )
+            }
+          >
+            {referenceEntries.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )
+    }
+
+    return (
+      <label>
+        {field.name}
+        <select value={value} onChange={(event) => onChange(event.target.value)}>
+          <option value="">{field.isRequired ? requiredLabel : '-'}</option>
+          {referenceEntries.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {entry.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+
+  return (
+    <label>
+      {field.name}
+      <input
+        max={field.dataType === 'number' && field.maxValue !== null ? field.maxValue : undefined}
+        min={field.dataType === 'number' && field.minValue !== null ? field.minValue : undefined}
+        required={field.isRequired}
+        type={field.dataType === 'number' ? 'number' : 'text'}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  )
+}
+
+function CatalogEntryFieldValue({
+  catalogEntryLinksById,
+  entry,
+  field,
+  textLinkTargets,
+}: {
+  catalogEntryLinksById: Map<number, CatalogEntryLinkTarget>
+  entry: CatalogEntry
+  field: CatalogFieldDefinition
+  textLinkTargets: TextLinkTarget[]
+}) {
+  const entryValue = entry.fieldValues.find((fieldValue) => fieldValue.fieldDefinitionId === field.id)
+
+  if (entryValue === undefined) {
+    return <>-</>
+  }
+
+  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
+    if (entryValue.referencedEntryIds.length === 0) {
+      return <>-</>
+    }
+
+    return (
+      <>
+        {entryValue.referencedEntryIds.map((entryId, index) => {
+          const target = catalogEntryLinksById.get(entryId)
+
+          return (
+            <span key={entryId}>
+              {index > 0 && ', '}
+              <LinkedText targets={textLinkTargets} text={target?.entry.name ?? `#${entryId}`} />
+            </span>
+          )
+        })}
+      </>
+    )
+  }
+
+  return <LinkedText emptyText="-" targets={textLinkTargets} text={entryValue.value} />
+}
+
 function CatalogEntryDetail({
   catalog,
   catalogEntryLinksById,
+  fieldDefinitions,
   entry,
   textLinkTargets,
   ui,
@@ -4612,6 +7325,7 @@ function CatalogEntryDetail({
 }: {
   catalog: Catalog | null
   catalogEntryLinksById: Map<number, CatalogEntryLinkTarget>
+  fieldDefinitions: CatalogFieldDefinition[]
   entry: CatalogEntry
   textLinkTargets: TextLinkTarget[]
   ui: PreviewText
@@ -4648,32 +7362,22 @@ function CatalogEntryDetail({
       </section>
       <section className="sp-panel">
         <h3>Поля</h3>
-        {entry.fieldValues.length === 0 ? (
+        {fieldDefinitions.length === 0 ? (
           <p>Дополнительных полей пока нет.</p>
         ) : (
-          entry.fieldValues.map((fieldValue) => {
-            const referencedEntries = fieldValue.referencedEntryIds
-              .map((entryId) => catalogEntryLinksById.get(entryId))
-              .filter((target): target is CatalogEntryLinkTarget => target !== undefined)
-
-            return (
-              <div className="sp-row" key={fieldValue.fieldDefinitionId}>
-                <span>#{fieldValue.fieldDefinitionId}</span>
-                <strong>
-                  {referencedEntries.length > 0 ? (
-                    referencedEntries.map((target, index) => (
-                      <span key={target.entry.id}>
-                        {index > 0 && ', '}
-                        <LinkedText targets={textLinkTargets} text={target.entry.name} />
-                      </span>
-                    ))
-                  ) : (
-                    <LinkedText emptyText="-" targets={textLinkTargets} text={fieldValue.value} />
-                  )}
-                </strong>
-              </div>
-            )
-          })
+          fieldDefinitions.map((field) => (
+            <div className="sp-row" key={field.id}>
+              <span>{field.name}</span>
+              <strong>
+                <CatalogEntryFieldValue
+                  catalogEntryLinksById={catalogEntryLinksById}
+                  entry={entry}
+                  field={field}
+                  textLinkTargets={textLinkTargets}
+                />
+              </strong>
+            </div>
+          ))
         )}
       </section>
     </article>
@@ -4862,74 +7566,1850 @@ function CatalogsWorkspace({
   )
 }
 
-function RelationsPage({
-  objects,
-  ui,
-  onSelect,
-}: {
-  objects: StoryObject[]
-  ui: PreviewText
+type RelationNodeData = {
+  storyObject: StoryObject
+  relationCount: number
   onSelect: (storyObject: StoryObject) => void
-}) {
-  const nodes = objects.slice(0, 5)
+}
 
+type RelationObjectFlowNode = Node<RelationNodeData, 'relationObject'>
+
+const relationNodeTypes = {
+  relationObject: RelationObjectNode,
+}
+
+const relationCategoryColors: Record<string, string> = {
+  character: '#2563eb',
+  object: '#0f766e',
+  ownership: '#9333ea',
+}
+
+const objectRelationLabels: Record<string, string> = {
+  hierarchyParent: 'иерархия',
+  locatedOnTerritory: 'на территории',
+  territoryOwner: 'владелец территории',
+}
+
+const relationNodeWidth = 220
+const relationNodeHeight = 72
+const relationHandlePositions = [
+  { id: 'top', position: Position.Top },
+  { id: 'right', position: Position.Right },
+  { id: 'bottom', position: Position.Bottom },
+  { id: 'left', position: Position.Left },
+]
+type RelationLayoutEngine = {
+  layout(graph: ElkNode): Promise<ElkNode>
+}
+let relationLayoutEnginePromise: Promise<RelationLayoutEngine> | null = null
+
+const getRelationLayoutEngine = () => {
+  relationLayoutEnginePromise ??= import('elkjs/lib/elk.bundled.js').then(
+    ({ default: ElkConstructor }) => new ElkConstructor() as unknown as RelationLayoutEngine,
+  )
+
+  return relationLayoutEnginePromise
+}
+
+function RelationObjectNode({ data }: NodeProps<RelationObjectFlowNode>) {
   return (
-    <>
-      <div className="sp-content-head">
-        <div>
-          <h2>{ui.relations}</h2>
-          <p>Черновой граф на реальных объектах текущего раздела</p>
-        </div>
+    <button className="sp-flow-node" type="button" onClick={() => data.onSelect(data.storyObject)}>
+      {relationHandlePositions.map((handle) => (
+        <Handle
+          className="sp-flow-handle"
+          id={`source-${handle.id}`}
+          key={`source-${handle.id}`}
+          position={handle.position}
+          type="source"
+        />
+      ))}
+      {relationHandlePositions.map((handle) => (
+        <Handle
+          className="sp-flow-handle"
+          id={`target-${handle.id}`}
+          key={`target-${handle.id}`}
+          position={handle.position}
+          type="target"
+        />
+      ))}
+      <ObjectPortrait storyObject={data.storyObject} />
+      <div>
+        <strong>{getObjectFullName(data.storyObject)}</strong>
+        <span>{data.storyObject.typeKey}</span>
       </div>
-      <div className="sp-graph">
-        {nodes.map((storyObject, index) => (
-          <button
-            className="sp-graph-node"
-            key={storyObject.id}
-            style={{
-              left: `${18 + (index % 3) * 28}%`,
-              top: `${18 + Math.floor(index / 3) * 36}%`,
-            }}
-            type="button"
-            onClick={() => onSelect(storyObject)}
-          >
-            <ObjectPortrait storyObject={storyObject} />
-            <strong>{storyObject.name}</strong>
-          </button>
-        ))}
-      </div>
-    </>
+      <em>{data.relationCount}</em>
+    </button>
   )
 }
 
-function TimelinePage({ events, ui, onCreate }: { events: TimelineEvent[]; ui: PreviewText; onCreate: () => void }) {
+const relationGraphNodeToStoryObject = (node: RelationGraphNode): StoryObject => ({
+  id: node.id,
+  name: node.name,
+  surname: node.surname,
+  description: null,
+  age: null,
+  role: null,
+  imagePath: node.imagePath,
+  typeKey: node.typeKey,
+  attributes: [],
+  hierarchySelections: [],
+  catalogSelections: [],
+  ownedItems: [],
+  owners: [],
+  territoryPlaces: [],
+  organizationsOnTerritory: [],
+  ownerOrganizations: [],
+  ownedTerritories: [],
+  hierarchyParents: [],
+  hierarchyChildren: [],
+  galleryImages: [],
+  outgoingCharacterRelationships: [],
+  incomingCharacterRelationships: [],
+})
+
+const getRelationLabel = (relationType: string) => objectRelationLabels[relationType] ?? relationType
+
+const getRelationGraphNodes = (graph: RelationGraph, objects: StoryObject[]) =>
+  graph.nodes.length > 0
+    ? graph.nodes
+    : objects.map((storyObject) => ({
+        id: storyObject.id,
+        name: storyObject.name,
+        surname: storyObject.surname,
+        imagePath: storyObject.imagePath,
+        typeKey: storyObject.typeKey as ObjectTypeKey,
+      }))
+
+const getRelationDegrees = (graph: RelationGraph, graphNodes: RelationGraphNode[]) => {
+  const degree = new Map<number, number>()
+
+  graphNodes.forEach((node) => degree.set(node.id, 0))
+  graph.edges.forEach((edge) => {
+    degree.set(edge.sourceId, (degree.get(edge.sourceId) ?? 0) + 1)
+    degree.set(edge.targetId, (degree.get(edge.targetId) ?? 0) + 1)
+  })
+
+  return degree
+}
+
+const getRelationPairKey = (firstId: number, secondId: number) =>
+  firstId < secondId ? `${firstId}:${secondId}` : `${secondId}:${firstId}`
+
+const getRelationComponents = (graphNodes: RelationGraphNode[], edges: RelationGraph['edges']) => {
+  const nodeById = new Map(graphNodes.map((node) => [node.id, node]))
+  const adjacency = new Map<number, Set<number>>()
+
+  graphNodes.forEach((node) => adjacency.set(node.id, new Set()))
+  edges.forEach((edge) => {
+    if (!nodeById.has(edge.sourceId) || !nodeById.has(edge.targetId)) {
+      return
+    }
+
+    adjacency.get(edge.sourceId)?.add(edge.targetId)
+    adjacency.get(edge.targetId)?.add(edge.sourceId)
+  })
+
+  const visited = new Set<number>()
+  const components: RelationGraphNode[][] = []
+
+  graphNodes.forEach((node) => {
+    if (visited.has(node.id)) {
+      return
+    }
+
+    const stack = [node.id]
+    const component: RelationGraphNode[] = []
+
+    visited.add(node.id)
+    while (stack.length > 0) {
+      const currentId = stack.pop()
+      const currentNode = currentId === undefined ? undefined : nodeById.get(currentId)
+
+      if (currentId === undefined || currentNode === undefined) {
+        continue
+      }
+
+      component.push(currentNode)
+      adjacency.get(currentId)?.forEach((nextId) => {
+        if (!visited.has(nextId)) {
+          visited.add(nextId)
+          stack.push(nextId)
+        }
+      })
+    }
+
+    components.push(component)
+  })
+
+  return components
+}
+
+const getRelationTriangle = (component: RelationGraphNode[], relationPairs: Set<string>, degree: Map<number, number>) => {
+  const sortedNodes = [...component].sort((firstNode, secondNode) => {
+    const degreeDelta = (degree.get(secondNode.id) ?? 0) - (degree.get(firstNode.id) ?? 0)
+
+    return degreeDelta !== 0 ? degreeDelta : firstNode.name.localeCompare(secondNode.name)
+  })
+
+  for (let firstIndex = 0; firstIndex < sortedNodes.length - 2; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < sortedNodes.length - 1; secondIndex += 1) {
+      for (let thirdIndex = secondIndex + 1; thirdIndex < sortedNodes.length; thirdIndex += 1) {
+        const firstNode = sortedNodes[firstIndex]
+        const secondNode = sortedNodes[secondIndex]
+        const thirdNode = sortedNodes[thirdIndex]
+
+        if (
+          relationPairs.has(getRelationPairKey(firstNode.id, secondNode.id)) &&
+          relationPairs.has(getRelationPairKey(firstNode.id, thirdNode.id)) &&
+          relationPairs.has(getRelationPairKey(secondNode.id, thirdNode.id))
+        ) {
+          return [firstNode, secondNode, thirdNode]
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+const centerRelationNode = (centerX: number, centerY: number) => ({
+  x: centerX - relationNodeWidth / 2,
+  y: centerY - relationNodeHeight / 2,
+})
+
+const getPositionedNeighbor = (
+  nodeId: number,
+  edges: RelationGraph['edges'],
+  positions: Map<number, { x: number; y: number }>,
+) => {
+  const edge = edges.find((relationEdge) => {
+    if (relationEdge.sourceId === nodeId && positions.has(relationEdge.targetId)) {
+      return true
+    }
+
+    return relationEdge.targetId === nodeId && positions.has(relationEdge.sourceId)
+  })
+
+  if (edge === undefined) {
+    return null
+  }
+
+  const neighborId = edge.sourceId === nodeId ? edge.targetId : edge.sourceId
+  const neighborPosition = positions.get(neighborId)
+
+  if (neighborPosition === undefined) {
+    return null
+  }
+
+  return { id: neighborId, position: neighborPosition }
+}
+
+const getConnectedPositionedNeighbor = (
+  nodeId: number,
+  preferredNeighborIds: Set<number>,
+  edges: RelationGraph['edges'],
+  positions: Map<number, { x: number; y: number }>,
+) => {
+  const edge = edges.find((relationEdge) => {
+    const neighborId =
+      relationEdge.sourceId === nodeId
+        ? relationEdge.targetId
+        : relationEdge.targetId === nodeId
+          ? relationEdge.sourceId
+          : null
+
+    return neighborId !== null && preferredNeighborIds.has(neighborId) && positions.has(neighborId)
+  })
+
+  if (edge === undefined) {
+    return null
+  }
+
+  const neighborId = edge.sourceId === nodeId ? edge.targetId : edge.sourceId
+  const neighborPosition = positions.get(neighborId)
+
+  return neighborPosition === undefined ? null : { id: neighborId, position: neighborPosition }
+}
+
+const getSatellitePosition = (
+  anchorId: number,
+  anchorPosition: { x: number; y: number },
+  index: number,
+  triangleRoles: Map<number, 'top' | 'left' | 'right'>,
+) => {
+  const role = triangleRoles.get(anchorId)
+  const verticalStep = relationNodeHeight + 34
+  const horizontalStep = relationNodeWidth + 80
+
+  if (role === 'top') {
+    return {
+      x: anchorPosition.x + (index - 0.5) * horizontalStep,
+      y: anchorPosition.y - verticalStep - 50,
+    }
+  }
+
+  if (role === 'left') {
+    return {
+      x: anchorPosition.x - horizontalStep,
+      y: anchorPosition.y + index * verticalStep,
+    }
+  }
+
+  if (role === 'right') {
+    return {
+      x: anchorPosition.x + horizontalStep,
+      y: anchorPosition.y + index * verticalStep,
+    }
+  }
+
+  return {
+    x: anchorPosition.x + horizontalStep,
+    y: anchorPosition.y + index * verticalStep,
+  }
+}
+
+const getRelationHandleIds = (
+  sourcePosition: { x: number; y: number },
+  targetPosition: { x: number; y: number },
+) => {
+  const sourceCenter = {
+    x: sourcePosition.x + relationNodeWidth / 2,
+    y: sourcePosition.y + relationNodeHeight / 2,
+  }
+  const targetCenter = {
+    x: targetPosition.x + relationNodeWidth / 2,
+    y: targetPosition.y + relationNodeHeight / 2,
+  }
+  const deltaX = targetCenter.x - sourceCenter.x
+  const deltaY = targetCenter.y - sourceCenter.y
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return {
+      sourceHandle: deltaX >= 0 ? 'source-right' : 'source-left',
+      targetHandle: deltaX >= 0 ? 'target-left' : 'target-right',
+    }
+  }
+
+  return {
+    sourceHandle: deltaY >= 0 ? 'source-bottom' : 'source-top',
+    targetHandle: deltaY >= 0 ? 'target-top' : 'target-bottom',
+  }
+}
+
+const calculateSmallRelationLayout = (graph: RelationGraph, graphNodes: RelationGraphNode[]) => {
+  const primaryEdges = graph.edges.filter((edge) => edge.category === 'character')
+  const primaryNodeIds = new Set(primaryEdges.flatMap((edge) => [edge.sourceId, edge.targetId]))
+  const primaryNodes = graphNodes.filter((node) => primaryNodeIds.has(node.id))
+  const layoutNodes = primaryNodes.length > 0 ? primaryNodes : graphNodes
+  const layoutEdges = primaryEdges.length > 0 ? primaryEdges : graph.edges
+  const components = getRelationComponents(layoutNodes, layoutEdges)
+
+  if (components.some((component) => component.length > 8) || graphNodes.length > 14) {
+    return null
+  }
+
+  const relationPairs = new Set(layoutEdges.map((edge) => getRelationPairKey(edge.sourceId, edge.targetId)))
+  const degree = getRelationDegrees({ ...graph, edges: layoutEdges }, layoutNodes)
+  const positions = new Map<number, { x: number; y: number }>()
+  let offsetX = 120
+  let offsetY = 120
+  let rowHeight = 0
+
+  components.forEach((component) => {
+    const triangle = getRelationTriangle(component, relationPairs, degree)
+
+    if (triangle !== null) {
+      const [topNode, leftNode, rightNode] = triangle
+      const triangleIds = new Set(triangle.map((node) => node.id))
+      const restNodes = component.filter((node) => !triangleIds.has(node.id))
+      const triangleRoles = new Map<number, 'top' | 'left' | 'right'>([
+        [topNode.id, 'top'],
+        [leftNode.id, 'left'],
+        [rightNode.id, 'right'],
+      ])
+      const triangleAttachmentCounts = new Map<number, number>()
+
+      positions.set(topNode.id, centerRelationNode(offsetX + 370, offsetY + 70))
+      positions.set(leftNode.id, centerRelationNode(offsetX + 120, offsetY + 310))
+      positions.set(rightNode.id, centerRelationNode(offsetX + 620, offsetY + 310))
+      restNodes.forEach((node, index) => {
+        const positionedNeighbor = getConnectedPositionedNeighbor(node.id, triangleIds, layoutEdges, positions)
+
+        if (positionedNeighbor === null) {
+          positions.set(node.id, centerRelationNode(offsetX + 120 + index * 250, offsetY + 540))
+          return
+        }
+
+        const attachmentIndex = triangleAttachmentCounts.get(positionedNeighbor.id) ?? 0
+        triangleAttachmentCounts.set(positionedNeighbor.id, attachmentIndex + 1)
+        positions.set(node.id, getSatellitePosition(positionedNeighbor.id, positionedNeighbor.position, attachmentIndex, triangleRoles))
+      })
+
+      offsetX += Math.max(820, 240 + restNodes.length * 250)
+      rowHeight = Math.max(rowHeight, restNodes.length > 0 ? 660 : 430)
+      return
+    }
+
+    const radius = Math.max(210, component.length * 62)
+    const centerX = offsetX + radius + relationNodeWidth / 2
+    const centerY = offsetY + radius + relationNodeHeight / 2
+
+    component
+      .sort((firstNode, secondNode) => {
+        const degreeDelta = (degree.get(secondNode.id) ?? 0) - (degree.get(firstNode.id) ?? 0)
+
+        return degreeDelta !== 0 ? degreeDelta : firstNode.name.localeCompare(secondNode.name)
+      })
+      .forEach((node, index) => {
+        const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(component.length, 1)
+
+        positions.set(node.id, centerRelationNode(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius))
+      })
+
+    offsetX += radius * 2 + relationNodeWidth + 140
+    rowHeight = Math.max(rowHeight, radius * 2 + relationNodeHeight)
+
+    if (offsetX > 1500) {
+      offsetX = 120
+      offsetY += rowHeight + 140
+      rowHeight = 0
+    }
+  })
+
+  const attachmentCounts = new Map<number, number>()
+  const attachmentNodes = graphNodes.filter((node) => !positions.has(node.id))
+
+  attachmentNodes.forEach((node, index) => {
+    const positionedNeighbor = getPositionedNeighbor(node.id, graph.edges, positions)
+
+    if (positionedNeighbor === null) {
+      positions.set(node.id, centerRelationNode(120 + index * 260, offsetY + rowHeight + 220))
+      return
+    }
+
+    const attachmentIndex = attachmentCounts.get(positionedNeighbor.id) ?? 0
+    attachmentCounts.set(positionedNeighbor.id, attachmentIndex + 1)
+    positions.set(node.id, {
+      x: positionedNeighbor.position.x + relationNodeWidth + 170,
+      y: positionedNeighbor.position.y + attachmentIndex * (relationNodeHeight + 28),
+    })
+  })
+
+  return positions
+}
+
+const calculateRelationLayout = async (graph: RelationGraph, objects: StoryObject[]) => {
+  const graphNodes = getRelationGraphNodes(graph, objects)
+
+  if (graphNodes.length === 0) {
+    return new Map<number, { x: number; y: number }>()
+  }
+
+  const smallLayout = calculateSmallRelationLayout(graph, graphNodes)
+
+  if (smallLayout !== null) {
+    return smallLayout
+  }
+
+  const elkGraph: ElkNode = {
+    id: 'relations-root',
+    layoutOptions: {
+      'elk.algorithm': 'layered',
+      'elk.direction': 'RIGHT',
+      'elk.edgeRouting': 'SPLINES',
+      'elk.spacing.nodeNode': '90',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '150',
+      'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+    },
+    children: graphNodes.map((node) => ({
+      id: String(node.id),
+      width: relationNodeWidth,
+      height: relationNodeHeight,
+    })),
+    edges: graph.edges.map((edge) => ({
+      id: edge.id,
+      sources: [String(edge.sourceId)],
+      targets: [String(edge.targetId)],
+    })),
+  }
+
+  const layoutEngine = await getRelationLayoutEngine()
+  const layout = await layoutEngine.layout(elkGraph)
+  const positions = new Map<number, { x: number; y: number }>()
+
+  layout.children?.forEach((node) => {
+    positions.set(Number(node.id), {
+      x: node.x ?? 0,
+      y: node.y ?? 0,
+    })
+  })
+
+  return positions
+}
+
+const buildRelationFlow = (
+  graph: RelationGraph,
+  objects: StoryObject[],
+  onSelect: (storyObject: StoryObject) => void,
+  layoutPositions: Map<number, { x: number; y: number }>,
+  selectedEdgeId: string | null,
+) => {
+  const objectById = new Map(objects.map((storyObject) => [storyObject.id, storyObject]))
+  const graphNodes = getRelationGraphNodes(graph, objects)
+  const degree = getRelationDegrees(graph, graphNodes)
+
+  const centerNode = graphNodes.reduce<RelationGraphNode | null>((bestNode, node) => {
+    if (bestNode === null) {
+      return node
+    }
+
+    return (degree.get(node.id) ?? 0) > (degree.get(bestNode.id) ?? 0) ? node : bestNode
+  }, null)
+  const centerId = centerNode?.id ?? null
+  const neighborIds = new Set<number>()
+
+  if (centerId !== null) {
+    graph.edges.forEach((edge) => {
+      if (edge.sourceId === centerId) {
+        neighborIds.add(edge.targetId)
+      }
+      if (edge.targetId === centerId) {
+        neighborIds.add(edge.sourceId)
+      }
+    })
+  }
+
+  const positions = new Map<number, { x: number; y: number }>()
+  if (centerNode !== null && graph.edges.length > 0) {
+    positions.set(centerNode.id, { x: 520, y: 300 })
+    const neighbors = graphNodes.filter((node) => neighborIds.has(node.id))
+    const rest = graphNodes.filter((node) => node.id !== centerNode.id && !neighborIds.has(node.id))
+
+    neighbors.forEach((node, index) => {
+      const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(neighbors.length, 1)
+      positions.set(node.id, {
+        x: 520 + Math.cos(angle) * 360,
+        y: 300 + Math.sin(angle) * 230,
+      })
+    })
+
+    rest.forEach((node, index) => {
+      positions.set(node.id, {
+        x: 80 + (index % 5) * 250,
+        y: 650 + Math.floor(index / 5) * 150,
+      })
+    })
+  } else {
+    graphNodes.forEach((node, index) => {
+      positions.set(node.id, {
+        x: 80 + (index % 4) * 260,
+        y: 90 + Math.floor(index / 4) * 150,
+      })
+    })
+  }
+
+  const getNodePosition = (nodeId: number) => layoutPositions.get(nodeId) ?? positions.get(nodeId) ?? { x: 0, y: 0 }
+  const nodes: RelationObjectFlowNode[] = graphNodes.map((node) => ({
+    id: String(node.id),
+    type: 'relationObject',
+    position: getNodePosition(node.id),
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+    data: {
+      storyObject: objectById.get(node.id) ?? relationGraphNodeToStoryObject(node),
+      relationCount: degree.get(node.id) ?? 0,
+      onSelect,
+    },
+  }))
+
+  const edges: Edge[] = graph.edges.map((edge) => {
+    const color = relationCategoryColors[edge.category] ?? '#334155'
+    const strength = edge.strength ?? 55
+    const { sourceHandle, targetHandle } = getRelationHandleIds(getNodePosition(edge.sourceId), getNodePosition(edge.targetId))
+    const isSelected = selectedEdgeId === edge.id
+
+    return {
+      id: edge.id,
+      source: String(edge.sourceId),
+      sourceHandle,
+      target: String(edge.targetId),
+      targetHandle,
+      type: 'straight',
+      animated: (edge.tension ?? 0) >= 65,
+      selected: isSelected,
+      label: getRelationLabel(edge.relationType),
+      markerEnd: { type: MarkerType.ArrowClosed, color },
+      markerStart: edge.isBidirectional ? { type: MarkerType.ArrowClosed, color } : undefined,
+      style: {
+        stroke: color,
+        strokeWidth: Math.max(isSelected ? 4 : 2, Math.min(isSelected ? 8 : 6, (isSelected ? 3 : 2) + strength / 28)),
+      },
+      labelBgPadding: [8, 4],
+      labelBgBorderRadius: 10,
+      labelBgStyle: {
+        fill: '#ffffff',
+        fillOpacity: 0.92,
+      },
+      labelStyle: {
+        fill: color,
+        fontSize: 12,
+        fontWeight: 800,
+      },
+    }
+  })
+
+  return { nodes, edges }
+}
+
+const relationCategoryLabels: Record<string, string> = {
+  character: 'Связь персонажей',
+  object: 'Связь объектов',
+  ownership: 'Владение',
+}
+
+const getRelationEndpointObject = (
+  edge: RelationGraphEdge,
+  graph: RelationGraph,
+  objects: StoryObject[],
+  endpoint: 'source' | 'target',
+) => {
+  const targetId = endpoint === 'source' ? edge.sourceId : edge.targetId
+  const storyObject = objects.find((item) => item.id === targetId)
+
+  if (storyObject !== undefined) {
+    return storyObject
+  }
+
+  const graphNode = graph.nodes.find((node) => node.id === targetId)
+
+  return graphNode === undefined ? null : relationGraphNodeToStoryObject(graphNode)
+}
+
+function RelationEndpointButton({
+  storyObject,
+  onOpen,
+}: {
+  storyObject: StoryObject | null
+  onOpen: (storyObject: StoryObject) => void
+}) {
+  if (storyObject === null) {
+    return <span className="sp-relation-endpoint missing">Неизвестный объект</span>
+  }
+
   return (
-    <>
-      <div className="sp-content-head">
+    <button className="sp-relation-endpoint" type="button" onClick={() => onOpen(storyObject)}>
+      <ObjectPortrait storyObject={storyObject} />
+      <span>
+        <strong>{getObjectFullName(storyObject)}</strong>
+        <em>{storyObject.typeKey}</em>
+      </span>
+    </button>
+  )
+}
+
+function RelationMeter({ label, value }: { label: string; value: number | null }) {
+  const normalizedValue = Math.max(0, Math.min(100, value ?? 0))
+
+  return (
+    <div className="sp-relation-meter">
+      <span>{label}</span>
+      <div>
+        <i style={{ width: `${normalizedValue}%` }} />
+      </div>
+      <strong>{value === null ? '-' : `${normalizedValue}%`}</strong>
+    </div>
+  )
+}
+
+function RelationDetail({
+  edge,
+  graph,
+  objects,
+  ui,
+  onClose,
+  onOpenObject,
+}: {
+  edge: RelationGraphEdge
+  graph: RelationGraph
+  objects: StoryObject[]
+  ui: PreviewText
+  onClose?: () => void
+  onOpenObject: (storyObject: StoryObject) => void
+}) {
+  const sourceObject = getRelationEndpointObject(edge, graph, objects, 'source')
+  const targetObject = getRelationEndpointObject(edge, graph, objects, 'target')
+  const directionLabel = edge.isBidirectional ? 'Двусторонняя' : 'Односторонняя'
+
+  return (
+    <div className="sp-detail-card sp-relation-detail">
+      <div className="sp-relation-detail-head">
         <div>
-          <h2>{ui.timeline}</h2>
-          <p>События проекта из API</p>
+          <span>{relationCategoryLabels[edge.category] ?? edge.category}</span>
+          <h2>{getRelationLabel(edge.relationType)}</h2>
         </div>
-        <button className="sp-button primary" type="button" onClick={onCreate}>
-          {ui.newEvent}
+        {onClose !== undefined && (
+          <button className="sp-icon-button" type="button" onClick={onClose}>
+            ×
+          </button>
+        )}
+      </div>
+
+      <div className="sp-relation-route">
+        <RelationEndpointButton storyObject={sourceObject} onOpen={onOpenObject} />
+        <strong>{edge.isBidirectional ? '↔' : '→'}</strong>
+        <RelationEndpointButton storyObject={targetObject} onOpen={onOpenObject} />
+      </div>
+
+      <div className="sp-fields">
+        <div>
+          <span>Тип</span>
+          <strong>{getRelationLabel(edge.relationType)}</strong>
+        </div>
+        <div>
+          <span>Направление</span>
+          <strong>{directionLabel}</strong>
+        </div>
+        <div>
+          <span>Категория</span>
+          <strong>{relationCategoryLabels[edge.category] ?? edge.category}</strong>
+        </div>
+      </div>
+
+      <section className="sp-panel">
+        <h3>Параметры</h3>
+        <RelationMeter label="Сила связи" value={edge.strength} />
+        <RelationMeter label="Напряжение" value={edge.tension} />
+      </section>
+
+      <section className="sp-panel">
+        <h3>{ui.description}</h3>
+        <p>{edge.description?.trim() || 'Описание пока не заполнено.'}</p>
+      </section>
+    </div>
+  )
+}
+
+function TimelineEventDetail({
+  event,
+  events,
+  galleryImageCaption = '',
+  galleryImagePath = null,
+  links,
+  objects,
+  ui,
+  onAddGalleryImage,
+  onClose,
+  onDelete,
+  onDeleteGalleryImage,
+  onEdit,
+  onGalleryCaptionChange,
+  onGalleryImageUpload,
+  onOpenEvent,
+  onOpenObject,
+}: {
+  event: TimelineEvent
+  events: TimelineEvent[]
+  galleryImageCaption?: string
+  galleryImagePath?: string | null
+  links: TimelineEventLink[]
+  objects: StoryObject[]
+  ui: PreviewText
+  onAddGalleryImage?: () => void
+  onClose?: () => void
+  onDelete: (eventId: number) => void
+  onDeleteGalleryImage?: (imageId: number) => void
+  onEdit: (event: TimelineEvent) => void
+  onGalleryCaptionChange?: (caption: string) => void
+  onGalleryImageUpload?: (file: File | null) => void
+  onOpenEvent: (eventId: number) => void
+  onOpenObject: (storyObject: StoryObject) => void
+}) {
+  const [activeTab, setActiveTab] = useState<TimelineEventDossierTab>('main')
+  const eventsById = new Map(events.map((timelineEvent) => [timelineEvent.id, timelineEvent]))
+  const objectsById = new Map(objects.map((storyObject) => [storyObject.id, storyObject]))
+  const parentEvent = event.parentEventId === null ? null : eventsById.get(event.parentEventId) ?? null
+  const childEvents = events.filter((timelineEvent) => timelineEvent.parentEventId === event.id)
+  const relatedLinks = links.filter((link) => link.sourceEventId === event.id || link.targetEventId === event.id)
+  const timeLabel =
+    [event.startLabel, event.endLabel].filter(Boolean).join(' - ') ||
+    [event.startValue, event.endValue].filter((value) => value !== null).join(' - ') ||
+    event.category ||
+    'Время не указано'
+  const eventColor = event.color ?? getTimelineEventColor(event.eventType)
+  const eventImageUrl = resolveAssetUrl(event.imagePath)
+
+  return (
+    <article className="sp-detail-card sp-timeline-detail">
+      <div className="sp-timeline-detail-head">
+        {eventImageUrl === null ? (
+          <div className="sp-timeline-detail-cover" style={{ background: eventColor }}>
+            {event.title.slice(0, 1).toUpperCase()}
+          </div>
+        ) : (
+          <img className="sp-timeline-detail-cover" alt="" src={eventImageUrl} />
+        )}
+        <div>
+          <span>{getTimelineEventTypeLabel(event.eventType)}</span>
+          <h2>{event.title}</h2>
+          <p>{timeLabel}</p>
+        </div>
+        {onClose !== undefined && (
+          <button className="sp-icon-button" type="button" onClick={onClose}>
+            x
+          </button>
+        )}
+      </div>
+
+      <div className="sp-fields">
+        <div><span>Тип</span><strong>{getTimelineEventTypeLabel(event.eventType)}</strong></div>
+        <div><span>Время</span><strong>{timeLabel}</strong></div>
+        <div><span>Категория</span><strong>{event.category ?? '-'}</strong></div>
+        <div>
+          <span>Родитель</span>
+          <strong>
+            {parentEvent === null ? '-' : (
+              <button className="sp-link-button" type="button" onClick={() => onOpenEvent(parentEvent.id)}>
+                {parentEvent.title}
+              </button>
+            )}
+          </strong>
+        </div>
+      </div>
+
+      <section className="sp-panel">
+        <div className="sp-object-editor-tabs">
+          {[
+            ['main', ui.main],
+            ['participants', 'Участники'],
+            ['links', 'Связи'],
+            ['changes', 'Изменения'],
+            ['gallery', ui.gallery],
+          ].map(([tab, label]) => (
+            <button
+              className={activeTab === tab ? 'active' : ''}
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab as TimelineEventDossierTab)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {activeTab === 'main' && (
+      <section className="sp-panel">
+        <h3>{ui.description}</h3>
+        <p>{event.description?.trim() || 'Описание пока не заполнено.'}</p>
+      </section>
+      )}
+
+      {activeTab === 'participants' && (
+      <section className="sp-panel">
+        <h3>Участники</h3>
+        {event.participants.length === 0 ? (
+          <p>Участников пока нет.</p>
+        ) : (
+          <div className="sp-timeline-detail-list">
+            {event.participants.map((participant) => {
+              const participantObject =
+                participant.targetType === 'storyObject' ? objectsById.get(participant.targetId) : undefined
+
+              return participantObject === undefined ? (
+                <div className="sp-row" key={participant.id}>
+                  <span>{participant.targetType}</span>
+                  <strong>{participant.role ?? '-'}</strong>
+                </div>
+              ) : (
+                <button
+                  className="sp-timeline-participant-card"
+                  key={participant.id}
+                  type="button"
+                  onClick={() => onOpenObject(participantObject)}
+                >
+                  <ObjectPortrait storyObject={participantObject} />
+                  <span>
+                    <strong>{getObjectFullName(participantObject)}</strong>
+                    <em>{participant.role ?? participantObject.typeKey}</em>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </section>
+      )}
+
+      {activeTab === 'links' && (
+      <section className="sp-panel">
+        <h3>Связанные события</h3>
+        {relatedLinks.length === 0 && childEvents.length === 0 ? (
+          <p>Связей пока нет.</p>
+        ) : (
+          <div className="sp-timeline-detail-list">
+            {parentEvent !== null && (
+              <div className="sp-row">
+                <span>Часть события</span>
+                <strong>
+                  <button className="sp-link-button" type="button" onClick={() => onOpenEvent(parentEvent.id)}>
+                    {parentEvent.title}
+                  </button>
+                </strong>
+              </div>
+            )}
+            {childEvents.map((childEvent) => (
+              <div className="sp-row" key={`child-${childEvent.id}`}>
+                <span>Внутри события</span>
+                <strong>
+                  <button className="sp-link-button" type="button" onClick={() => onOpenEvent(childEvent.id)}>
+                    {childEvent.title}
+                  </button>
+                </strong>
+              </div>
+            ))}
+            {relatedLinks.map((link) => {
+              const otherEventId = link.sourceEventId === event.id ? link.targetEventId : link.sourceEventId
+              const otherEvent = eventsById.get(otherEventId)
+
+              if (otherEvent === undefined) {
+                return null
+              }
+
+              return (
+                <div className="sp-row" key={link.id}>
+                  <span>{getTimelineLinkTypeLabel(link.linkType)}</span>
+                  <strong>
+                    <button className="sp-link-button" type="button" onClick={() => onOpenEvent(otherEvent.id)}>
+                      {otherEvent.title}
+                    </button>
+                  </strong>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+      )}
+
+      {activeTab === 'changes' && (
+      <section className="sp-panel">
+        <h3>Изменения</h3>
+        {event.changes.length === 0 ? (
+          <p>Изменений пока нет.</p>
+        ) : (
+          <div className="sp-timeline-changes">
+            {event.changes.map((change) => {
+              const changedObject =
+                change.targetType === 'storyObject' ? objectsById.get(change.targetId) : undefined
+
+              return (
+                <div className="sp-timeline-change-row" key={change.id}>
+                  <span>
+                    {changedObject === undefined ? change.targetType : getObjectFullName(changedObject)} ·{' '}
+                    {change.fieldName ?? change.fieldKey ?? change.changeType}
+                  </span>
+                  <strong>
+                    {formatTimelineChangeValue(change.oldValueJson)} → {formatTimelineChangeValue(change.newValueJson)}
+                  </strong>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+      )}
+
+      {activeTab === 'gallery' && (
+        <section className="sp-panel">
+          <h3>{ui.gallery}</h3>
+          {onGalleryImageUpload !== undefined && (
+            <div className="sp-timeline-gallery-upload">
+              <CoverDropzone
+                imagePath={galleryImagePath}
+                label="Новое изображение"
+                onFileSelected={(file) => onGalleryImageUpload(file)}
+              />
+              <div className="sp-editor-row">
+                <input
+                  placeholder="Подпись"
+                  value={galleryImageCaption}
+                  onChange={(inputEvent) => onGalleryCaptionChange?.(inputEvent.target.value)}
+                />
+                <button disabled={galleryImagePath === null} type="button" onClick={onAddGalleryImage}>
+                  Добавить
+                </button>
+              </div>
+            </div>
+          )}
+          {event.galleryImages.length === 0 ? (
+            <p>В галерее пока нет изображений.</p>
+          ) : (
+            <div className="sp-gallery-grid">
+              {event.galleryImages.map((image) => (
+                <article className="sp-gallery-card" key={image.id}>
+                  <img alt="" src={resolveAssetUrl(image.imagePath) ?? undefined} />
+                  <span>{image.caption ?? '-'}</span>
+                  {onDeleteGalleryImage !== undefined && (
+                    <button type="button" onClick={() => onDeleteGalleryImage(image.id)}>
+                      Удалить
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      <div className="sp-detail-actions">
+        <button className="sp-button" type="button" onClick={() => onEdit(event)}>
+          {ui.edit}
+        </button>
+        <button className="sp-button danger" type="button" onClick={() => onDelete(event.id)}>
+          {ui.delete}
         </button>
       </div>
+    </article>
+  )
+}
+
+function RelationsPage({
+  graph,
+  isLayoutGenerating,
+  layout,
+  objects,
+  selectedEdgeId,
+  ui,
+  onGenerateLayout,
+  onSaveNodePosition,
+  onSelectEdge,
+  onSelect,
+}: {
+  graph: RelationGraph
+  isLayoutGenerating: boolean
+  layout: RelationGraphLayout | null
+  objects: StoryObject[]
+  selectedEdgeId: string | null
+  ui: PreviewText
+  onGenerateLayout: () => void
+  onSaveNodePosition: (storyObjectId: number, position: { x: number; y: number }) => void
+  onSelectEdge: (edgeId: string) => void
+  onSelect: (storyObject: StoryObject) => void
+}) {
+  const layoutPositions = useMemo(
+    () =>
+      new Map(
+        layout?.items.map((item) => [
+          item.storyObjectId,
+          {
+            x: item.x,
+            y: item.y,
+          },
+        ]) ?? [],
+      ),
+    [layout],
+  )
+  const { nodes, edges } = useMemo(
+    () => buildRelationFlow(graph, objects, onSelect, layoutPositions, selectedEdgeId),
+    [graph, layoutPositions, objects, onSelect, selectedEdgeId],
+  )
+  const [flowNodes, setFlowNodes] = useState(nodes)
+  const relationTypes = Array.from(new Set(graph.edges.map((edge) => getRelationLabel(edge.relationType)))).sort()
+  const layoutStatus =
+    layout === null
+      ? 'раскладка не сформирована'
+      : layout.isStale
+        ? 'раскладка устарела'
+        : 'раскладка сохранена'
+  const layoutButtonLabel = layout === null ? 'Сформировать' : layout.isStale ? 'Обновить раскладку' : 'Сформировать заново'
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) =>
+      setFlowNodes((currentNodes) => applyNodeChanges(changes, currentNodes) as RelationObjectFlowNode[]),
+    [],
+  )
+
+  useEffect(() => {
+    setFlowNodes(nodes)
+  }, [nodes])
+
+  return (
+    <div className="sp-relations-page">
+      <div className="sp-relations-overlay-head">
+        <div>
+          <h2>{ui.relations}</h2>
+          <p>
+            {graph.nodes.length} объектов · {graph.edges.length} связей · {layoutStatus}
+          </p>
+        </div>
+        <div className="sp-relations-overlay-actions">
+          <button
+            className="sp-button"
+            type="button"
+            disabled={isLayoutGenerating || graph.nodes.length === 0}
+            onClick={onGenerateLayout}
+          >
+            {isLayoutGenerating ? 'Формируется...' : layoutButtonLabel}
+          </button>
+        </div>
+      </div>
+      <div className="sp-relations-workspace">
+        <aside className="sp-relations-legend">
+          <strong>{ui.relations}</strong>
+          <span className="sp-legend-line character">Персонажи</span>
+          <span className="sp-legend-line ownership">Владение</span>
+          <span className="sp-legend-line object">Объекты</span>
+          <p>Нажми на узел, чтобы открыть досье. Узлы можно перетаскивать вручную.</p>
+          {relationTypes.length > 0 && (
+            <div className="sp-relation-types">
+              {relationTypes.map((relationType) => (
+                <span key={relationType}>{relationType}</span>
+              ))}
+            </div>
+          )}
+        </aside>
+        <div className="sp-graph">
+          {flowNodes.length === 0 ? (
+            <div className="sp-empty">
+              <strong>{ui.noObjects}</strong>
+              <span>{ui.noRelationships}</span>
+            </div>
+          ) : (
+            <ReactFlow
+              edges={edges}
+              fitView
+              maxZoom={1.6}
+              minZoom={0.2}
+              nodes={flowNodes}
+              nodeTypes={relationNodeTypes}
+              onEdgeClick={(_, edge) => onSelectEdge(edge.id)}
+              onNodeDragStop={(_, node) => onSaveNodePosition(Number(node.id), node.position)}
+              onNodesChange={onNodesChange}
+            >
+              <Background gap={32} variant={BackgroundVariant.Lines} />
+              <Controls />
+              <MiniMap pannable zoomable />
+            </ReactFlow>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TimelinePage({
+  events,
+  isGenerating,
+  layout,
+  layoutRules,
+  links,
+  selectedEvent,
+  timeline,
+  ui,
+  onCreate,
+  onCreateLink,
+  onDeleteLink,
+  onGenerate,
+  onSelectEvent,
+}: {
+  events: TimelineEvent[]
+  isGenerating: boolean
+  layout: TimelineLayout | null
+  layoutRules: TimelineLayoutRules | null
+  links: TimelineEventLink[]
+  selectedEvent: TimelineEvent | null
+  timeline: TimelineInfo | null
+  ui: PreviewText
+  onCreate: () => void
+  onCreateLink: () => void
+  onDeleteLink: (linkId: number) => void
+  onGenerate: () => void
+  onSelectEvent: (eventId: number) => void
+}) {
+  const timelineViewportRef = useRef<HTMLDivElement | null>(null)
+  const timelineZoomBehaviorRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null)
+  const [timelineTransform, setTimelineTransform] = useState<ZoomTransform>(zoomIdentity)
+  const [isTimelinePanning, setIsTimelinePanning] = useState(false)
+  const [isLinksPopoverOpen, setIsLinksPopoverOpen] = useState(false)
+  const timelineZoom = timelineTransform.k
+  const layoutItemsByEventId = useMemo(
+    () => new Map(layout?.items.map((item) => [item.timelineEventId, item]) ?? []),
+    [layout],
+  )
+  const eventsById = useMemo(() => new Map(events.map((event) => [event.id, event])), [events])
+  const eventIndexesById = useMemo(
+    () => new Map(events.map((event, index) => [event.id, index])),
+    [events],
+  )
+  const layoutItems = layout?.items ?? []
+  const timelineWidth = Math.max(
+    1600,
+    ...layoutItems.map((item) => item.x + item.width + 640),
+  )
+  const timelineHeight = Math.max(
+    760,
+    ...layoutItems.map((item) => item.y + item.height + 120),
+  )
+  const numericValues = events
+    .flatMap((event) => [event.startValue, event.endValue])
+    .filter((value): value is number => typeof value === 'number')
+  const timelineDomainValues = numericValues.length === 0 ? [0, Math.max(events.length, 1)] : [...numericValues, 0]
+  const minValue = Math.min(...timelineDomainValues)
+  const maxValue = Math.max(...timelineDomainValues, minValue + 1)
+  const baseTimeScale = useMemo(
+    () => scaleLinear().domain([minValue, maxValue]).range([96, 1056]),
+    [maxValue, minValue],
+  )
+  const timelineTimeScale = useMemo(
+    () => timelineTransform.rescaleX(baseTimeScale),
+    [baseTimeScale, timelineTransform],
+  )
+  const axisTicks = buildTimelineAxisTicks(timelineTimeScale, timelineWidth, timelineZoom)
+  const storyStartX = timelineTimeScale(0)
+  const renderedLayoutItemsByEventId = useMemo(() => {
+    if (layout === null) {
+      return new Map<number, TimelineLayoutItem>()
+    }
+
+    return new Map(
+      events.flatMap((event) => {
+        const item = layoutItemsByEventId.get(event.id)
+        if (item === undefined) {
+          return []
+        }
+
+        const index = eventIndexesById.get(event.id) ?? 0
+        const startValue = getTimelineEventStartValue(event, index)
+        const endValue = getTimelineEventEndValue(event, index)
+        const startX = timelineTimeScale(startValue)
+        const endX = timelineTimeScale(endValue)
+        const width =
+          event.eventType === 'point' || event.eventType === 'chapter'
+            ? item.width
+            : Math.max(item.width, Math.abs(endX - startX))
+        const x = event.eventType === 'point'
+          ? startX - item.width / 2
+          : Math.min(startX, endX)
+
+        return [[
+          event.id,
+          {
+            ...item,
+            x,
+            width,
+          },
+        ]]
+      }),
+    )
+  }, [eventIndexesById, events, layout, layoutItemsByEventId, timelineTimeScale])
+  const eventCounts = {
+    era: events.filter((event) => event.eventType === 'era').length,
+    duration: events.filter((event) => event.eventType === 'duration').length,
+    point: events.filter((event) => event.eventType === 'point').length,
+    chapter: events.filter((event) => event.eventType === 'chapter').length,
+  }
+  const linkLines =
+    layout === null
+      ? []
+      : links
+          .map((link) => {
+            const source = renderedLayoutItemsByEventId.get(link.sourceEventId)
+            const target = renderedLayoutItemsByEventId.get(link.targetEventId)
+            const sourceEvent = eventsById.get(link.sourceEventId)
+            const targetEvent = eventsById.get(link.targetEventId)
+            if (source === undefined || target === undefined) {
+              return null
+            }
+            if (link.linkType === 'partOf') {
+              return null
+            }
+            const sourceAnchor = getTimelineAnchor(source, sourceEvent?.eventType, target)
+            const targetAnchor = getTimelineAnchor(target, targetEvent?.eventType, source)
+            const path = getTimelineLinkRoute(sourceAnchor, targetAnchor)
+
+            return {
+              link,
+              path,
+            }
+          })
+          .filter((line): line is NonNullable<typeof line> => line !== null)
+  useEffect(() => {
+    const viewport = timelineViewportRef.current
+    if (viewport === null) {
+      return undefined
+    }
+
+    const behavior = zoom<HTMLDivElement, unknown>()
+      .scaleExtent([0.25, 48])
+      .filter((event) => {
+        if (event.type === 'dblclick') {
+          return false
+        }
+
+        if (event.type === 'wheel') {
+          return true
+        }
+
+        return !(event.target instanceof Element &&
+          event.target.closest('.sp-timeline-item, button, a, input, select, textarea') !== null)
+      })
+      .on('start', () => setIsTimelinePanning(true))
+      .on('zoom', (event: D3ZoomEvent<HTMLDivElement, unknown>) => {
+        setTimelineTransform(event.transform)
+      })
+      .on('end', () => setIsTimelinePanning(false))
+
+    timelineZoomBehaviorRef.current = behavior
+    select(viewport).call(behavior).on('dblclick.zoom', null)
+
+    return () => {
+      select(viewport).on('.zoom', null)
+      timelineZoomBehaviorRef.current = null
+    }
+  }, [])
+  const zoomTimeline = useCallback((nextZoom: number) => {
+    const viewport = timelineViewportRef.current
+    const behavior = timelineZoomBehaviorRef.current
+    if (viewport === null || behavior === null) {
+      return
+    }
+
+    const rect = viewport.getBoundingClientRect()
+    const clampedZoom = Math.min(48, Math.max(0.25, nextZoom))
+    behavior.scaleTo(select(viewport), clampedZoom, [rect.width / 2, rect.height / 2])
+  }, [])
+  const resetTimelineViewport = useCallback(() => {
+    const viewport = timelineViewportRef.current
+    const behavior = timelineZoomBehaviorRef.current
+    if (viewport === null || behavior === null) {
+      return
+    }
+
+    behavior.transform(select(viewport), zoomIdentity)
+  }, [])
+  const modeLabel =
+    timeline?.mode === 'dated'
+      ? 'Шкала с датами'
+      : timeline?.mode === 'freeform'
+        ? 'Свободный порядок'
+        : 'Главы / сюжетная структура'
+  const layoutButtonLabel = layout === null ? 'Сформировать' : layout.isStale ? 'Обновить раскладку' : 'Сформировать заново'
+  const layoutSourceStatus = layoutRules?.coordinateStorage === 'project-file'
+    ? `file: ${layoutRules.layoutStateFile}`
+    : 'layout rules loading'
+  const timelineStatus = layout === null
+    ? 'раскладка не сформирована'
+    : layout.isStale
+      ? 'раскладка устарела'
+      : 'раскладка сохранена'
+
+  return (
+    <div className="sp-timeline-page">
+      <div className="sp-timeline-overlay-head">
+        <div>
+          <h2>{ui.timeline}</h2>
+          <p>
+            {modeLabel} · {events.length} событий · {timelineStatus}
+          </p>
+          <div className="sp-timeline-type-summary">
+            <span className="era">Эпохи: {eventCounts.era}</span>
+            <span className="duration">Ленты: {eventCounts.duration}</span>
+            <span className="point">Точки: {eventCounts.point}</span>
+            <span className="chapter">Главы: {eventCounts.chapter}</span>
+            <span className="layout-source">{layoutSourceStatus}</span>
+          </div>
+        </div>
+      </div>
+      <div className="sp-timeline-overlay-actions">
+          <button className="sp-button" type="button" disabled={isGenerating} onClick={onGenerate}>
+            {isGenerating ? 'Формируется...' : layoutButtonLabel}
+          </button>
+          <button
+            className="sp-button"
+            type="button"
+            aria-expanded={isLinksPopoverOpen}
+            onClick={() => setIsLinksPopoverOpen((value) => !value)}
+          >
+            Связи событий
+            <span className="sp-button-count">{links.length}</span>
+          </button>
+          <button className="sp-button" type="button" disabled={events.length < 2} onClick={onCreateLink}>
+            Связать события
+          </button>
+          <button className="sp-button primary" type="button" onClick={onCreate}>
+            {ui.newEvent}
+          </button>
+      </div>
+      {isLinksPopoverOpen && (
+        <div className="sp-timeline-links-popover">
+          <div className="sp-timeline-links-popover-head">
+            <div>
+              <strong>Связи событий</strong>
+              <span>{links.length} связей</span>
+            </div>
+            <button className="sp-icon-button" type="button" onClick={() => setIsLinksPopoverOpen(false)}>
+              x
+            </button>
+          </div>
+          {links.length > 0 ? (
+            <div className="sp-timeline-links-list">
+              {links.map((link) => (
+                <div className="sp-timeline-link-row" key={link.id}>
+                  <span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsLinksPopoverOpen(false)
+                        onSelectEvent(link.sourceEventId)
+                      }}
+                    >
+                      {eventsById.get(link.sourceEventId)?.title ?? 'Событие'}
+                    </button>
+                    {' → '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsLinksPopoverOpen(false)
+                        onSelectEvent(link.targetEventId)
+                      }}
+                    >
+                      {eventsById.get(link.targetEventId)?.title ?? 'Событие'}
+                    </button>
+                  </span>
+                  <em>{getTimelineLinkTypeLabel(link.linkType)}</em>
+                  <button className="sp-icon-button" type="button" onClick={() => onDeleteLink(link.id)}>
+                    x
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="sp-empty compact">
+              Связей пока нет.
+            </div>
+          )}
+        </div>
+      )}
       <div className="sp-timeline">
-        <div className="sp-axis">
-          {events.slice(0, 8).map((event, index) => (
+        <div className="sp-timeline-tools">
+          <button type="button" onClick={() => zoomTimeline(timelineZoom / 1.18)} title="Уменьшить">
+            -
+          </button>
+          <strong>{Math.round(timelineZoom * 100)}%</strong>
+          <button type="button" onClick={() => zoomTimeline(timelineZoom * 1.18)} title="Увеличить">
+            +
+          </button>
+          <button type="button" onClick={resetTimelineViewport} title="Сбросить масштаб">
+            1:1
+          </button>
+        </div>
+        <div
+          className={`sp-timeline-viewport${isTimelinePanning ? ' is-panning' : ''}`}
+          ref={timelineViewportRef}
+        >
+          <div
+            className="sp-timeline-scale-frame"
+            style={{ height: `${timelineHeight}px`, width: `${timelineWidth}px` }}
+          >
+        <div
+          className={`sp-axis${layout === null ? ' is-unformed' : ''}`}
+          style={{
+            height: `${timelineHeight}px`,
+            transform: `translateY(${timelineTransform.y}px)`,
+            width: `${timelineWidth}px`,
+          }}
+        >
+          {layout !== null && (
+            <div className="sp-timeline-ticks">
+              {axisTicks.map((tick) => (
+                <span
+                  className={tick.kind}
+                  key={`${tick.kind}-${tick.value}`}
+                  style={{ left: `${tick.x}px` }}
+                >
+                  {tick.label}
+                </span>
+              ))}
+            </div>
+          )}
+          {layout !== null && (
+            <div className="sp-timeline-origin" style={{ left: `${storyStartX}px` }}>
+              <span>Начало истории</span>
+            </div>
+          )}
+          {linkLines.length > 0 && (
+            <svg
+              className="sp-timeline-link-lines"
+              aria-hidden="true"
+              height={timelineHeight}
+              width={timelineWidth}
+            >
+              {linkLines.map(({ link, path }) => (
+                <g className={`sp-timeline-link-line ${link.linkType}`} key={link.id}>
+                  <path d={path} vectorEffect="non-scaling-stroke" />
+                </g>
+              ))}
+            </svg>
+          )}
+          {layout !== null &&
+            events.map((event) => {
+              const item = renderedLayoutItemsByEventId.get(event.id)
+              if (item === undefined) {
+                return null
+              }
+              const timeLabel = [event.startLabel, event.endLabel].filter(Boolean).join(' - ') ||
+                event.category ||
+                getTimelineEventTypeLabel(event.eventType)
+              const eventZIndex =
+                event.eventType === 'point'
+                  ? 70 + item.layer
+                  : event.eventType === 'duration'
+                    ? 20 + item.layer
+                    : event.eventType === 'chapter'
+                      ? 8 + item.layer
+                      : 4 + item.layer
+              const eventStyle = {
+                '--event-color': event.color ?? getTimelineEventColor(event.eventType),
+                height: event.eventType === 'era' ? `${timelineHeight}px` : `${item.height}px`,
+                left: `${item.x}px`,
+                top: event.eventType === 'era' ? '0px' : `${item.y}px`,
+                width: `${item.width}px`,
+                zIndex: eventZIndex,
+              } as CSSProperties
+
+              return (
+                <article
+                  className={`sp-timeline-item ${event.eventType}${selectedEvent?.id === event.id ? ' is-selected' : ''}`}
+                  key={event.id}
+                  onClick={event.eventType === 'era' ? undefined : () => onSelectEvent(event.id)}
+                  style={eventStyle}
+                >
+                  {event.eventType === 'chapter' ? (
+                    <span className="sp-timeline-chapter-label">
+                      <strong>{event.title}</strong>
+                      <em>{timeLabel}</em>
+                    </span>
+                  ) : event.eventType === 'point' ? (
+                    null
+                  ) : (
+                    <>
+                      <i className="sp-timeline-item-marker" />
+                      <strong>{event.title}</strong>
+                      {event.eventType !== 'duration' && <span>{timeLabel}</span>}
+                      {event.description !== null &&
+                        event.description.trim().length > 0 &&
+                        event.eventType !== 'era' &&
+                        event.eventType !== 'duration' && (
+                        <em>{event.description}</em>
+                      )}
+                    </>
+                  )}
+                </article>
+              )
+            })}
+          {layout === null && events.slice(0, 8).map((event, index) => (
             <div className="sp-timepoint" key={event.id} style={{ left: `${8 + index * 12}%` }}>
               <i />
-              <article className={index % 2 === 0 ? 'top' : 'bottom'}>
+              <article
+                className={`${index % 2 === 0 ? 'top' : 'bottom'}${selectedEvent?.id === event.id ? ' is-selected' : ''}`}
+                onClick={() => onSelectEvent(event.id)}
+              >
                 <strong>{event.title}</strong>
                 <span>{event.startLabel ?? event.category ?? 'Событие'}</span>
               </article>
             </div>
           ))}
-          {events.length === 0 && <div className="sp-empty">Событий пока нет.</div>}
+          {events.length === 0 && (
+            <div className="sp-empty sp-timeline-empty">
+              <strong>Событий пока нет</strong>
+              <span>Создай событие или загрузи демонстрационный набор.</span>
+            </div>
+          )}
+        </div>
+          </div>
         </div>
       </div>
-    </>
+    </div>
   )
+}
+
+function getTimelineAnchor(
+  item: TimelineLayoutItem,
+  eventType: TimelineEvent['eventType'] | undefined,
+  otherItem: TimelineLayoutItem,
+) {
+  const centerX = item.x + item.width / 2
+  const centerY = item.y + item.height / 2
+
+  if (eventType === 'point') {
+    return { x: centerX, y: centerY }
+  }
+
+  const otherCenterX = otherItem.x + otherItem.width / 2
+  const anchorY = eventType === 'duration'
+    ? item.y + TIMELINE_DURATION_TITLE_HEIGHT + TIMELINE_DURATION_POINT_BAND_HEIGHT / 2
+    : centerY
+
+  return {
+    x: otherCenterX >= centerX ? item.x + item.width : item.x,
+    y: anchorY,
+  }
+}
+
+function getTimelineLinkRoute(source: { x: number; y: number }, target: { x: number; y: number }) {
+  if (Math.abs(source.x - target.x) < 1 || Math.abs(source.y - target.y) < 1) {
+    return `M ${source.x} ${source.y} L ${target.x} ${target.y}`
+  }
+
+  const elbowX = target.x
+
+  return `M ${source.x} ${source.y} L ${elbowX} ${source.y} L ${target.x} ${target.y}`
+}
+
+function getTimelineEventStartValue(event: TimelineEvent, index: number) {
+  return event.startValue ?? index
+}
+
+function getTimelineEventEndValue(event: TimelineEvent, index: number) {
+  const startValue = getTimelineEventStartValue(event, index)
+  if (event.endValue === null || event.endValue < startValue) {
+    return startValue
+  }
+
+  return event.endValue
+}
+
+function getTimelineEventTypeLabel(eventType: TimelineEvent['eventType']) {
+  if (eventType === 'duration') {
+    return 'Длительное событие'
+  }
+
+  if (eventType === 'era') {
+    return 'Эпоха'
+  }
+
+  if (eventType === 'chapter') {
+    return 'Глава'
+  }
+
+  return 'Событие'
+}
+
+function getTimelineEventColor(eventType: TimelineEvent['eventType']) {
+  if (eventType === 'duration') {
+    return '#2563eb'
+  }
+
+  if (eventType === 'era') {
+    return '#64748b'
+  }
+
+  if (eventType === 'chapter') {
+    return '#7c3aed'
+  }
+
+  return '#059669'
+}
+
+function formatTimelineTickLabel(value: number) {
+  if (Math.abs(value) >= 100 || Number.isInteger(value)) {
+    return String(Math.round(value))
+  }
+
+  return value.toFixed(1).replace(/\.0$/, '')
+}
+
+function buildTimelineAxisTicks(timeScale: ScaleLinear<number, number>, canvasWidth: number, zoom: number) {
+  const visibleStart = timeScale.invert(0)
+  const visibleEnd = timeScale.invert(canvasWidth)
+  const minValue = Math.min(visibleStart, visibleEnd)
+  const maxValue = Math.max(visibleStart, visibleEnd)
+  const pixelsPerValue = Math.abs(timeScale(1) - timeScale(0))
+  const majorStep = getNiceTimelineStep(120 / Math.max(pixelsPerValue, 0.001))
+  const minorCandidates = [5, 4, 2].map((division) => ({
+    division,
+    step: majorStep / division,
+  }))
+  const minorStep = zoom > 0.7
+    ? minorCandidates.find((candidate) => candidate.step * pixelsPerValue >= 22)?.step ?? majorStep
+    : majorStep
+  const precision = Math.max(0, Math.ceil(-Math.log10(minorStep)) + 2)
+  const firstValue = Math.ceil(minValue / minorStep) * minorStep
+  const ticks: Array<{ kind: 'major' | 'minor'; label: string; value: number; x: number }> = []
+
+  for (let value = firstValue; value <= maxValue + minorStep * 0.5; value += minorStep) {
+    const normalizedValue = Number(value.toFixed(precision))
+    if (normalizedValue < minValue - minorStep * 0.25 || normalizedValue > maxValue + minorStep * 0.25) {
+      continue
+    }
+
+    const majorRatio = Math.abs(normalizedValue / majorStep - Math.round(normalizedValue / majorStep))
+    const isMajor = majorRatio < 0.001 || Math.abs(normalizedValue - minValue) < minorStep * 0.25
+    ticks.push({
+      kind: isMajor ? 'major' : 'minor',
+      label: isMajor ? formatTimelineTickLabel(normalizedValue) : '',
+      value: normalizedValue,
+      x: timeScale(normalizedValue),
+    })
+  }
+
+  return ticks
+}
+
+function getNiceTimelineStep(rawStep: number) {
+  if (!Number.isFinite(rawStep) || rawStep <= 0) {
+    return 1
+  }
+
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep))
+  const normalized = rawStep / magnitude
+  const niceNormalized =
+    normalized <= 1
+      ? 1
+      : normalized <= 2
+        ? 2
+        : normalized <= 5
+          ? 5
+          : 10
+
+  return niceNormalized * magnitude
+}
+
+function getTimelineLinkTypeLabel(linkType: TimelineEventLink['linkType']) {
+  if (linkType === 'precedes') {
+    return 'предшествует'
+  }
+
+  if (linkType === 'causes') {
+    return 'причина'
+  }
+
+  if (linkType === 'simultaneous') {
+    return 'одновременно'
+  }
+
+  if (linkType === 'partOf') {
+    return 'часть события'
+  }
+
+  return 'связано'
+}
+
+function formatTimelineChangeValue(value: string | null) {
+  if (value === null || value.trim().length === 0) {
+    return '-'
+  }
+
+  try {
+    const parsedValue = JSON.parse(value) as unknown
+
+    if (Array.isArray(parsedValue)) {
+      return parsedValue.length === 0 ? '[]' : `${parsedValue.length} записей`
+    }
+
+    if (typeof parsedValue === 'object' && parsedValue !== null) {
+      return JSON.stringify(parsedValue)
+    }
+  } catch {
+    // Timeline changes can store either plain text or JSON snapshots.
+  }
+
+  return value
+}
+
+function readTimelineChangeRawValue(value: string | null) {
+  if (value === null || value.trim().length === 0) {
+    return ''
+  }
+
+  try {
+    const parsedValue = JSON.parse(value) as unknown
+
+    if (typeof parsedValue === 'string') {
+      return parsedValue
+    }
+
+    if (parsedValue === null) {
+      return ''
+    }
+
+    return JSON.stringify(parsedValue)
+  } catch {
+    return value
+  }
+}
+
+function getTimelineChangeFieldKey(change: TimelineChange) {
+  return (change.fieldName ?? change.fieldKey ?? '').trim().toLowerCase()
+}
+
+function getLatestObjectTimelineChange(changes: TimelineChange[], changeType: string, fieldName: string) {
+  const normalizedFieldName = fieldName.trim().toLowerCase()
+
+  return [...changes]
+    .reverse()
+    .find((change) => change.changeType === changeType && getTimelineChangeFieldKey(change) === normalizedFieldName)
+}
+
+function getChangedNullableField(changes: TimelineChange[], fieldName: string, fallback: string | null) {
+  const change = getLatestObjectTimelineChange(changes, 'field', fieldName)
+
+  if (change === undefined) {
+    return fallback
+  }
+
+  const value = readTimelineChangeRawValue(change.newValueJson).trim()
+
+  return value.length === 0 ? null : value
+}
+
+function applyTimelineChangesToObject(storyObject: StoryObject, changes: TimelineChange[]): StoryObject {
+  if (changes.length === 0) {
+    return storyObject
+  }
+
+  const displayAttributes = [...storyObject.attributes]
+
+  changes
+    .filter((change) => change.changeType === 'attribute')
+    .forEach((change, index) => {
+      const attributeName = (change.fieldName ?? change.fieldKey ?? '').trim()
+
+      if (attributeName.length === 0) {
+        return
+      }
+
+      const value = readTimelineChangeRawValue(change.newValueJson).trim()
+      const attributeIndex = displayAttributes.findIndex(
+        (attribute) => attribute.name.trim().toLowerCase() === attributeName.toLowerCase(),
+      )
+
+      if (attributeIndex >= 0) {
+        displayAttributes[attributeIndex] = {
+          ...displayAttributes[attributeIndex],
+          value: value.length === 0 ? null : value,
+        }
+        return
+      }
+
+      displayAttributes.push({
+        id: -100000 - index,
+        attributeDefinitionId: 0,
+        name: attributeName,
+        value: value.length === 0 ? null : value,
+      })
+    })
+
+  return {
+    ...storyObject,
+    name: getChangedNullableField(changes, 'name', storyObject.name) ?? storyObject.name,
+    surname: getChangedNullableField(changes, 'surname', storyObject.surname),
+    description: getChangedNullableField(changes, 'description', storyObject.description),
+    age: getChangedNullableField(changes, 'age', storyObject.age),
+    role: getChangedNullableField(changes, 'role', storyObject.role),
+    imagePath: getChangedNullableField(changes, 'imagePath', storyObject.imagePath),
+    attributes: displayAttributes,
+  }
 }
 
 function PreviewDialog({

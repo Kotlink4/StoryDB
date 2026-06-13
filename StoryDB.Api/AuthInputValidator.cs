@@ -1,23 +1,13 @@
+using StoryDB.Api.Validation;
+
 namespace StoryDB.Api;
 
 public static class AuthInputValidator
 {
-    public static string? ValidateCredentials(string email, string password)
-    {
-        if (string.IsNullOrWhiteSpace(email) || email.Length > 254 || !email.Contains('@'))
-        {
-            return "Valid email is required.";
-        }
+    public static string? ValidateCredentials(string? email, string? password)
+        => RequestValidators.ValidateAuthCredentials(email, password);
 
-        if (string.IsNullOrWhiteSpace(password) || password.Length < 6 || password.Length > 128)
-        {
-            return "Password must be between 6 and 128 characters.";
-        }
+    public static string NormalizeEmailInput(string? email) => email?.Trim() ?? string.Empty;
 
-        return null;
-    }
-
-    public static string NormalizeEmailInput(string email) => email.Trim();
-
-    public static string NormalizeEmail(string email) => email.Trim().ToUpperInvariant();
+    public static string NormalizeEmail(string? email) => NormalizeEmailInput(email).ToUpperInvariant();
 }

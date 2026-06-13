@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Controllers;
 
@@ -83,7 +84,13 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<StoryObjectDto>> CreateObject(int projectId, CreateStoryObjectRequest request)
     {
-        var requestError = ValidateStoryObjectRequest(request.Name, request.Surname, request.Description, request.Age, request.Role);
+        var requestError = RequestValidators.ValidateStoryObject(
+            request.Name,
+            request.Surname,
+            request.Description,
+            request.Age,
+            request.Role,
+            request.ImagePath);
         if (requestError is not null)
         {
             return BadRequest(requestError);
@@ -158,7 +165,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             Description = NormalizeOptionalText(request.Description),
             Age = NormalizeOptionalText(request.Age),
             Role = NormalizeOptionalText(request.Role),
-            ImagePath = request.ImagePath,
+            ImagePath = ValidationRules.NormalizeOptionalText(request.ImagePath),
             CreatedAt = now,
             UpdatedAt = now,
             Attributes = ToObjectAttributes(request.Attributes, definitionsResult.Definitions),
@@ -185,6 +192,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             ? ToCharacterRelationships(storyObject.Id, characterRelationshipsResult.Relationships)
             : [];
         await dbContext.SaveChangesAsync();
+        await MarkRelationGraphLayoutsStale(projectId);
 
         var dto = ToSavedSummaryDto(storyObject, objectType.Key, definitionsResult.Definitions);
 
@@ -197,7 +205,13 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         int objectId,
         UpdateStoryObjectRequest request)
     {
-        var requestError = ValidateStoryObjectRequest(request.Name, request.Surname, request.Description, request.Age, request.Role);
+        var requestError = RequestValidators.ValidateStoryObject(
+            request.Name,
+            request.Surname,
+            request.Description,
+            request.Age,
+            request.Role,
+            request.ImagePath);
         if (requestError is not null)
         {
             return BadRequest(requestError);
@@ -213,6 +227,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
             .Include(storyObject => storyObject.Owners)
             .Include(storyObject => storyObject.OutgoingRelations)
             .Include(storyObject => storyObject.OutgoingCharacterRelationships)
+            .Include(storyObject => storyObject.IncomingCharacterRelationships)
             .FirstOrDefaultAsync(storyObject => storyObject.ProjectId == projectId && storyObject.Id == objectId);
 
         if (storyObject is null)
@@ -275,7 +290,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         storyObject.Description = NormalizeOptionalText(request.Description);
         storyObject.Age = NormalizeOptionalText(request.Age);
         storyObject.Role = NormalizeOptionalText(request.Role);
-        storyObject.ImagePath = request.ImagePath;
+        storyObject.ImagePath = ValidationRules.NormalizeOptionalText(request.ImagePath);
         storyObject.UpdatedAt = DateTime.UtcNow;
 
         SyncObjectAttributes(storyObject, ToObjectAttributes(request.Attributes, definitionsResult.Definitions));
@@ -291,6 +306,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         SyncCharacterRelationships(storyObject, storyObject.ObjectType.Key, characterRelationshipsResult.Relationships);
 
         await dbContext.SaveChangesAsync();
+        await MarkRelationGraphLayoutsStale(projectId);
 
         var dto = ToSavedSummaryDto(storyObject, storyObject.ObjectType.Key, definitionsResult.Definitions);
 
@@ -310,6 +326,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
 
         dbContext.Objects.Remove(storyObject);
         await dbContext.SaveChangesAsync();
+        await MarkRelationGraphLayoutsStale(projectId);
 
         return NoContent();
     }
@@ -345,7 +362,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         int objectId,
         ObjectGalleryImageRequest request)
     {
-        var validationError = ValidateGalleryImageRequest(request);
+        var validationError = RequestValidators.ValidateRequiredGalleryImage(request.ImagePath, request.Caption);
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -383,7 +400,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         int imageId,
         ObjectGalleryImageRequest request)
     {
-        var validationError = ValidateGalleryImageRequest(request);
+        var validationError = RequestValidators.ValidateRequiredGalleryImage(request.ImagePath, request.Caption);
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -433,80 +450,25 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         return Ok(await GetObjectDto(projectId, objectId));
     }
 
-    private static string? ValidateStoryObjectRequest(string name, string? surname, string? description, string? age, string? role)
-    {
-        var nameError = ValidateName(name, "Object name");
-        if (nameError is not null)
-        {
-            return nameError;
-        }
-
-        if (surname?.Trim().Length > 120)
-        {
-            return "Surname must be 120 characters or shorter.";
-        }
-
-        if (description?.Length > 1000)
-        {
-            return "Description must be 1000 characters or shorter.";
-        }
-
-        if (age?.Trim().Length > 120)
-        {
-            return "Age must be 120 characters or shorter.";
-        }
-
-        if (role?.Trim().Length > 120)
-        {
-            return "Role must be 120 characters or shorter.";
-        }
-
-        return null;
-    }
-
-    private static string? ValidateGalleryImageRequest(ObjectGalleryImageRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.ImagePath))
-        {
-            return "Gallery image path is required.";
-        }
-
-        if (!request.ImagePath.Trim().StartsWith("/uploads/images/", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Gallery image path must reference an uploaded image.";
-        }
-
-        if (request.Caption?.Trim().Length > 240)
-        {
-            return "Gallery image caption must be 240 characters or shorter.";
-        }
-
-        return null;
-    }
-
     private Task<bool> ObjectExists(int projectId, int objectId) =>
         dbContext.Objects.AnyAsync(storyObject =>
             storyObject.ProjectId == projectId &&
             storyObject.Id == objectId);
 
+    private Task MarkRelationGraphLayoutsStale(int projectId)
+    {
+        var now = DateTime.UtcNow;
+
+        return dbContext.RelationGraphLayouts
+            .Where(layout => layout.ProjectId == projectId && !layout.IsStale)
+            .ExecuteUpdateAsync(updates => updates
+                .SetProperty(layout => layout.IsStale, true)
+                .SetProperty(layout => layout.UpdatedAt, now));
+    }
+
     private static string? NormalizeOptionalText(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    }
-
-    private static string? ValidateName(string name, string fieldName)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return $"{fieldName} is required.";
-        }
-
-        if (name.Trim().Length > 120)
-        {
-            return $"{fieldName} must be 120 characters or shorter.";
-        }
-
-        return null;
     }
 
     private async Task<AttributeDefinitionsValidationResult> GetValidatedAttributeDefinitions(
@@ -530,7 +492,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
                 continue;
             }
 
-            var nameError = ValidateName(name, "Attribute name");
+            var nameError = RequestValidators.ValidateName(name, "Attribute name");
             if (nameError is not null)
             {
                 return new AttributeDefinitionsValidationResult(nameError, new Dictionary<int, AttributeDefinition>());
@@ -1161,6 +1123,8 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
     {
         var normalizedRelationships = relationships
             .Select((relationship, index) => new CharacterRelationshipSelection(
+                relationship.Id,
+                currentCharacterId is null ? 0 : relationship.SourceCharacterId ?? currentCharacterId.Value,
                 relationship.TargetCharacterId,
                 relationship.RelationType.Trim(),
                 Math.Clamp(relationship.Strength, 0, 100),
@@ -1169,8 +1133,11 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
                 NormalizeOptionalText(relationship.Description),
                 index))
             .Where(relationship =>
+                (currentCharacterId is null ||
+                    relationship.SourceCharacterId == currentCharacterId ||
+                    relationship.TargetCharacterId == currentCharacterId) &&
+                relationship.SourceCharacterId != relationship.TargetCharacterId &&
                 relationship.TargetCharacterId > 0 &&
-                relationship.TargetCharacterId != currentCharacterId &&
                 relationship.RelationType.Length > 0)
             .ToList();
 
@@ -1191,7 +1158,11 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
 
         if (!await AllObjectsMatchType(
             projectId,
-            normalizedRelationships.Select(relationship => relationship.TargetCharacterId).Distinct().ToList(),
+            normalizedRelationships
+                .SelectMany(relationship => new[] { relationship.SourceCharacterId, relationship.TargetCharacterId })
+                .Where(characterId => characterId > 0)
+                .Distinct()
+                .ToList(),
             ["characters"]))
         {
             return new CharacterRelationshipsValidationResult("One or more related characters were not found.", []);
@@ -1453,24 +1424,40 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
         IReadOnlyList<CharacterRelationshipSelection> normalizedRelationships =
             typeKey == "characters" ? requestedRelationships : [];
         var existingRelationships = storyObject.OutgoingCharacterRelationships
+            .Concat(storyObject.IncomingCharacterRelationships)
+            .DistinctBy(relationship => relationship.Id)
             .OrderBy(relationship => relationship.SortOrder)
             .ThenBy(relationship => relationship.Id)
             .ToList();
+        var requestedExistingIds = normalizedRelationships
+            .Select(relationship => relationship.Id)
+            .OfType<int>()
+            .ToHashSet();
 
-        for (var index = normalizedRelationships.Count; index < existingRelationships.Count; index++)
+        foreach (var existingRelationship in existingRelationships
+            .Where(relationship => !requestedExistingIds.Contains(relationship.Id))
+            .ToList())
         {
-            dbContext.CharacterRelationships.Remove(existingRelationships[index]);
-            storyObject.OutgoingCharacterRelationships.Remove(existingRelationships[index]);
+            dbContext.CharacterRelationships.Remove(existingRelationship);
+            storyObject.OutgoingCharacterRelationships.Remove(existingRelationship);
+            storyObject.IncomingCharacterRelationships.Remove(existingRelationship);
         }
 
         for (var index = 0; index < normalizedRelationships.Count; index++)
         {
             var requestedRelationship = normalizedRelationships[index];
-            if (index >= existingRelationships.Count)
+            var existingRelationship = requestedRelationship.Id is null
+                ? null
+                : existingRelationships.FirstOrDefault(relationship => relationship.Id == requestedRelationship.Id);
+            var sourceCharacterId = requestedRelationship.SourceCharacterId > 0
+                ? requestedRelationship.SourceCharacterId
+                : storyObject.Id;
+
+            if (existingRelationship is null)
             {
-                storyObject.OutgoingCharacterRelationships.Add(new CharacterRelationship
+                dbContext.CharacterRelationships.Add(new CharacterRelationship
                 {
-                    SourceCharacterId = storyObject.Id,
+                    SourceCharacterId = sourceCharacterId,
                     TargetCharacterId = requestedRelationship.TargetCharacterId,
                     RelationType = requestedRelationship.RelationType,
                     Strength = requestedRelationship.Strength,
@@ -1482,7 +1469,7 @@ public class ObjectsController(StoryDbContext dbContext) : ControllerBase
                 continue;
             }
 
-            var existingRelationship = existingRelationships[index];
+            existingRelationship.SourceCharacterId = sourceCharacterId;
             existingRelationship.TargetCharacterId = requestedRelationship.TargetCharacterId;
             existingRelationship.RelationType = requestedRelationship.RelationType;
             existingRelationship.Strength = requestedRelationship.Strength;
@@ -1682,6 +1669,8 @@ public record ObjectGalleryImageRequest(string ImagePath, string? Caption);
 public record ObjectGalleryImageDto(int Id, string ImagePath, string? Caption, int SortOrder);
 
 public record CharacterRelationshipRequest(
+    int? Id,
+    int? SourceCharacterId,
     int TargetCharacterId,
     string RelationType,
     int Strength,
@@ -1737,6 +1726,8 @@ public record ObjectRelationsValidationResult(
     IReadOnlyList<int> ParentObjectIds);
 
 public record CharacterRelationshipSelection(
+    int? Id,
+    int SourceCharacterId,
     int TargetCharacterId,
     string RelationType,
     int Strength,

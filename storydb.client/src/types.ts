@@ -98,13 +98,74 @@ export type CharacterRelationship = {
   direction: 'outgoing' | 'incoming'
 }
 
+export type RelationGraph = {
+  nodes: RelationGraphNode[]
+  edges: RelationGraphEdge[]
+}
+
+export type RelationGraphNode = {
+  id: number
+  name: string
+  surname: string | null
+  imagePath: string | null
+  typeKey: ObjectTypeKey
+}
+
+export type RelationGraphEdge = {
+  id: string
+  sourceId: number
+  targetId: number
+  relationType: string
+  category: string
+  strength: number | null
+  tension: number | null
+  isBidirectional: boolean
+  description: string | null
+}
+
+export type RelationGraphLayout = {
+  id: number
+  projectId: number
+  algorithmVersion: string
+  isDefault: boolean
+  isStale: boolean
+  generatedAt: string
+  items: RelationGraphLayoutItem[]
+}
+
+export type RelationGraphLayoutItem = {
+  id: number
+  storyObjectId: number
+  x: number
+  y: number
+  width: number
+  height: number
+  isPinned: boolean
+}
+
+export type RelationGraphLayoutDraft = {
+  items: RelationGraphLayoutItemDraft[]
+}
+
+export type RelationGraphLayoutItemDraft = {
+  storyObjectId: number
+  x: number
+  y: number
+  width: number
+  height: number
+  isPinned: boolean
+}
+
 export type DraftCharacterRelationship = {
+  id?: number | null
+  sourceCharacterId: string
   targetCharacterId: string
   relationType: string
   strength: string
   tension: string
   isBidirectional: boolean
   description: string
+  direction: 'outgoing' | 'incoming'
 }
 
 export type ObjectAttribute = {
@@ -158,6 +219,7 @@ export type AttributeGroup = {
   id: number
   typeKey: ObjectTypeKey
   name: string
+  iconKey: string | null
 }
 
 export type AttributeDefinition = {
@@ -166,6 +228,7 @@ export type AttributeDefinition = {
   name: string
   dataType: AttributeDataType
   groupName: string | null
+  iconKey: string | null
   minValue: number | null
   maxValue: number | null
   unit: string | null
@@ -176,6 +239,7 @@ export type AttributeDefinitionDraft = {
   name: string
   dataType: AttributeDataType
   groupName: string
+  iconKey?: string
   minValue: string
   maxValue: string
   unit: string
@@ -201,6 +265,9 @@ export type AuthUser = {
   id: number
   email: string
   displayName: string
+  avatarImagePath: string | null
+  createdAt: string
+  updatedAt: string | null
 }
 
 
@@ -287,7 +354,10 @@ export type CatalogEntryDraft = {
 
 export type TimelineEvent = {
   id: number
+  timelineId: number
+  parentEventId: number | null
   title: string
+  eventType: TimelineEventType
   description: string | null
   startLabel: string | null
   endLabel: string | null
@@ -295,8 +365,99 @@ export type TimelineEvent = {
   endValue: number | null
   category: string | null
   color: string | null
+  imagePath: string | null
+  galleryImages: TimelineEventGalleryImage[]
   participants: TimelineParticipant[]
   changes: TimelineChange[]
+}
+
+export type TimelineEventGalleryImage = {
+  id: number
+  imagePath: string
+  caption: string | null
+  sortOrder: number
+}
+
+export type TimelineInfo = {
+  id: number
+  projectId: number
+  name: string
+  mode: TimelineMode
+  isDefault: boolean
+  updatedAt: string
+}
+
+export type TimelineMode = 'chapters' | 'freeform' | 'dated'
+
+export type TimelineEventType = 'point' | 'duration' | 'era' | 'chapter'
+
+export type TimelineEventLinkType = 'precedes' | 'causes' | 'simultaneous' | 'partOf' | 'related'
+
+export type TimelineLayout = {
+  id: number
+  timelineId: number
+  algorithmVersion: string
+  isStale: boolean
+  generatedAt: string
+  items: TimelineLayoutItem[]
+}
+
+export type TimelineLayoutItem = {
+  id: number
+  timelineEventId: number
+  x: number
+  y: number
+  width: number
+  height: number
+  lane: number
+  layer: number
+  isPinned: boolean
+}
+
+export type TimelineLayoutRules = {
+  schemaVersion: number
+  projectId: number
+  algorithmVersion: string
+  coordinateStorage: 'project-file' | string
+  layoutStateFile: string
+  ruleSourceFile: string
+  directionPolicy: string
+  eventSidePolicy: string
+  durationPriorityPolicy: string
+  durationOverlapPolicy: string
+  durationPointPolicy: string
+  independentPointPolicy: string
+  horizontalLinkPolicy: string
+  verticalLinkPolicy: string
+  pointLabelPolicy: string
+  eraInteractionPolicy: string
+  axisY: number
+  eraY: number
+  eraHeight: number
+  chapterY: number
+  chapterHeight: number
+  durationTitleHeight: number
+  durationPointBandHeight: number
+  durationGap: number
+  laneStep: number
+  pointSize: number
+  minimumDurationWidth: number
+  updatedAt: string
+}
+
+export type TimelineEventLink = {
+  id: number
+  sourceEventId: number
+  targetEventId: number
+  linkType: TimelineEventLinkType
+  description: string | null
+}
+
+export type TimelineEventLinkDraft = {
+  sourceEventId: string
+  targetEventId: string
+  linkType: TimelineEventLinkType
+  description: string
 }
 
 export type TimelineParticipant = {
@@ -324,6 +485,8 @@ export type TimelineChange = {
 
 export type TimelineEventDraft = {
   title: string
+  eventType: TimelineEventType
+  parentEventId: string
   description: string
   startLabel: string
   endLabel: string
@@ -331,6 +494,7 @@ export type TimelineEventDraft = {
   endValue: string
   category: string
   color: string
+  imagePath: string | null
   participants: TimelineParticipantDraft[]
   changes: TimelineChangeDraft[]
 }

@@ -21,9 +21,16 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     public DbSet<ObjectRelation> ObjectRelations => Set<ObjectRelation>();
     public DbSet<CharacterRelationship> CharacterRelationships => Set<CharacterRelationship>();
     public DbSet<ObjectGalleryImage> ObjectGalleryImages => Set<ObjectGalleryImage>();
+    public DbSet<Timeline> Timelines => Set<Timeline>();
     public DbSet<TimelineEvent> TimelineEvents => Set<TimelineEvent>();
+    public DbSet<TimelineEventLink> TimelineEventLinks => Set<TimelineEventLink>();
     public DbSet<TimelineParticipant> TimelineParticipants => Set<TimelineParticipant>();
     public DbSet<TimelineChange> TimelineChanges => Set<TimelineChange>();
+    public DbSet<TimelineEventGalleryImage> TimelineEventGalleryImages => Set<TimelineEventGalleryImage>();
+    public DbSet<TimelineLayout> TimelineLayouts => Set<TimelineLayout>();
+    public DbSet<TimelineLayoutItem> TimelineLayoutItems => Set<TimelineLayoutItem>();
+    public DbSet<RelationGraphLayout> RelationGraphLayouts => Set<RelationGraphLayout>();
+    public DbSet<RelationGraphLayoutItem> RelationGraphLayoutItems => Set<RelationGraphLayoutItem>();
     public DbSet<Catalog> Catalogs => Set<Catalog>();
     public DbSet<CatalogEntry> CatalogEntries => Set<CatalogEntry>();
     public DbSet<CatalogEntryGroup> CatalogEntryGroups => Set<CatalogEntryGroup>();
@@ -42,6 +49,10 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
         modelBuilder.Entity<AppUser>()
             .HasIndex(user => user.NormalizedEmail)
             .IsUnique();
+
+        modelBuilder.Entity<AppUser>()
+            .Property(user => user.AvatarImagePath)
+            .HasMaxLength(512);
 
         modelBuilder.Entity<Project>()
             .HasOne(project => project.OwnerUser)
@@ -102,9 +113,22 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
         modelBuilder.Entity<ObjectGalleryImage>()
             .HasIndex(image => new { image.StoryObjectId, image.SortOrder });
 
+        modelBuilder.Entity<TimelineEventGalleryImage>()
+            .HasOne(image => image.TimelineEvent)
+            .WithMany(timelineEvent => timelineEvent.GalleryImages)
+            .HasForeignKey(image => image.TimelineEventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineEventGalleryImage>()
+            .HasIndex(image => new { image.TimelineEventId, image.SortOrder });
+
         modelBuilder.Entity<AttributeGroup>()
             .HasIndex(group => new { group.ProjectId, group.ObjectTypeId, group.Name })
             .IsUnique();
+
+        modelBuilder.Entity<AttributeGroup>()
+            .Property(group => group.IconKey)
+            .HasMaxLength(80);
 
         modelBuilder.Entity<AttributeGroup>()
             .HasOne(group => group.Project)
@@ -121,6 +145,10 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
         modelBuilder.Entity<AttributeDefinition>()
             .HasIndex(definition => new { definition.ProjectId, definition.ObjectTypeId, definition.Name })
             .IsUnique();
+
+        modelBuilder.Entity<AttributeDefinition>()
+            .Property(definition => definition.IconKey)
+            .HasMaxLength(80);
 
         modelBuilder.Entity<AttributeDefinition>()
             .HasOne(definition => definition.Project)
@@ -322,12 +350,42 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasForeignKey(relationship => relationship.TargetCharacterId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<Timeline>()
+            .HasIndex(timeline => new { timeline.ProjectId, timeline.Name })
+            .IsUnique();
+
+        modelBuilder.Entity<Timeline>()
+            .HasIndex(timeline => new { timeline.ProjectId, timeline.IsDefault });
+
+        modelBuilder.Entity<Timeline>()
+            .Property(timeline => timeline.Name)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<Timeline>()
+            .Property(timeline => timeline.Mode)
+            .HasMaxLength(40)
+            .HasDefaultValue("chapters");
+
+        modelBuilder.Entity<Timeline>()
+            .HasOne(timeline => timeline.Project)
+            .WithMany(project => project.Timelines)
+            .HasForeignKey(timeline => timeline.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .HasIndex(timelineEvent => new { timelineEvent.TimelineId, timelineEvent.StartValue, timelineEvent.SortOrder });
+
         modelBuilder.Entity<TimelineEvent>()
             .HasIndex(timelineEvent => new { timelineEvent.ProjectId, timelineEvent.StartValue, timelineEvent.SortOrder });
 
         modelBuilder.Entity<TimelineEvent>()
             .Property(timelineEvent => timelineEvent.Title)
             .HasMaxLength(160);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .Property(timelineEvent => timelineEvent.EventType)
+            .HasMaxLength(40)
+            .HasDefaultValue("point");
 
         modelBuilder.Entity<TimelineEvent>()
             .Property(timelineEvent => timelineEvent.Description)
@@ -353,6 +411,47 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasOne(timelineEvent => timelineEvent.Project)
             .WithMany()
             .HasForeignKey(timelineEvent => timelineEvent.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .HasOne(timelineEvent => timelineEvent.Timeline)
+            .WithMany(timeline => timeline.Events)
+            .HasForeignKey(timelineEvent => timelineEvent.TimelineId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineEvent>()
+            .HasOne(timelineEvent => timelineEvent.ParentEvent)
+            .WithMany(timelineEvent => timelineEvent.ChildEvents)
+            .HasForeignKey(timelineEvent => timelineEvent.ParentEventId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<TimelineEventLink>()
+            .HasIndex(link => new { link.TimelineId, link.SourceEventId, link.TargetEventId, link.LinkType });
+
+        modelBuilder.Entity<TimelineEventLink>()
+            .Property(link => link.LinkType)
+            .HasMaxLength(60);
+
+        modelBuilder.Entity<TimelineEventLink>()
+            .Property(link => link.Description)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<TimelineEventLink>()
+            .HasOne(link => link.Timeline)
+            .WithMany(timeline => timeline.EventLinks)
+            .HasForeignKey(link => link.TimelineId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineEventLink>()
+            .HasOne(link => link.SourceEvent)
+            .WithMany(timelineEvent => timelineEvent.OutgoingLinks)
+            .HasForeignKey(link => link.SourceEventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineEventLink>()
+            .HasOne(link => link.TargetEvent)
+            .WithMany(timelineEvent => timelineEvent.IncomingLinks)
+            .HasForeignKey(link => link.TargetEventId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<TimelineParticipant>()
@@ -415,6 +514,76 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasOne(change => change.TimelineEvent)
             .WithMany(timelineEvent => timelineEvent.Changes)
             .HasForeignKey(change => change.TimelineEventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineLayout>()
+            .HasIndex(layout => new { layout.TimelineId, layout.OwnerUserId, layout.IsDefault });
+
+        modelBuilder.Entity<TimelineLayout>()
+            .Property(layout => layout.AlgorithmVersion)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<TimelineLayout>()
+            .HasOne(layout => layout.Timeline)
+            .WithMany(timeline => timeline.Layouts)
+            .HasForeignKey(layout => layout.TimelineId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineLayout>()
+            .HasOne(layout => layout.OwnerUser)
+            .WithMany()
+            .HasForeignKey(layout => layout.OwnerUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<TimelineLayoutItem>()
+            .HasIndex(item => new { item.TimelineLayoutId, item.TimelineEventId })
+            .IsUnique();
+
+        modelBuilder.Entity<TimelineLayoutItem>()
+            .HasOne(item => item.TimelineLayout)
+            .WithMany(layout => layout.Items)
+            .HasForeignKey(item => item.TimelineLayoutId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimelineLayoutItem>()
+            .HasOne(item => item.TimelineEvent)
+            .WithMany(timelineEvent => timelineEvent.LayoutItems)
+            .HasForeignKey(item => item.TimelineEventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RelationGraphLayout>()
+            .HasIndex(layout => new { layout.ProjectId, layout.OwnerUserId, layout.IsDefault });
+
+        modelBuilder.Entity<RelationGraphLayout>()
+            .Property(layout => layout.AlgorithmVersion)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<RelationGraphLayout>()
+            .HasOne(layout => layout.Project)
+            .WithMany()
+            .HasForeignKey(layout => layout.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RelationGraphLayout>()
+            .HasOne(layout => layout.OwnerUser)
+            .WithMany()
+            .HasForeignKey(layout => layout.OwnerUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<RelationGraphLayoutItem>()
+            .HasIndex(item => new { item.RelationGraphLayoutId, item.StoryObjectId })
+            .IsUnique();
+
+        modelBuilder.Entity<RelationGraphLayoutItem>()
+            .HasOne(item => item.RelationGraphLayout)
+            .WithMany(layout => layout.Items)
+            .HasForeignKey(item => item.RelationGraphLayoutId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RelationGraphLayoutItem>()
+            .HasOne(item => item.StoryObject)
+            .WithMany()
+            .HasForeignKey(item => item.StoryObjectId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Catalog>()

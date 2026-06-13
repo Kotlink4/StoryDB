@@ -30,6 +30,10 @@ namespace StoryDB.Api.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AvatarImagePath")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -76,6 +80,10 @@ namespace StoryDB.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("IconKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.Property<double?>("MaxValue")
                         .HasColumnType("double precision");
 
@@ -120,6 +128,10 @@ namespace StoryDB.Api.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("IconKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -730,6 +742,94 @@ namespace StoryDB.Api.Migrations
                     b.ToTable("Projects");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.RelationGraphLayout", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AlgorithmVersion")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsStale")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("OwnerUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("ProjectId", "OwnerUserId", "IsDefault");
+
+                    b.ToTable("RelationGraphLayouts");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.RelationGraphLayoutItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Height")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("RelationGraphLayoutId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StoryObjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Width")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("X")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("Y")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StoryObjectId");
+
+                    b.HasIndex("RelationGraphLayoutId", "StoryObjectId")
+                        .IsUnique();
+
+                    b.ToTable("RelationGraphLayoutItems");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.StoryObject", b =>
                 {
                     b.Property<int>("Id")
@@ -850,6 +950,51 @@ namespace StoryDB.Api.Migrations
                     b.ToTable("StoryObjectHierarchySelections");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.Timeline", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("chapters");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "IsDefault");
+
+                    b.HasIndex("ProjectId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Timelines");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineChange", b =>
                 {
                     b.Property<int>("Id")
@@ -948,6 +1093,19 @@ namespace StoryDB.Api.Migrations
                     b.Property<decimal?>("EndValue")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("point");
+
+                    b.Property<string>("ImagePath")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ParentEventId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
@@ -961,6 +1119,9 @@ namespace StoryDB.Api.Migrations
                     b.Property<decimal?>("StartValue")
                         .HasColumnType("numeric");
 
+                    b.Property<int>("TimelineId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(160)
@@ -971,9 +1132,187 @@ namespace StoryDB.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ParentEventId");
+
                     b.HasIndex("ProjectId", "StartValue", "SortOrder");
 
+                    b.HasIndex("TimelineId", "StartValue", "SortOrder");
+
                     b.ToTable("TimelineEvents");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEventGalleryImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Caption")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImagePath")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimelineEventId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimelineEventId", "SortOrder");
+
+                    b.ToTable("TimelineEventGalleryImages");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEventLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("LinkType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SourceEventId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TargetEventId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimelineId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceEventId");
+
+                    b.HasIndex("TargetEventId");
+
+                    b.HasIndex("TimelineId", "SourceEventId", "TargetEventId", "LinkType");
+
+                    b.ToTable("TimelineEventLinks");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineLayout", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AlgorithmVersion")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsStale")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("OwnerUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimelineId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("TimelineId", "OwnerUserId", "IsDefault");
+
+                    b.ToTable("TimelineLayouts");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineLayoutItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Height")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Lane")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Layer")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimelineEventId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimelineLayoutId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Width")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("X")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("Y")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimelineEventId");
+
+                    b.HasIndex("TimelineLayoutId", "TimelineEventId")
+                        .IsUnique();
+
+                    b.ToTable("TimelineLayoutItems");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineParticipant", b =>
@@ -1344,6 +1683,43 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("OwnerUser");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.RelationGraphLayout", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.AppUser", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("StoryDB.Api.Data.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OwnerUser");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.RelationGraphLayoutItem", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.RelationGraphLayout", "RelationGraphLayout")
+                        .WithMany("Items")
+                        .HasForeignKey("RelationGraphLayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.StoryObject", "StoryObject")
+                        .WithMany()
+                        .HasForeignKey("StoryObjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RelationGraphLayout");
+
+                    b.Navigation("StoryObject");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.StoryObject", b =>
                 {
                     b.HasOne("StoryDB.Api.Data.Entities.ObjectType", "ObjectType")
@@ -1423,6 +1799,17 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("StoryObject");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.Timeline", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.Project", "Project")
+                        .WithMany("Timelines")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineChange", b =>
                 {
                     b.HasOne("StoryDB.Api.Data.Entities.TimelineEvent", "TimelineEvent")
@@ -1436,13 +1823,103 @@ namespace StoryDB.Api.Migrations
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEvent", b =>
                 {
+                    b.HasOne("StoryDB.Api.Data.Entities.TimelineEvent", "ParentEvent")
+                        .WithMany("ChildEvents")
+                        .HasForeignKey("ParentEventId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("StoryDB.Api.Data.Entities.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("StoryDB.Api.Data.Entities.Timeline", "Timeline")
+                        .WithMany("Events")
+                        .HasForeignKey("TimelineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ParentEvent");
+
                     b.Navigation("Project");
+
+                    b.Navigation("Timeline");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEventGalleryImage", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.TimelineEvent", "TimelineEvent")
+                        .WithMany("GalleryImages")
+                        .HasForeignKey("TimelineEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TimelineEvent");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEventLink", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.TimelineEvent", "SourceEvent")
+                        .WithMany("OutgoingLinks")
+                        .HasForeignKey("SourceEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.TimelineEvent", "TargetEvent")
+                        .WithMany("IncomingLinks")
+                        .HasForeignKey("TargetEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.Timeline", "Timeline")
+                        .WithMany("EventLinks")
+                        .HasForeignKey("TimelineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SourceEvent");
+
+                    b.Navigation("TargetEvent");
+
+                    b.Navigation("Timeline");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineLayout", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.AppUser", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("StoryDB.Api.Data.Entities.Timeline", "Timeline")
+                        .WithMany("Layouts")
+                        .HasForeignKey("TimelineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OwnerUser");
+
+                    b.Navigation("Timeline");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineLayoutItem", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.TimelineEvent", "TimelineEvent")
+                        .WithMany("LayoutItems")
+                        .HasForeignKey("TimelineEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.TimelineLayout", "TimelineLayout")
+                        .WithMany("Items")
+                        .HasForeignKey("TimelineLayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TimelineEvent");
+
+                    b.Navigation("TimelineLayout");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineParticipant", b =>
@@ -1532,6 +2009,13 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("ObjectTypes");
 
                     b.Navigation("Objects");
+
+                    b.Navigation("Timelines");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.RelationGraphLayout", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.StoryObject", b =>
@@ -1557,11 +2041,35 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("Owners");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.Timeline", b =>
+                {
+                    b.Navigation("EventLinks");
+
+                    b.Navigation("Events");
+
+                    b.Navigation("Layouts");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineEvent", b =>
                 {
                     b.Navigation("Changes");
 
+                    b.Navigation("ChildEvents");
+
+                    b.Navigation("GalleryImages");
+
+                    b.Navigation("IncomingLinks");
+
+                    b.Navigation("LayoutItems");
+
+                    b.Navigation("OutgoingLinks");
+
                     b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.TimelineLayout", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

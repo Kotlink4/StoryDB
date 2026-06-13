@@ -12,4 +12,5 @@ public class Project
     public AppUser? OwnerUser { get; set; }
     public List<ObjectType> ObjectTypes { get; set; } = [];
     public List<StoryObject> Objects { get; set; } = [];
+    public List<Timeline> Timelines { get; set; } = [];
 }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Controllers;
 
@@ -45,7 +46,10 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
         int projectId,
         AttributeGroupRequest request)
     {
-        var validationError = ValidateGroupRequest(request);
+        var validationError = RequestValidators.ValidateAttributeGroup(
+            request.TypeKey,
+            request.Name,
+            request.IconKey);
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -57,7 +61,7 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
             return NotFound();
         }
 
-        var group = await GetOrCreateGroup(projectId, objectType.Id, request.Name);
+        var group = await GetOrCreateGroup(projectId, objectType.Id, request.Name, request.IconKey);
         if (group is null)
         {
             return BadRequest("Attribute group name is required.");
@@ -73,7 +77,10 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
         int groupId,
         AttributeGroupRequest request)
     {
-        var validationError = ValidateGroupRequest(request);
+        var validationError = RequestValidators.ValidateAttributeGroup(
+            request.TypeKey,
+            request.Name,
+            request.IconKey);
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -108,6 +115,7 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
         }
 
         group.Name = request.Name.Trim();
+        group.IconKey = TrimToNull(request.IconKey);
         await dbContext.SaveChangesAsync();
 
         group.ObjectType = objectType;
@@ -176,7 +184,16 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
         int projectId,
         AttributeDefinitionRequest request)
     {
-        var validationError = ValidateRequest(request);
+        var validationError = RequestValidators.ValidateAttributeDefinition(
+            request.TypeKey,
+            request.Name,
+            request.DataType,
+            request.MinValue,
+            request.MaxValue,
+            request.Unit,
+            request.IconKey,
+            request.Options,
+            SupportedDataTypes);
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -223,6 +240,7 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
             OptionsJson = request.DataType.Equals("select", StringComparison.OrdinalIgnoreCase)
                 ? JsonSerializer.Serialize(NormalizeOptions(request.Options))
                 : null,
+            IconKey = TrimToNull(request.IconKey),
             SortOrder = sortOrder,
         };
 
@@ -240,7 +258,16 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
         int definitionId,
         AttributeDefinitionRequest request)
     {
-        var validationError = ValidateRequest(request);
+        var validationError = RequestValidators.ValidateAttributeDefinition(
+            request.TypeKey,
+            request.Name,
+            request.DataType,
+            request.MinValue,
+            request.MaxValue,
+            request.Unit,
+            request.IconKey,
+            request.Options,
+            SupportedDataTypes);
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -287,6 +314,7 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
         definition.OptionsJson = definition.DataType == "select"
             ? JsonSerializer.Serialize(NormalizeOptions(request.Options))
             : null;
+        definition.IconKey = TrimToNull(request.IconKey);
 
         await dbContext.SaveChangesAsync();
         return Ok(ToDto(definition));
@@ -326,7 +354,8 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
     private async Task<AttributeGroup?> GetOrCreateGroup(
         int projectId,
         int objectTypeId,
-        string? groupName)
+        string? groupName,
+        string? iconKey = null)
     {
         var normalizedGroupName = TrimToNull(groupName);
         if (normalizedGroupName is null)
@@ -342,6 +371,12 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
 
         if (group is not null)
         {
+            if (!string.IsNullOrWhiteSpace(iconKey))
+            {
+                group.IconKey = TrimToNull(iconKey);
+                await dbContext.SaveChangesAsync();
+            }
+
             return group;
         }
 
@@ -354,72 +389,13 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
             ProjectId = projectId,
             ObjectTypeId = objectTypeId,
             Name = normalizedGroupName,
+            IconKey = TrimToNull(iconKey),
             SortOrder = sortOrder,
         };
         dbContext.AttributeGroups.Add(group);
         await dbContext.SaveChangesAsync();
 
         return group;
-    }
-
-    private static string? ValidateGroupRequest(AttributeGroupRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return "Attribute group name is required.";
-        }
-
-        if (request.Name.Trim().Length > 120)
-        {
-            return "Attribute group name must be 120 characters or shorter.";
-        }
-
-        if (string.IsNullOrWhiteSpace(request.TypeKey))
-        {
-            return "Object type key is required.";
-        }
-
-        return null;
-    }
-    private static string? ValidateRequest(AttributeDefinitionRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return "Attribute name is required.";
-        }
-
-        if (request.Name.Trim().Length > 120)
-        {
-            return "Attribute name must be 120 characters or shorter.";
-        }
-
-        if (string.IsNullOrWhiteSpace(request.TypeKey))
-        {
-            return "Object type key is required.";
-        }
-
-        if (!SupportedDataTypes.Contains(request.DataType))
-        {
-            return "Unsupported attribute data type.";
-        }
-
-        if (
-            request.DataType.Equals("number", StringComparison.OrdinalIgnoreCase) &&
-            request.MinValue is not null &&
-            request.MaxValue is not null &&
-            request.MinValue > request.MaxValue)
-        {
-            return "Minimum value cannot be greater than maximum value.";
-        }
-
-        if (
-            request.DataType.Equals("select", StringComparison.OrdinalIgnoreCase) &&
-            NormalizeOptions(request.Options).Count == 0)
-        {
-            return "Select attributes require at least one option.";
-        }
-
-        return null;
     }
 
     private static List<string> NormalizeOptions(IReadOnlyList<string>? options)
@@ -441,7 +417,8 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
         return new AttributeGroupDto(
             group.Id,
             group.ObjectType?.Key ?? "",
-            group.Name);
+            group.Name,
+            group.IconKey);
     }
     private static AttributeDefinitionDto ToDto(AttributeDefinition definition)
     {
@@ -454,15 +431,16 @@ public class AttributeDefinitionsController(StoryDbContext dbContext) : Controll
             definition.MinValue,
             definition.MaxValue,
             definition.Unit,
+            definition.IconKey,
             string.IsNullOrWhiteSpace(definition.OptionsJson)
                 ? []
                 : JsonSerializer.Deserialize<IReadOnlyList<string>>(definition.OptionsJson) ?? []);
     }
 }
 
-public record AttributeGroupRequest(string TypeKey, string Name);
+public record AttributeGroupRequest(string TypeKey, string Name, string? IconKey);
 
-public record AttributeGroupDto(int Id, string TypeKey, string Name);
+public record AttributeGroupDto(int Id, string TypeKey, string Name, string? IconKey);
 public record AttributeDefinitionRequest(
     string TypeKey,
     string Name,
@@ -471,6 +449,7 @@ public record AttributeDefinitionRequest(
     double? MinValue,
     double? MaxValue,
     string? Unit,
+    string? IconKey,
     IReadOnlyList<string>? Options);
 
 public record AttributeDefinitionDto(
@@ -482,4 +461,5 @@ public record AttributeDefinitionDto(
     double? MinValue,
     double? MaxValue,
     string? Unit,
+    string? IconKey,
     IReadOnlyList<string> Options);

@@ -12,6 +12,7 @@ public class AttributeDefinition
     public double? MaxValue { get; set; }
     public string? Unit { get; set; }
     public string? OptionsJson { get; set; }
+    public string? IconKey { get; set; }
     public int SortOrder { get; set; }
 
     public Project? Project { get; set; }

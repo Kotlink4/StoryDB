@@ -6,6 +6,7 @@ public class AttributeGroup
     public int ProjectId { get; set; }
     public int ObjectTypeId { get; set; }
     public required string Name { get; set; }
+    public string? IconKey { get; set; }
     public int SortOrder { get; set; }
 
     public Project? Project { get; set; }

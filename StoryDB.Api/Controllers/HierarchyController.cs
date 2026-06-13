@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Controllers;
 
@@ -36,7 +37,7 @@ public class HierarchyController(StoryDbContext dbContext) : ControllerBase
             return NotFound();
         }
 
-        var validationError = ValidateName(request.Name, "Hierarchy group name");
+        var validationError = RequestValidators.ValidateName(request.Name, "Hierarchy group name");
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -81,7 +82,7 @@ public class HierarchyController(StoryDbContext dbContext) : ControllerBase
             return NotFound();
         }
 
-        var validationError = ValidateName(request.Name, "Hierarchy group name");
+        var validationError = RequestValidators.ValidateName(request.Name, "Hierarchy group name");
         if (validationError is not null)
         {
             return BadRequest(validationError);
@@ -286,15 +287,10 @@ public class HierarchyController(StoryDbContext dbContext) : ControllerBase
 
     private async Task<string?> ValidateNodeRequest(int groupId, HierarchyNodeRequest request, int? currentNodeId)
     {
-        var nameError = ValidateName(request.Name, "Hierarchy node name");
-        if (nameError is not null)
+        var requestError = RequestValidators.ValidateHierarchyNode(request.Name, request.Description);
+        if (requestError is not null)
         {
-            return nameError;
-        }
-
-        if (request.Description?.Length > 1000)
-        {
-            return "Description must be 1000 characters or shorter.";
+            return requestError;
         }
 
         var name = request.Name.Trim();
@@ -337,21 +333,6 @@ public class HierarchyController(StoryDbContext dbContext) : ControllerBase
             node.Description,
             node.ParentLinks.Select(link => link.ParentNodeId).OrderBy(id => id).ToList(),
             node.ChildLinks.Select(link => link.ChildNodeId).OrderBy(id => id).ToList());
-    }
-
-    private static string? ValidateName(string name, string fieldName)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return $"{fieldName} is required.";
-        }
-
-        if (name.Trim().Length > 120)
-        {
-            return $"{fieldName} must be 120 characters or shorter.";
-        }
-
-        return null;
     }
 
     private static string? NormalizeOptionalText(string? value)

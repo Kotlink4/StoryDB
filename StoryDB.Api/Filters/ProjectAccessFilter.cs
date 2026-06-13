@@ -1,13 +1,11 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.EntityFrameworkCore;
-using StoryDB.Api.Data;
+using StoryDB.Api.Security;
 
 namespace StoryDB.Api.Filters;
 
-public class ProjectAccessFilter(StoryDbContext dbContext) : IAsyncActionFilter
+public class ProjectAccessFilter(IProjectAccessService projectAccessService) : IAsyncActionFilter
 {
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -27,16 +25,15 @@ public class ProjectAccessFilter(StoryDbContext dbContext) : IAsyncActionFilter
             return;
         }
 
-        var userIdValue = context.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(userIdValue, out var userId))
+        if (projectAccessService.CurrentUserId is null)
         {
             context.Result = new UnauthorizedResult();
             return;
         }
 
-        var hasAccess = await dbContext.Projects.AnyAsync(project =>
-            project.Id == projectId &&
-            project.OwnerUserId == userId);
+        var hasAccess = await projectAccessService.HasProjectAccessAsync(
+            projectId,
+            context.HttpContext.RequestAborted);
         if (!hasAccess)
         {
             context.Result = new NotFoundResult();

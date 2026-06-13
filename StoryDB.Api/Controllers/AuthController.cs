@@ -7,12 +7,16 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Security;
+using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(StoryDbContext dbContext) : ControllerBase
+public class AuthController(
+    StoryDbContext dbContext,
+    ICurrentUserService currentUserService) : ControllerBase
 {
     private readonly PasswordHasher<AppUser> passwordHasher = new();
 
@@ -20,7 +24,7 @@ public class AuthController(StoryDbContext dbContext) : ControllerBase
     [HttpGet("me")]
     public async Task<ActionResult<AuthUserDto>> GetCurrentUser()
     {
-        var userId = GetCurrentUserId();
+        var userId = currentUserService.UserId;
         if (userId is null)
         {
             return Unauthorized();
@@ -136,17 +140,79 @@ public class AuthController(StoryDbContext dbContext) : ControllerBase
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
     }
 
-    private int? GetCurrentUserId()
+    [Authorize]
+    [HttpPut("me")]
+    public async Task<ActionResult<AuthUserDto>> UpdateCurrentUser(AuthProfileUpdateRequest request)
     {
-        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return int.TryParse(value, out var userId) ? userId : null;
+        var userId = currentUserService.UserId;
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
+        var user = await dbContext.Users.FindAsync(userId.Value);
+        if (user is null)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return Unauthorized();
+        }
+
+        var email = AuthInputValidator.NormalizeEmailInput(request.Email);
+        var displayName = request.DisplayName?.Trim() ?? string.Empty;
+        var validationError = RequestValidators.ValidateAuthProfile(email, displayName, request.AvatarImagePath);
+        if (validationError is not null)
+        {
+            return BadRequest(validationError);
+        }
+
+        var normalizedEmail = AuthInputValidator.NormalizeEmail(email);
+        var emailExists = await dbContext.Users.AnyAsync(currentUser =>
+            currentUser.Id != user.Id &&
+            currentUser.NormalizedEmail == normalizedEmail);
+        if (emailExists)
+        {
+            return Conflict("User with this email already exists.");
+        }
+
+        var avatarImagePath = TrimToNull(request.AvatarImagePath);
+
+        user.DisplayName = displayName;
+        user.Email = email;
+        user.NormalizedEmail = normalizedEmail;
+        user.AvatarImagePath = avatarImagePath;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync();
+        await SignIn(user);
+
+        return Ok(ToDto(user));
     }
 
-    private static AuthUserDto ToDto(AppUser user) => new(user.Id, user.Email ?? string.Empty, user.DisplayName);
+    private static string? TrimToNull(string? value)
+    {
+        var normalizedValue = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalizedValue) ? null : normalizedValue;
+    }
+
+    private static AuthUserDto ToDto(AppUser user) => new(
+        user.Id,
+        user.Email ?? string.Empty,
+        user.DisplayName,
+        user.AvatarImagePath,
+        user.CreatedAt,
+        user.UpdatedAt);
 }
 
 public record AuthRegisterRequest(string Email, string Password, string? DisplayName);
 
 public record AuthLoginRequest(string Email, string Password);
 
-public record AuthUserDto(int Id, string Email, string DisplayName);
+public record AuthProfileUpdateRequest(string Email, string DisplayName, string? AvatarImagePath);
+
+public record AuthUserDto(
+    int Id,
+    string Email,
+    string DisplayName,
+    string? AvatarImagePath,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);

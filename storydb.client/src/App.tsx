@@ -118,6 +118,7 @@ import { ObjectCard } from './components/ObjectCard'
 import { ProjectCard } from './components/ProjectCard'
 import { ReadySolutionsPanel } from './components/ReadySolutionsPanel'
 import { StylePreview } from './StylePreview'
+import { validateProjectDraft } from './validation'
 import '@xyflow/react/dist/style.css'
 import './App.css'
 
@@ -749,16 +750,21 @@ const createEmptyDraftCatalogSelection = (): DraftCatalogSelection => ({
 })
 
 const createEmptyDraftCharacterRelationship = (): DraftCharacterRelationship => ({
+  id: null,
+  sourceCharacterId: '',
   targetCharacterId: '',
   relationType: '',
   strength: '50',
   tension: '0',
   isBidirectional: true,
   description: '',
+  direction: 'outgoing',
 })
 
 const createEmptyTimelineEventDraft = (): TimelineEventDraft => ({
   title: '',
+  eventType: 'point',
+  parentEventId: '',
   description: '',
   startLabel: '',
   endLabel: '',
@@ -766,12 +772,15 @@ const createEmptyTimelineEventDraft = (): TimelineEventDraft => ({
   endValue: '',
   category: '',
   color: '#1f5b4f',
+  imagePath: null,
   participants: [],
   changes: [],
 })
 
 const toTimelineEventDraft = (event: TimelineEvent): TimelineEventDraft => ({
   title: event.title,
+  eventType: event.eventType,
+  parentEventId: event.parentEventId === null ? '' : String(event.parentEventId),
   description: event.description ?? '',
   startLabel: event.startLabel ?? '',
   endLabel: event.endLabel ?? '',
@@ -779,6 +788,7 @@ const toTimelineEventDraft = (event: TimelineEvent): TimelineEventDraft => ({
   endValue: event.endValue === null ? '' : String(event.endValue),
   category: event.category ?? '',
   color: event.color ?? '#1f5b4f',
+  imagePath: event.imagePath,
   participants: event.participants.map((participant) => ({
     targetType: participant.targetType,
     targetId: String(participant.targetId),
@@ -2193,14 +2203,30 @@ function StoryDbApp() {
     setDraftOwnerOrganizationIds(storyObject.ownerOrganizations.map((organization) => organization.id))
     setDraftParentObjectIds(storyObject.hierarchyParents.map((parent) => parent.id))
     setDraftCharacterRelationships(
-      storyObject.outgoingCharacterRelationships.map((relationship) => ({
-        targetCharacterId: String(relationship.character.id),
-        relationType: relationship.relationType,
-        strength: String(relationship.strength),
-        tension: String(relationship.tension),
-        isBidirectional: relationship.isBidirectional,
-        description: relationship.description ?? '',
-      })),
+      [
+        ...storyObject.outgoingCharacterRelationships.map((relationship) => ({
+          id: relationship.id,
+          sourceCharacterId: String(storyObject.id),
+          targetCharacterId: String(relationship.character.id),
+          relationType: relationship.relationType,
+          strength: String(relationship.strength),
+          tension: String(relationship.tension),
+          isBidirectional: relationship.isBidirectional,
+          description: relationship.description ?? '',
+          direction: 'outgoing' as const,
+        })),
+        ...storyObject.incomingCharacterRelationships.map((relationship) => ({
+          id: relationship.id,
+          sourceCharacterId: String(relationship.character.id),
+          targetCharacterId: String(storyObject.id),
+          relationType: relationship.relationType,
+          strength: String(relationship.strength),
+          tension: String(relationship.tension),
+          isBidirectional: relationship.isBidirectional,
+          description: relationship.description ?? '',
+          direction: 'incoming' as const,
+        })),
+      ],
     )
     setDraftAttributes(
       storyObject.attributes.length > 0
@@ -2368,7 +2394,7 @@ function StoryDbApp() {
   const createProject = async (event: FormEvent) => {
     event.preventDefault()
     const trimmedName = projectName.trim()
-    const validationError = validateName(trimmedName)
+    const validationError = validateProjectDraft(trimmedName, projectCoverImagePath)
     if (validationError !== null) {
       setFormError(validationError)
       return
@@ -2397,7 +2423,7 @@ function StoryDbApp() {
   const updateProject = async (event: FormEvent) => {
     event.preventDefault()
     const trimmedName = projectName.trim()
-    const validationError = validateName(trimmedName)
+    const validationError = validateProjectDraft(trimmedName, projectCoverImagePath)
     if (editingProject === null || validationError !== null) {
       setFormError(validationError)
       return
@@ -6490,17 +6516,64 @@ function StoryDbApp() {
                       {draftCharacterRelationships.length === 0 && (
                         <p className="empty-state compact">{t.noCharacterRelationships}</p>
                       )}
-                      {draftCharacterRelationships.map((relationship, index) => (
+                      {draftCharacterRelationships.map((relationship, index) => {
+                        const relatedCharacterId =
+                          relationship.direction === 'incoming'
+                            ? relationship.sourceCharacterId
+                            : relationship.targetCharacterId
+
+                        return (
                         <section className="relationship-editor-card" key={index}>
                           <div className="relationship-editor-grid">
                             <label className="project-name-field">
+                              <span>Направление</span>
+                              <select
+                                value={relationship.direction}
+                                onChange={(event) => {
+                                  const direction = event.target.value as DraftCharacterRelationship['direction']
+                                  updateDraftCharacterRelationship(index, {
+                                    ...relationship,
+                                    direction,
+                                    sourceCharacterId:
+                                      direction === 'incoming'
+                                        ? relatedCharacterId
+                                        : editingCharacter === null
+                                          ? ''
+                                          : String(editingCharacter.id),
+                                    targetCharacterId:
+                                      direction === 'incoming'
+                                        ? editingCharacter === null
+                                          ? ''
+                                          : String(editingCharacter.id)
+                                        : relatedCharacterId,
+                                  })
+                                }}
+                              >
+                                <option value="outgoing">От этого персонажа</option>
+                                <option value="incoming" disabled={editingCharacter === null}>
+                                  К этому персонажу
+                                </option>
+                              </select>
+                            </label>
+                            <label className="project-name-field">
                               <span>{t.relatedCharacter}</span>
                               <select
-                                value={relationship.targetCharacterId}
+                                value={relatedCharacterId}
                                 onChange={(event) =>
                                   updateDraftCharacterRelationship(index, {
                                     ...relationship,
-                                    targetCharacterId: event.target.value,
+                                    sourceCharacterId:
+                                      relationship.direction === 'incoming'
+                                        ? event.target.value
+                                        : editingCharacter === null
+                                          ? ''
+                                          : String(editingCharacter.id),
+                                    targetCharacterId:
+                                      relationship.direction === 'incoming'
+                                        ? editingCharacter === null
+                                          ? ''
+                                          : String(editingCharacter.id)
+                                        : event.target.value,
                                   })
                                 }
                               >
@@ -6593,7 +6666,8 @@ function StoryDbApp() {
                             {t.delete}
                           </button>
                         </section>
-                      ))}
+                        )
+                      })}
                     </div>
                   </section>
                 )}

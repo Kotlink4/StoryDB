@@ -1,43 +1,29 @@
 using Microsoft.AspNetCore.Mvc;
+using StoryDB.Api.Files;
+using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Controllers;
 
 [ApiController]
 [Route("api/uploads")]
-public class UploadsController(IWebHostEnvironment environment) : ControllerBase
+public class UploadsController(IFileStorageService fileStorageService) : ControllerBase
 {
-    private static readonly Dictionary<string, string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["image/jpeg"] = ".jpg",
-        ["image/png"] = ".png",
-        ["image/webp"] = ".webp",
-        ["image/gif"] = ".gif",
-    };
-
     [HttpPost("images")]
     [RequestSizeLimit(8 * 1024 * 1024)]
     public async Task<ActionResult<UploadImageDto>> UploadImage([FromForm] IFormFile file)
     {
-        if (file.Length == 0)
+        var validationError = RequestValidators.ValidateUploadImage(
+            file,
+            fileStorageService.AllowedImageContentTypes,
+            fileStorageService.MaxImageBytes);
+        if (validationError is not null)
         {
-            return BadRequest("Image file is required.");
+            return BadRequest(validationError);
         }
 
-        if (!AllowedContentTypes.TryGetValue(file.ContentType, out var extension))
-        {
-            return BadRequest("Only JPEG, PNG, WebP, and GIF images are supported.");
-        }
+        var storedFile = await fileStorageService.SaveImageAsync(file, HttpContext.RequestAborted);
 
-        var imagesPath = Path.Combine(environment.ContentRootPath, "uploads", "images");
-        Directory.CreateDirectory(imagesPath);
-
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        var filePath = Path.Combine(imagesPath, fileName);
-
-        await using var stream = System.IO.File.Create(filePath);
-        await file.CopyToAsync(stream);
-
-        return Ok(new UploadImageDto($"/uploads/images/{fileName}"));
+        return Ok(new UploadImageDto(storedFile.Path));
     }
 }
 

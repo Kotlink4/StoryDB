@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   AttributeDefinition,
   AttributeGroup,
   AttributeDefinitionDraft,
@@ -17,10 +17,18 @@
   HierarchyGroup,
   HierarchyNode,
   ObjectTypeKey,
+  RelationGraph,
+  RelationGraphLayout,
+  RelationGraphLayoutDraft,
   StoryObject,
   StoryProject,
   TimelineEvent,
   TimelineEventDraft,
+  TimelineEventLink,
+  TimelineEventLinkDraft,
+  TimelineInfo,
+  TimelineLayout,
+  TimelineLayoutRules,
 } from './types'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'
@@ -32,9 +40,80 @@ const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) =>
     credentials: 'include',
   })
 
-const ensureOk = (response: Response, message: string) => {
+export class ApiRequestError extends Error {
+  status: number
+  traceId: string | null
+
+  constructor(message: string, status: number, traceId: string | null = null) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+    this.traceId = traceId
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
+const getTextValue = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+
+const getProblemErrorsMessage = (errors: unknown) => {
+  if (!isRecord(errors)) {
+    return ''
+  }
+
+  for (const value of Object.values(errors)) {
+    if (Array.isArray(value)) {
+      const message = value.map(getTextValue).find((item) => item.length > 0)
+      if (message) {
+        return message
+      }
+    }
+
+    const message = getTextValue(value)
+    if (message.length > 0) {
+      return message
+    }
+  }
+
+  return ''
+}
+
+const readErrorPayload = async (response: Response) => {
+  const body = await response.text()
+  if (body.trim().length === 0) {
+    return { message: '', traceId: null }
+  }
+
+  try {
+    const payload: unknown = JSON.parse(body)
+    if (typeof payload === 'string') {
+      return { message: payload.trim(), traceId: null }
+    }
+
+    if (!isRecord(payload)) {
+      return { message: '', traceId: null }
+    }
+
+    const errorsMessage = getProblemErrorsMessage(payload.errors)
+    const detail = getTextValue(payload.detail)
+    const title = getTextValue(payload.title)
+    const extensions = isRecord(payload.extensions) ? payload.extensions : null
+    const traceId = getTextValue(payload.traceId) || getTextValue(extensions?.traceId) || null
+
+    return {
+      message: errorsMessage || detail || title,
+      traceId,
+    }
+  } catch {
+    return { message: body.trim(), traceId: null }
+  }
+}
+
+const ensureOk = async (response: Response, message: string) => {
   if (!response.ok) {
-    throw new Error(message)
+    const error = await readErrorPayload(response)
+    throw new ApiRequestError(error.message || message, response.status, error.traceId)
   }
 }
 
@@ -57,6 +136,9 @@ const normalizeHierarchySelections = (selections: DraftHierarchySelection[]) =>
 const normalizeCharacterRelationships = (relationships: DraftCharacterRelationship[]) =>
   relationships
     .map((relationship) => ({
+      id: relationship.id ?? null,
+      sourceCharacterId:
+        relationship.sourceCharacterId.trim().length === 0 ? null : Number(relationship.sourceCharacterId),
       targetCharacterId: Number(relationship.targetCharacterId),
       relationType: relationship.relationType.trim(),
       strength: Number(relationship.strength),
@@ -111,54 +193,75 @@ const normalizeTimelineNumber = (value: string) => {
   return Number.isFinite(parsedValue) ? parsedValue : null
 }
 
-const toTimelinePayload = (draft: TimelineEventDraft) => ({
-  title: draft.title.trim(),
+const toTimelinePayload = (draft: TimelineEventDraft) => {
+  const isRangeEvent = draft.eventType === 'duration' || draft.eventType === 'era'
+  const startLabel = draft.startLabel.trim() || null
+  const endLabel = isRangeEvent ? draft.endLabel.trim() || null : null
+  const startValue = normalizeTimelineNumber(draft.startValue)
+  const endValue = isRangeEvent ? normalizeTimelineNumber(draft.endValue) : null
+
+  return {
+    title: draft.title.trim(),
+    eventType: draft.eventType,
+    parentEventId:
+      draft.eventType === 'point' && draft.parentEventId.trim().length > 0
+        ? Number(draft.parentEventId)
+        : null,
+    description: draft.description.trim() || null,
+    startLabel,
+    endLabel,
+    startValue,
+    endValue,
+    category: draft.category.trim() || null,
+    color: draft.color.trim() || null,
+    imagePath: draft.imagePath,
+    participants: draft.participants
+      .map((participant) => ({
+        targetType: participant.targetType,
+        targetId: Number(participant.targetId),
+        role: participant.role.trim() || null,
+      }))
+      .filter(
+        (participant) =>
+          participant.targetType.length > 0 &&
+          Number.isInteger(participant.targetId) &&
+          participant.targetId > 0,
+      ),
+    changes: draft.changes
+      .map((change) => ({
+        changeType: change.changeType,
+        targetType: change.targetType,
+        targetId: Number(change.targetId),
+        fieldKey: change.fieldName.trim() || null,
+        fieldName: change.fieldName.trim() || null,
+        oldValueJson: change.oldValue.trim() || null,
+        newValueJson: change.newValue.trim() || null,
+        effectiveFromLabel: startLabel,
+        effectiveToLabel: endLabel,
+        effectiveFromValue: startValue,
+        effectiveToValue: endValue,
+        notes: change.notes.trim() || null,
+      }))
+      .filter(
+        (change) =>
+          change.changeType.length > 0 &&
+          change.targetType.length > 0 &&
+          Number.isInteger(change.targetId) &&
+          change.targetId > 0,
+      ),
+  }
+}
+
+const toTimelineLinkPayload = (draft: TimelineEventLinkDraft) => ({
+  sourceEventId: Number(draft.sourceEventId),
+  targetEventId: Number(draft.targetEventId),
+  linkType: draft.linkType,
   description: draft.description.trim() || null,
-  startLabel: draft.startLabel.trim() || null,
-  endLabel: draft.endLabel.trim() || null,
-  startValue: normalizeTimelineNumber(draft.startValue),
-  endValue: normalizeTimelineNumber(draft.endValue),
-  category: draft.category.trim() || null,
-  color: draft.color.trim() || null,
-  participants: draft.participants
-    .map((participant) => ({
-      targetType: participant.targetType,
-      targetId: Number(participant.targetId),
-      role: participant.role.trim() || null,
-    }))
-    .filter(
-      (participant) =>
-        participant.targetType.length > 0 &&
-        Number.isInteger(participant.targetId) &&
-        participant.targetId > 0,
-    ),
-  changes: draft.changes
-    .map((change) => ({
-      changeType: change.changeType,
-      targetType: change.targetType,
-      targetId: Number(change.targetId),
-      fieldKey: change.fieldName.trim() || null,
-      fieldName: change.fieldName.trim() || null,
-      oldValueJson: change.oldValue.trim() || null,
-      newValueJson: change.newValue.trim() || null,
-      effectiveFromLabel: draft.startLabel.trim() || null,
-      effectiveToLabel: draft.endLabel.trim() || null,
-      effectiveFromValue: normalizeTimelineNumber(draft.startValue),
-      effectiveToValue: normalizeTimelineNumber(draft.endValue),
-      notes: change.notes.trim() || null,
-    }))
-    .filter(
-      (change) =>
-        change.changeType.length > 0 &&
-        change.targetType.length > 0 &&
-        Number.isInteger(change.targetId) &&
-        change.targetId > 0,
-    ),
 })
 
 export const fetchProjects = async () => {
   const response = await apiFetch(`${apiBaseUrl}/projects`)
-  ensureOk(response, 'Failed to load projects.')
+  await ensureOk(response, 'Failed to load projects.')
 
   return (await response.json()) as StoryProject[]
 }
@@ -168,7 +271,7 @@ export const fetchCurrentUser = async () => {
   if (response.status === 401) {
     return null
   }
-  ensureOk(response, 'Failed to load current user.')
+  await ensureOk(response, 'Failed to load current user.')
 
   return (await response.json()) as AuthUser
 }
@@ -183,7 +286,7 @@ export const registerRequest = async (email: string, password: string, displayNa
       displayName: displayName.trim() || null,
     }),
   })
-  ensureOk(response, 'Failed to register.')
+  await ensureOk(response, 'Failed to register.')
 
   return (await response.json()) as AuthUser
 }
@@ -194,7 +297,7 @@ export const loginRequest = async (email: string, password: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
-  ensureOk(response, 'Failed to sign in.')
+  await ensureOk(response, 'Failed to sign in.')
 
   return (await response.json()) as AuthUser
 }
@@ -203,7 +306,26 @@ export const logoutRequest = async () => {
   const response = await apiFetch(`${apiBaseUrl}/auth/logout`, {
     method: 'POST',
   })
-  ensureOk(response, 'Failed to sign out.')
+  await ensureOk(response, 'Failed to sign out.')
+}
+
+export const updateCurrentUserRequest = async (
+  email: string,
+  displayName: string,
+  avatarImagePath: string | null,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/auth/me`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: email.trim(),
+      displayName: displayName.trim(),
+      avatarImagePath,
+    }),
+  })
+  await ensureOk(response, 'Failed to update profile.')
+
+  return (await response.json()) as AuthUser
 }
 
 export const resolveAssetUrl = (path: string | null) =>
@@ -217,7 +339,7 @@ export const uploadImageRequest = async (file: File) => {
     method: 'POST',
     body: formData,
   })
-  ensureOk(response, 'Failed to upload image.')
+  await ensureOk(response, 'Failed to upload image.')
 
   return (await response.json()) as { path: string }
 }
@@ -233,7 +355,7 @@ export const createProjectRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys, presetKeys }),
   })
-  ensureOk(response, 'Failed to create project.')
+  await ensureOk(response, 'Failed to create project.')
 
   return (await response.json()) as StoryProject
 }
@@ -250,7 +372,7 @@ export const updateProjectRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys, presetKeys }),
   })
-  ensureOk(response, 'Failed to update project.')
+  await ensureOk(response, 'Failed to update project.')
 
   return (await response.json()) as StoryProject
 }
@@ -259,12 +381,12 @@ export const deleteProjectRequest = async (projectId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}`, {
     method: 'DELETE',
   })
-  ensureOk(response, 'Failed to delete project.')
+  await ensureOk(response, 'Failed to delete project.')
 }
 
 export const fetchCatalogs = async (projectId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/catalogs`)
-  ensureOk(response, 'Failed to load catalogs.')
+  await ensureOk(response, 'Failed to load catalogs.')
 
   return (await response.json()) as Catalog[]
 }
@@ -286,7 +408,7 @@ export const createCatalogRequest = async (
       hierarchyMode,
     }),
   })
-  ensureOk(response, 'Failed to create catalog.')
+  await ensureOk(response, 'Failed to create catalog.')
 
   return (await response.json()) as Catalog
 }
@@ -309,7 +431,7 @@ export const updateCatalogRequest = async (
       hierarchyMode,
     }),
   })
-  ensureOk(response, 'Failed to update catalog.')
+  await ensureOk(response, 'Failed to update catalog.')
 
   return (await response.json()) as Catalog
 }
@@ -318,19 +440,19 @@ export const deleteCatalogRequest = async (projectId: number, catalogId: number)
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}`, {
     method: 'DELETE',
   })
-  ensureOk(response, 'Failed to delete catalog.')
+  await ensureOk(response, 'Failed to delete catalog.')
 }
 
 export const fetchCatalogEntries = async (projectId: number, catalogId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/entries`)
-  ensureOk(response, 'Failed to load catalog entries.')
+  await ensureOk(response, 'Failed to load catalog entries.')
 
   return (await response.json()) as CatalogEntry[]
 }
 
 export const fetchCatalogEntryGroups = async (projectId: number, catalogId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/entry-groups`)
-  ensureOk(response, 'Failed to load catalog entry groups.')
+  await ensureOk(response, 'Failed to load catalog entry groups.')
 
   return (await response.json()) as CatalogEntryGroup[]
 }
@@ -346,7 +468,7 @@ export const createCatalogEntryGroupRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, parentGroupIds }),
   })
-  ensureOk(response, 'Failed to create catalog entry group.')
+  await ensureOk(response, 'Failed to create catalog entry group.')
 
   return (await response.json()) as CatalogEntryGroup
 }
@@ -366,7 +488,7 @@ export const updateCatalogEntryGroupRequest = async (
       body: JSON.stringify({ name, parentGroupIds }),
     },
   )
-  ensureOk(response, 'Failed to update catalog entry group.')
+  await ensureOk(response, 'Failed to update catalog entry group.')
 
   return (await response.json()) as CatalogEntryGroup
 }
@@ -382,7 +504,7 @@ export const deleteCatalogEntryGroupRequest = async (
       method: 'DELETE',
     },
   )
-  ensureOk(response, 'Failed to delete catalog entry group.')
+  await ensureOk(response, 'Failed to delete catalog entry group.')
 }
 
 export const createCatalogEntryRequest = async (
@@ -403,7 +525,7 @@ export const createCatalogEntryRequest = async (
       fieldValues: toCatalogEntryFieldValueRequests(draft, fieldDefinitions),
     }),
   })
-  ensureOk(response, 'Failed to create catalog entry.')
+  await ensureOk(response, 'Failed to create catalog entry.')
 
   return (await response.json()) as CatalogEntry
 }
@@ -427,7 +549,7 @@ export const updateCatalogEntryRequest = async (
       fieldValues: toCatalogEntryFieldValueRequests(draft, fieldDefinitions),
     }),
   })
-  ensureOk(response, 'Failed to update catalog entry.')
+  await ensureOk(response, 'Failed to update catalog entry.')
 
   return (await response.json()) as CatalogEntry
 }
@@ -440,12 +562,12 @@ export const deleteCatalogEntryRequest = async (
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/entries/${entryId}`, {
     method: 'DELETE',
   })
-  ensureOk(response, 'Failed to delete catalog entry.')
+  await ensureOk(response, 'Failed to delete catalog entry.')
 }
 
 export const fetchCatalogFieldDefinitions = async (projectId: number, catalogId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/fields`)
-  ensureOk(response, 'Failed to load catalog fields.')
+  await ensureOk(response, 'Failed to load catalog fields.')
 
   return (await response.json()) as CatalogFieldDefinition[]
 }
@@ -460,7 +582,7 @@ export const createCatalogFieldDefinitionRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(toCatalogFieldDefinitionPayload(draft)),
   })
-  ensureOk(response, 'Failed to create catalog field.')
+  await ensureOk(response, 'Failed to create catalog field.')
 
   return (await response.json()) as CatalogFieldDefinition
 }
@@ -476,7 +598,7 @@ export const updateCatalogFieldDefinitionRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(toCatalogFieldDefinitionPayload(draft)),
   })
-  ensureOk(response, 'Failed to update catalog field.')
+  await ensureOk(response, 'Failed to update catalog field.')
 
   return (await response.json()) as CatalogFieldDefinition
 }
@@ -489,7 +611,7 @@ export const deleteCatalogFieldDefinitionRequest = async (
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/catalogs/${catalogId}/fields/${fieldId}`, {
     method: 'DELETE',
   })
-  ensureOk(response, 'Failed to delete catalog field.')
+  await ensureOk(response, 'Failed to delete catalog field.')
 }
 
 const toCatalogFieldDefinitionPayload = (draft: CatalogFieldDraft) => ({
@@ -542,14 +664,44 @@ const toCatalogEntryFieldValueRequests = (
 
 export const fetchObjects = async (projectId: number, typeKey: ObjectTypeKey) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/objects?typeKey=${typeKey}`)
-  ensureOk(response, 'Failed to load objects.')
+  await ensureOk(response, 'Failed to load objects.')
 
   return (await response.json()) as StoryObject[]
 }
 
+export const fetchRelationGraph = async (projectId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/relations/graph`)
+  await ensureOk(response, 'Failed to load relation graph.')
+
+  return (await response.json()) as RelationGraph
+}
+
+export const fetchRelationGraphLayout = async (projectId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/relations/layout`)
+  await ensureOk(response, 'Failed to load relation graph layout.')
+
+  return (await response.json()) as RelationGraphLayout | null
+}
+
+export const saveRelationGraphLayoutRequest = async (
+  projectId: number,
+  draft: RelationGraphLayoutDraft,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/relations/layout`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(draft),
+  })
+  await ensureOk(response, 'Failed to save relation graph layout.')
+
+  return (await response.json()) as RelationGraphLayout
+}
+
 export const fetchObject = async (projectId: number, objectId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/objects/${objectId}`)
-  ensureOk(response, 'Failed to load object.')
+  await ensureOk(response, 'Failed to load object.')
 
   return (await response.json()) as StoryObject
 }
@@ -597,7 +749,7 @@ export const createObjectRequest = async (
       characterRelationships: normalizeCharacterRelationships(characterRelationships),
     }),
   })
-  ensureOk(response, 'Failed to create object.')
+  await ensureOk(response, 'Failed to create object.')
 
   return (await response.json()) as StoryObject
 }
@@ -674,7 +826,7 @@ export const updateObjectRequest = async (
       characterRelationships: normalizeCharacterRelationships(characterRelationships),
     }),
   })
-  ensureOk(response, 'Failed to update object.')
+  await ensureOk(response, 'Failed to update object.')
 
   return (await response.json()) as StoryObject
 }
@@ -712,11 +864,80 @@ export const updateCharacterRequest = (
     [],
   )
 
+export const fetchTimelineInfo = async (projectId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline`)
+  await ensureOk(response, 'Failed to load timeline settings.')
+
+  return (await response.json()) as TimelineInfo
+}
+
+export const updateTimelineInfoRequest = async (projectId: number, mode: TimelineInfo['mode'], name?: string) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, name: name ?? null }),
+  })
+  await ensureOk(response, 'Failed to update timeline settings.')
+
+  return (await response.json()) as TimelineInfo
+}
+
+export const fetchTimelineLayout = async (projectId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/layout`)
+  await ensureOk(response, 'Failed to load timeline layout.')
+
+  return (await response.json()) as TimelineLayout | null
+}
+
+export const fetchTimelineLayoutRules = async (projectId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/layout/rules`)
+  await ensureOk(response, 'Failed to load timeline layout rules.')
+
+  return (await response.json()) as TimelineLayoutRules
+}
+
+export const generateTimelineLayoutRequest = async (projectId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/layout/generate`, {
+    method: 'POST',
+  })
+  await ensureOk(response, 'Failed to generate timeline layout.')
+
+  return (await response.json()) as TimelineLayout
+}
+
 export const fetchTimelineEvents = async (projectId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/events`)
-  ensureOk(response, 'Failed to load timeline events.')
+  await ensureOk(response, 'Failed to load timeline events.')
 
   return (await response.json()) as TimelineEvent[]
+}
+
+export const fetchTimelineEventLinks = async (projectId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/links`)
+  await ensureOk(response, 'Failed to load timeline event links.')
+
+  return (await response.json()) as TimelineEventLink[]
+}
+
+export const createTimelineEventLinkRequest = async (
+  projectId: number,
+  draft: TimelineEventLinkDraft,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(toTimelineLinkPayload(draft)),
+  })
+  await ensureOk(response, 'Failed to create timeline event link.')
+
+  return (await response.json()) as TimelineEventLink
+}
+
+export const deleteTimelineEventLinkRequest = async (projectId: number, linkId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/links/${linkId}`, {
+    method: 'DELETE',
+  })
+  await ensureOk(response, 'Failed to delete timeline event link.')
 }
 
 export const createTimelineEventRequest = async (
@@ -728,7 +949,7 @@ export const createTimelineEventRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(toTimelinePayload(draft)),
   })
-  ensureOk(response, 'Failed to create timeline event.')
+  await ensureOk(response, 'Failed to create timeline event.')
 
   return (await response.json()) as TimelineEvent
 }
@@ -743,7 +964,7 @@ export const updateTimelineEventRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(toTimelinePayload(draft)),
   })
-  ensureOk(response, 'Failed to update timeline event.')
+  await ensureOk(response, 'Failed to update timeline event.')
 
   return (await response.json()) as TimelineEvent
 }
@@ -752,14 +973,49 @@ export const deleteTimelineEventRequest = async (projectId: number, eventId: num
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/events/${eventId}`, {
     method: 'DELETE',
   })
-  ensureOk(response, 'Failed to delete timeline event.')
+  await ensureOk(response, 'Failed to delete timeline event.')
+}
+
+export const addTimelineEventGalleryImageRequest = async (
+  projectId: number,
+  eventId: number,
+  imagePath: string,
+  caption: string,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/events/${eventId}/gallery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      imagePath,
+      caption: caption.trim() || null,
+    }),
+  })
+  await ensureOk(response, 'Failed to add timeline event gallery image.')
+
+  return (await response.json()) as TimelineEvent
+}
+
+export const deleteTimelineEventGalleryImageRequest = async (
+  projectId: number,
+  eventId: number,
+  imageId: number,
+) => {
+  const response = await apiFetch(
+    `${apiBaseUrl}/projects/${projectId}/timeline/events/${eventId}/gallery/${imageId}`,
+    {
+      method: 'DELETE',
+    },
+  )
+  await ensureOk(response, 'Failed to delete timeline event gallery image.')
+
+  return (await response.json()) as TimelineEvent
 }
 
 export const deleteObjectRequest = async (projectId: number, objectId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/objects/${objectId}`, {
     method: 'DELETE',
   })
-  ensureOk(response, 'Failed to delete object.')
+  await ensureOk(response, 'Failed to delete object.')
 }
 
 export const addObjectGalleryImageRequest = async (
@@ -776,7 +1032,7 @@ export const addObjectGalleryImageRequest = async (
       caption: caption.trim() || null,
     }),
   })
-  ensureOk(response, 'Failed to add gallery image.')
+  await ensureOk(response, 'Failed to add gallery image.')
 
   return (await response.json()) as StoryObject
 }
@@ -799,7 +1055,7 @@ export const updateObjectGalleryImageRequest = async (
       }),
     },
   )
-  ensureOk(response, 'Failed to update gallery image.')
+  await ensureOk(response, 'Failed to update gallery image.')
 
   return (await response.json()) as StoryObject
 }
@@ -815,7 +1071,7 @@ export const deleteObjectGalleryImageRequest = async (
       method: 'DELETE',
     },
   )
-  ensureOk(response, 'Failed to delete gallery image.')
+  await ensureOk(response, 'Failed to delete gallery image.')
 
   return (await response.json()) as StoryObject
 }
@@ -828,6 +1084,7 @@ const toAttributeDefinitionPayload = (
   name: draft.name.trim(),
   dataType: draft.dataType,
   groupName: draft.groupName.trim() || null,
+  iconKey: draft.iconKey?.trim() || null,
   minValue: draft.minValue.trim().length === 0 ? null : Number(draft.minValue),
   maxValue: draft.maxValue.trim().length === 0 ? null : Number(draft.maxValue),
   unit: draft.unit.trim() || null,
@@ -844,7 +1101,7 @@ export const fetchAttributeGroups = async (
   const response = await apiFetch(
     `${apiBaseUrl}/projects/${projectId}/attribute-definitions/groups?typeKey=${typeKey}`,
   )
-  ensureOk(response, 'Failed to load attribute groups.')
+  await ensureOk(response, 'Failed to load attribute groups.')
 
   return (await response.json()) as AttributeGroup[]
 }
@@ -853,13 +1110,14 @@ export const createAttributeGroupRequest = async (
   projectId: number,
   typeKey: ObjectTypeKey,
   name: string,
+  iconKey: string | null = null,
 ) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/attribute-definitions/groups`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ typeKey, name }),
+    body: JSON.stringify({ typeKey, name, iconKey }),
   })
-  ensureOk(response, 'Failed to create attribute group.')
+  await ensureOk(response, 'Failed to create attribute group.')
 
   return (await response.json()) as AttributeGroup
 }
@@ -869,16 +1127,17 @@ export const updateAttributeGroupRequest = async (
   typeKey: ObjectTypeKey,
   groupId: number,
   name: string,
+  iconKey: string | null = null,
 ) => {
   const response = await apiFetch(
     `${apiBaseUrl}/projects/${projectId}/attribute-definitions/groups/${groupId}`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ typeKey, name }),
+      body: JSON.stringify({ typeKey, name, iconKey }),
     },
   )
-  ensureOk(response, 'Failed to update attribute group.')
+  await ensureOk(response, 'Failed to update attribute group.')
 
   return (await response.json()) as AttributeGroup
 }
@@ -890,7 +1149,7 @@ export const deleteAttributeGroupRequest = async (
     `${apiBaseUrl}/projects/${projectId}/attribute-definitions/groups/${groupId}`,
     { method: 'DELETE' },
   )
-  ensureOk(response, 'Failed to delete attribute group.')
+  await ensureOk(response, 'Failed to delete attribute group.')
 }
 export const fetchAttributeDefinitions = async (
   projectId: number,
@@ -899,7 +1158,7 @@ export const fetchAttributeDefinitions = async (
   const response = await apiFetch(
     `${apiBaseUrl}/projects/${projectId}/attribute-definitions?typeKey=${typeKey}`,
   )
-  ensureOk(response, 'Failed to load attribute definitions.')
+  await ensureOk(response, 'Failed to load attribute definitions.')
 
   return (await response.json()) as AttributeDefinition[]
 }
@@ -914,7 +1173,7 @@ export const createAttributeDefinitionRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(toAttributeDefinitionPayload(typeKey, draft)),
   })
-  ensureOk(response, 'Failed to create attribute definition.')
+  await ensureOk(response, 'Failed to create attribute definition.')
 
   return (await response.json()) as AttributeDefinition
 }
@@ -933,7 +1192,7 @@ export const updateAttributeDefinitionRequest = async (
       body: JSON.stringify(toAttributeDefinitionPayload(typeKey, draft)),
     },
   )
-  ensureOk(response, 'Failed to update attribute definition.')
+  await ensureOk(response, 'Failed to update attribute definition.')
 
   return (await response.json()) as AttributeDefinition
 }
@@ -946,12 +1205,12 @@ export const deleteAttributeDefinitionRequest = async (
     `${apiBaseUrl}/projects/${projectId}/attribute-definitions/${definitionId}`,
     { method: 'DELETE' },
   )
-  ensureOk(response, 'Failed to delete attribute definition.')
+  await ensureOk(response, 'Failed to delete attribute definition.')
 }
 
 export const fetchHierarchyGroups = async (projectId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/hierarchies/groups`)
-  ensureOk(response, 'Failed to load hierarchy groups.')
+  await ensureOk(response, 'Failed to load hierarchy groups.')
 
   return (await response.json()) as HierarchyGroup[]
 }
@@ -962,7 +1221,7 @@ export const createHierarchyGroupRequest = async (projectId: number, name: strin
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   })
-  ensureOk(response, 'Failed to create hierarchy group.')
+  await ensureOk(response, 'Failed to create hierarchy group.')
 
   return (await response.json()) as HierarchyGroup
 }
@@ -977,7 +1236,7 @@ export const updateHierarchyGroupRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   })
-  ensureOk(response, 'Failed to update hierarchy group.')
+  await ensureOk(response, 'Failed to update hierarchy group.')
 
   return (await response.json()) as HierarchyGroup
 }
@@ -986,14 +1245,14 @@ export const deleteHierarchyGroupRequest = async (projectId: number, groupId: nu
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/hierarchies/groups/${groupId}`, {
     method: 'DELETE',
   })
-  ensureOk(response, 'Failed to delete hierarchy group.')
+  await ensureOk(response, 'Failed to delete hierarchy group.')
 }
 
 export const fetchHierarchyNodes = async (projectId: number, groupId: number) => {
   const response = await apiFetch(
     `${apiBaseUrl}/projects/${projectId}/hierarchies/groups/${groupId}/nodes`,
   )
-  ensureOk(response, 'Failed to load hierarchy nodes.')
+  await ensureOk(response, 'Failed to load hierarchy nodes.')
 
   return (await response.json()) as HierarchyNode[]
 }
@@ -1010,7 +1269,7 @@ export const createHierarchyNodeRequest = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, description: description.trim() || null, parentNodeIds }),
   })
-  ensureOk(response, 'Failed to create hierarchy node.')
+  await ensureOk(response, 'Failed to create hierarchy node.')
 
   return (await response.json()) as HierarchyNode
 }
@@ -1031,7 +1290,7 @@ export const updateHierarchyNodeRequest = async (
       body: JSON.stringify({ name, description: description.trim() || null, parentNodeIds }),
     },
   )
-  ensureOk(response, 'Failed to update hierarchy node.')
+  await ensureOk(response, 'Failed to update hierarchy node.')
 
   return (await response.json()) as HierarchyNode
 }
@@ -1045,6 +1304,6 @@ export const deleteHierarchyNodeRequest = async (
     `${apiBaseUrl}/projects/${projectId}/hierarchies/groups/${groupId}/nodes/${nodeId}`,
     { method: 'DELETE' },
   )
-  ensureOk(response, 'Failed to delete hierarchy node.')
+  await ensureOk(response, 'Failed to delete hierarchy node.')
 }
 

@@ -3,16 +3,30 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using StoryDB.Api.Data;
+using StoryDB.Api.Errors;
+using StoryDB.Api.Files;
 using StoryDB.Api.Filters;
+using StoryDB.Api.Security;
+using StoryDB.Api.Services.Catalogs;
+using StoryDB.Api.Services.Projects;
+using StoryDB.Api.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.AddScoped<ProjectAccessFilter>();
+builder.Services.AddScoped<TimelineEventValidator>();
+builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IProjectAccessService, ProjectAccessService>();
+builder.Services.AddScoped<ICatalogService, CatalogService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add(new AuthorizeFilter());
+    options.Filters.Add(new ApiErrorResultFilter());
     options.Filters.Add<ProjectAccessFilter>();
 });
 builder.Services
@@ -77,6 +91,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseMiddleware<ApiExceptionMiddleware>();
+
 if (builder.Configuration.GetValue("UseHttpsRedirection", false))
 {
     app.UseHttpsRedirection();
@@ -85,11 +101,11 @@ if (builder.Configuration.GetValue("UseHttpsRedirection", false))
 app.UseCors("StoryDbClient");
 app.UseAuthentication();
 
-var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "uploads");
-Directory.CreateDirectory(uploadsPath);
+var fileStorageService = app.Services.GetRequiredService<IFileStorageService>();
+fileStorageService.EnsureUploadsRoot();
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(uploadsPath),
+    FileProvider = new PhysicalFileProvider(fileStorageService.UploadsRootPath),
     RequestPath = "/uploads",
 });
 
