@@ -1,0 +1,233 @@
+import { useState, type ReactNode } from 'react'
+import {
+  Activity,
+  Atom,
+  BookOpen,
+  Brain,
+  Circle,
+  Dumbbell,
+  Eye,
+  Flame,
+  Heart,
+  Leaf,
+  Shield,
+  Sparkles,
+  Star,
+  Sword,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
+
+import { resolveAssetUrl } from '../api'
+import type { PreviewText } from '../stylePreviewI18n'
+import type { StoryObject } from '../types'
+
+export function PreviewDialog({
+  children,
+  title,
+  onClose,
+}: {
+  children: ReactNode
+  title: string
+  onClose: () => void
+}) {
+  return (
+    <div className="sp-modal" role="dialog" aria-modal="true">
+      <div className="sp-dialog">
+        <div className="sp-dialog-head">
+          <h2>{title}</h2>
+          <button className="sp-icon-button" type="button" onClick={onClose}>
+            x
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+const attributeIconOptions: Array<{ key: string; label: string; Icon: LucideIcon }> = [
+  { key: 'none', label: 'Нет', Icon: Circle },
+  { key: 'star', label: 'Звезда', Icon: Star },
+  { key: 'heart', label: 'Сердце', Icon: Heart },
+  { key: 'brain', label: 'Разум', Icon: Brain },
+  { key: 'activity', label: 'Активность', Icon: Activity },
+  { key: 'dumbbell', label: 'Сила', Icon: Dumbbell },
+  { key: 'eye', label: 'Взгляд', Icon: Eye },
+  { key: 'flame', label: 'Огонь', Icon: Flame },
+  { key: 'leaf', label: 'Природа', Icon: Leaf },
+  { key: 'sparkles', label: 'Магия', Icon: Sparkles },
+  { key: 'zap', label: 'Энергия', Icon: Zap },
+  { key: 'shield', label: 'Защита', Icon: Shield },
+  { key: 'sword', label: 'Бой', Icon: Sword },
+  { key: 'book', label: 'Знание', Icon: BookOpen },
+  { key: 'atom', label: 'Система', Icon: Atom },
+]
+
+const getInitials = (name: string) => name.trim().slice(0, 1).toUpperCase() || '?'
+
+export function ObjectPortrait({ storyObject }: { storyObject: StoryObject }) {
+  const imageUrl = resolveAssetUrl(storyObject.imagePath)
+  return (
+    <div className="sp-portrait">
+      {imageUrl === null ? (
+        getInitials(storyObject.name)
+      ) : (
+        <img alt="" src={imageUrl} />
+      )}
+    </div>
+  )
+}
+
+export type SectionIconName = 'characters' | 'items' | 'places' | 'organizations' | 'attributes' | 'catalogs'
+
+export function SectionIcon({ name }: { name: SectionIconName }) {
+  const commonProps = {
+    'aria-hidden': true,
+    className: 'sp-nav-icon',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    strokeWidth: 2,
+    viewBox: '0 0 24 24',
+  }
+
+  if (name === 'characters') {
+    return (
+      <svg {...commonProps}>
+        <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
+      </svg>
+    )
+  }
+
+  if (name === 'items') {
+    return (
+      <svg {...commonProps}>
+        <path d="M6 7h12l-1 13H7L6 7Z" />
+        <path d="M9 7a3 3 0 0 1 6 0" />
+      </svg>
+    )
+  }
+
+  if (name === 'places') {
+    return (
+      <svg {...commonProps}>
+        <path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" />
+        <path d="M12 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+      </svg>
+    )
+  }
+
+  if (name === 'organizations') {
+    return (
+      <svg {...commonProps}>
+        <path d="M4 21V8l8-4 8 4v13" />
+        <path d="M9 21v-7h6v7" />
+        <path d="M8 10h.01M12 10h.01M16 10h.01" />
+      </svg>
+    )
+  }
+
+  if (name === 'attributes') {
+    return (
+      <svg {...commonProps}>
+        <path d="M4 7h16" />
+        <path d="M7 12h10" />
+        <path d="M10 17h4" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg {...commonProps}>
+      <path d="M4 5h16v14H4z" />
+      <path d="M4 10h16" />
+      <path d="M9 5v14" />
+    </svg>
+  )
+}
+
+export function KebabMenu({
+  ui,
+  onDelete,
+  onEdit,
+}: {
+  ui: PreviewText
+  onDelete: () => void
+  onEdit: () => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div className="sp-inline-menu">
+      <button aria-label={ui.actions} type="button" onClick={() => setIsOpen((value) => !value)}>
+        ⋮
+      </button>
+      {isOpen && (
+        <div className="sp-card-dropdown">
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false)
+              onEdit()
+            }}
+          >
+            {ui.edit}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false)
+              onDelete()
+            }}
+          >
+            {ui.delete}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function AttributeIcon({ iconKey }: { iconKey: string | null | undefined }) {
+  const option = attributeIconOptions.find((item) => item.key === iconKey)
+  if (option === undefined || option.key === 'none') {
+    return null
+  }
+
+  const Icon = option.Icon
+  return (
+    <span className="sp-attribute-icon" aria-hidden="true">
+      <Icon size={16} strokeWidth={2.4} />
+    </span>
+  )
+}
+
+export function AttributeIconPicker({
+  value,
+  onChange,
+}: {
+  value: string | null | undefined
+  onChange: (iconKey: string) => void
+}) {
+  const normalizedValue = value === null || value === undefined || value.length === 0 ? 'none' : value
+
+  return (
+    <div className="sp-icon-picker">
+      {attributeIconOptions.map(({ key, label, Icon }) => (
+        <button
+          aria-label={label}
+          className={normalizedValue === key ? 'active' : ''}
+          key={key}
+          title={label}
+          type="button"
+          onClick={() => onChange(key === 'none' ? '' : key)}
+        >
+          <Icon size={18} strokeWidth={2.4} />
+        </button>
+      ))}
+    </div>
+  )
+}

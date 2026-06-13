@@ -19,6 +19,7 @@
     "elkjs": "^0.11.1",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
+    "react-advanced-cropper": "^0.20.1",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.17.0",
     "zustand": "^5.0.14"
