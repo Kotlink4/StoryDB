@@ -1,10 +1,11 @@
-import { ImagePlus } from 'lucide-react'
+﻿import { ImagePlus } from 'lucide-react'
 import { resolveAssetUrl, uploadImageRequest } from '../api'
 
 type ImageDropzoneProps = {
   imagePath: string | null
   label: string
   placeholder: string
+  projectId?: number | null
   onChange: (imagePath: string | null) => void
   onError: () => void
 }
@@ -13,6 +14,7 @@ export function ImageDropzone({
   imagePath,
   label,
   placeholder,
+  projectId = null,
   onChange,
   onError,
 }: ImageDropzoneProps) {
@@ -24,7 +26,7 @@ export function ImageDropzone({
     }
 
     try {
-      const uploadedImage = await uploadImageRequest(file)
+      const uploadedImage = await uploadImageRequest(file, projectId)
       onChange(uploadedImage.path)
     } catch {
       onError()

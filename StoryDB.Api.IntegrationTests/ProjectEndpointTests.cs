@@ -1,6 +1,6 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
-using StoryDB.Api.Controllers;
+using StoryDB.Api.Contracts.Projects;
 
 namespace StoryDB.Api.IntegrationTests;
 
@@ -31,3 +31,4 @@ public class ProjectEndpointTests(StoryDbApiFactory factory) : IClassFixture<Sto
             objectType.Key == "characters" && objectType.IsEnabled);
     }
 }
+

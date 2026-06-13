@@ -4741,6 +4741,7 @@ function StoryDbApp() {
                 editingCatalogEntryId={editingCatalogEntryId}
                 editingCatalogFieldId={editingCatalogFieldId}
                 page={catalogPanelPage}
+                projectId={selectedProject?.id ?? null}
                 t={t}
                 onBackToCatalog={() => {
                   setCatalogPanelPage('catalog')
@@ -6004,6 +6005,7 @@ function StoryDbApp() {
                           imagePath={galleryImagePath}
                           label={t.addGalleryImage}
                           placeholder={t.coverDropzone}
+                          projectId={selectedProject?.id ?? null}
                           onChange={setGalleryImagePath}
                           onError={() => setApiError(t.imageUploadFailed)}
                         />
@@ -6091,6 +6093,7 @@ function StoryDbApp() {
                   imagePath={characterImagePath}
                   label={t.cover}
                   placeholder={t.coverDropzone}
+                  projectId={selectedProject?.id ?? null}
                   onChange={setCharacterImagePath}
                   onError={() => setApiError(t.imageUploadFailed)}
                 />
@@ -7022,3 +7025,7 @@ function App() {
 }
 
 export default App
+
+
+
+

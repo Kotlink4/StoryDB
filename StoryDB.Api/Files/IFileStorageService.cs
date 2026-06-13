@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 
 namespace StoryDB.Api.Files;
 
@@ -12,7 +12,9 @@ public interface IFileStorageService
 
     void EnsureUploadsRoot();
 
-    Task<StoredFile> SaveImageAsync(IFormFile file, CancellationToken cancellationToken = default);
+    Task<StoredFile> SaveImageAsync(IFormFile file, int? projectId = null, CancellationToken cancellationToken = default);
+
+    Task<StoredFile?> MigrateImageAsync(string requestPath, int? projectId = null, CancellationToken cancellationToken = default);
 
     bool IsUploadedImagePath(string? path);
 
@@ -22,5 +24,19 @@ public interface IFileStorageService
 public sealed record StoredFile(
     string Path,
     string FileName,
+    string OriginalFileName,
+    string OriginalPath,
     string ContentType,
-    long Size);
+    long Size,
+    int Width,
+    int Height,
+    string Sha256,
+    IReadOnlyList<StoredFileVariant> Variants);
+
+public sealed record StoredFileVariant(
+    string Key,
+    string Path,
+    string ContentType,
+    long Size,
+    int Width,
+    int Height);

@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AttributeDefinition,
   AttributeGroup,
   AttributeDefinitionDraft,
@@ -331,11 +331,12 @@ export const updateCurrentUserRequest = async (
 export const resolveAssetUrl = (path: string | null) =>
   path === null ? null : `${assetBaseUrl}${path}`
 
-export const uploadImageRequest = async (file: File) => {
+export const uploadImageRequest = async (file: File, projectId: number | null = null) => {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await apiFetch(`${apiBaseUrl}/uploads/images`, {
+  const uploadUrl = projectId === null ? `${apiBaseUrl}/uploads/images` : `${apiBaseUrl}/uploads/images?projectId=${projectId}`
+  const response = await apiFetch(uploadUrl, {
     method: 'POST',
     body: formData,
   })
@@ -1306,4 +1307,6 @@ export const deleteHierarchyNodeRequest = async (
   )
   await ensureOk(response, 'Failed to delete hierarchy node.')
 }
+
+
 

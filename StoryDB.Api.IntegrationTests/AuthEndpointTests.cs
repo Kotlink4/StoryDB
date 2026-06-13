@@ -1,6 +1,6 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
-using StoryDB.Api.Controllers;
+using StoryDB.Api.Contracts.Auth;
 
 namespace StoryDB.Api.IntegrationTests;
 
@@ -56,3 +56,5 @@ public class AuthEndpointTests(StoryDbApiFactory factory) : IClassFixture<StoryD
         Assert.Equal(email, user.Email);
     }
 }
+
+

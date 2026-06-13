@@ -1,4 +1,4 @@
-import { Check, Pencil, Trash2 } from 'lucide-react'
+﻿import { Check, Pencil, Trash2 } from 'lucide-react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import type {
   Catalog,
@@ -45,6 +45,7 @@ type CatalogPanelProps = {
   editingCatalogEntryId: number | null
   editingCatalogFieldId: number | null
   page: CatalogPanelPage
+  projectId: number | null
   t: Record<string, string>
   onBackToCatalog: () => void
   onCancelCatalogEntryEdit: () => void
@@ -97,6 +98,7 @@ export function CatalogPanel({
   editingCatalogEntryId,
   editingCatalogFieldId,
   page,
+  projectId,
   t,
   onBackToCatalog,
   onCancelCatalogEntryEdit,
@@ -577,6 +579,7 @@ export function CatalogPanel({
                   imagePath={catalogEntryDraft.imagePath}
                   label={t.cover}
                   placeholder={t.coverDropzone}
+                  projectId={projectId}
                   onChange={(imagePath) => onCatalogEntryDraftChange({ ...catalogEntryDraft, imagePath })}
                   onError={onImageUploadError}
                 />
@@ -940,3 +943,6 @@ function CatalogEntryFieldValueView({
 
   return <>{entryValue.value !== null && entryValue.value.length > 0 ? entryValue.value : '-'}</>
 }
+
+
+

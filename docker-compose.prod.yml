@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:17-alpine
     container_name: storydb-postgres
@@ -26,9 +26,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: 5282
       ConnectionStrings__StoryDb: Host=postgres;Port=5432;Database=${POSTGRES_DB:-storydb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Logging__FileDirectory: /app/logs
     volumes:
       - storydb_uploads:/app/uploads
       - storydb_dataprotection:/root/.aspnet/DataProtection-Keys
+      - storydb_logs:/app/logs
 
   client:
     image: ${STORYDB_CLIENT_IMAGE}
@@ -42,3 +44,5 @@ volumes:
   storydb_postgres_data:
   storydb_uploads:
   storydb_dataprotection:
+  storydb_logs:
+

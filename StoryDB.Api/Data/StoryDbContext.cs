@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data.Entities;
 
 namespace StoryDB.Api.Data;
@@ -6,6 +6,9 @@ namespace StoryDB.Api.Data;
 public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContext(options)
 {
     public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
+    public DbSet<MediaAssetVariant> MediaAssetVariants => Set<MediaAssetVariant>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ObjectType> ObjectTypes => Set<ObjectType>();
     public DbSet<StoryObject> Objects => Set<StoryObject>();
@@ -42,6 +45,136 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(log => log.CreatedAt);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(log => new { log.ProjectId, log.CreatedAt });
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(log => new { log.UserId, log.CreatedAt });
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(log => log.TraceId);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.TraceId)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.Action)
+            .HasMaxLength(300);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.HttpMethod)
+            .HasMaxLength(12);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.Path)
+            .HasMaxLength(600);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.QueryString)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.IpAddress)
+            .HasMaxLength(80);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.UserAgent)
+            .HasMaxLength(512);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.RequestContentType)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(log => log.EndpointName)
+            .HasMaxLength(300);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(log => log.User)
+            .WithMany()
+            .HasForeignKey(log => log.UserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(log => log.Project)
+            .WithMany()
+            .HasForeignKey(log => log.ProjectId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<MediaAsset>()
+            .HasIndex(asset => new { asset.ProjectId, asset.CreatedAt });
+
+        modelBuilder.Entity<MediaAsset>()
+            .HasIndex(asset => new { asset.ProjectId, asset.LegacyPath });
+
+        modelBuilder.Entity<MediaAsset>()
+            .HasIndex(asset => asset.Sha256);
+
+        modelBuilder.Entity<MediaAsset>()
+            .Property(asset => asset.OriginalFileName)
+            .HasMaxLength(260);
+
+        modelBuilder.Entity<MediaAsset>()
+            .Property(asset => asset.StorageDirectory)
+            .HasMaxLength(512);
+
+        modelBuilder.Entity<MediaAsset>()
+            .Property(asset => asset.OriginalPath)
+            .HasMaxLength(512);
+
+        modelBuilder.Entity<MediaAsset>()
+            .Property(asset => asset.PublicPath)
+            .HasMaxLength(512);
+
+        modelBuilder.Entity<MediaAsset>()
+            .Property(asset => asset.ContentType)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<MediaAsset>()
+            .Property(asset => asset.Sha256)
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<MediaAsset>()
+            .Property(asset => asset.LegacyPath)
+            .HasMaxLength(512);
+
+        modelBuilder.Entity<MediaAsset>()
+            .HasOne(asset => asset.OwnerUser)
+            .WithMany()
+            .HasForeignKey(asset => asset.OwnerUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<MediaAsset>()
+            .HasOne(asset => asset.Project)
+            .WithMany()
+            .HasForeignKey(asset => asset.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<MediaAssetVariant>()
+            .HasIndex(variant => new { variant.MediaAssetId, variant.VariantKey })
+            .IsUnique();
+
+        modelBuilder.Entity<MediaAssetVariant>()
+            .Property(variant => variant.VariantKey)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<MediaAssetVariant>()
+            .Property(variant => variant.Path)
+            .HasMaxLength(512);
+
+        modelBuilder.Entity<MediaAssetVariant>()
+            .Property(variant => variant.ContentType)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<MediaAssetVariant>()
+            .HasOne(variant => variant.MediaAsset)
+            .WithMany(asset => asset.Variants)
+            .HasForeignKey(variant => variant.MediaAssetId)
+            .OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<AppUser>()
             .HasIndex(user => user.Email)
             .IsUnique();
@@ -722,3 +855,6 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+
+

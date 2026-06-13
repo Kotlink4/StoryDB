@@ -1446,7 +1446,7 @@ export function StylePreview() {
       })
       .catch(() => {
         if (isActive) {
-          setMessage('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РґРѕСЃСЊРµ РѕР±СЉРµРєС‚Р°.')
+          setMessage('Не удалось загрузить досье объекта.')
         }
       })
 
@@ -1682,7 +1682,7 @@ export function StylePreview() {
     }
 
     try {
-      const result = await uploadImageRequest(file)
+      const result = await uploadImageRequest(file, selectedProjectId)
       setObjectImagePath(result.path)
     } catch {
       setMessage('Не удалось загрузить изображение.')
@@ -1739,7 +1739,7 @@ export function StylePreview() {
           currentObjects.map((currentObject) => (currentObject.id === objectToEdit.id ? objectToEdit : currentObject)),
         )
       } catch {
-        setMessage('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РґР°РЅРЅС‹Рµ СЂРµРґР°РєС‚РѕСЂР° РѕР±СЉРµРєС‚Р°.')
+        setMessage('Не удалось загрузить данные редактора объекта.')
       }
     }
 
@@ -3195,7 +3195,7 @@ export function StylePreview() {
     }
 
     try {
-      const result = await uploadImageRequest(file)
+      const result = await uploadImageRequest(file, selectedProjectId)
       setTimelineGalleryImagePath(result.path)
     } catch {
       setMessage('Не удалось загрузить изображение для галереи события.')
@@ -3225,7 +3225,7 @@ export function StylePreview() {
       setPendingDeleteTimelineEventId(null)
       setDialog(null)
     } catch {
-      setMessage('РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ СЃРѕР±С‹С‚РёРµ.')
+      setMessage('Не удалось удалить событие.')
     }
   }
 
@@ -3280,7 +3280,7 @@ export function StylePreview() {
       const layout = await generateTimelineLayoutRequest(selectedProjectId)
       setTimelineLayout(layout)
     } catch {
-      setMessage('РќРµ СѓРґР°Р»РѕСЃСЊ СЃС„РѕСЂРјРёСЂРѕРІР°С‚СЊ С‚Р°Р№РјР»Р°Р№РЅ.')
+      setMessage('Не удалось сформировать таймлайн.')
     } finally {
       setIsTimelineGenerating(false)
     }
@@ -3568,7 +3568,7 @@ export function StylePreview() {
             onGalleryCaptionChange={setGalleryImageCaption}
             onGalleryImageUpload={async (file) => {
               if (file !== null) {
-                const result = await uploadImageRequest(file)
+                const result = await uploadImageRequest(file, selectedProjectId)
                 setGalleryImagePath(result.path)
               }
             }}
@@ -4167,7 +4167,7 @@ export function StylePreview() {
                 onGalleryCaptionChange={setGalleryImageCaption}
                 onGalleryImageUpload={async (file) => {
                   if (file !== null) {
-                    const result = await uploadImageRequest(file)
+                    const result = await uploadImageRequest(file, selectedProjectId)
                     setGalleryImagePath(result.path)
                   }
                 }}
@@ -4204,7 +4204,7 @@ export function StylePreview() {
                   onGalleryCaptionChange={setGalleryImageCaption}
                   onGalleryImageUpload={async (file) => {
                     if (file !== null) {
-                      const result = await uploadImageRequest(file)
+                      const result = await uploadImageRequest(file, selectedProjectId)
                       setGalleryImagePath(result.path)
                     }
                   }}
@@ -4508,7 +4508,7 @@ export function StylePreview() {
             onGalleryCaptionChange={setGalleryImageCaption}
             onGalleryImageUpload={async (file) => {
               if (file !== null) {
-                const result = await uploadImageRequest(file)
+                const result = await uploadImageRequest(file, selectedProjectId)
                 setGalleryImagePath(result.path)
               }
             }}
@@ -4890,7 +4890,7 @@ export function StylePreview() {
               imagePath={catalogEntryDraft.imagePath}
               label={ui.image}
               onFileSelected={(file) => {
-                void uploadImageRequest(file).then((result) =>
+                void uploadImageRequest(file, selectedProjectId).then((result) =>
                   setCatalogEntryDraft((draft) => ({ ...draft, imagePath: result.path })),
                 )
               }}
@@ -5187,7 +5187,7 @@ export function StylePreview() {
               label="Обложка события"
               onFileSelected={async (file) => {
                 try {
-                  const result = await uploadImageRequest(file)
+                  const result = await uploadImageRequest(file, selectedProjectId)
                   setTimelineDraft((draft) => ({ ...draft, imagePath: result.path }))
                 } catch {
                   setMessage('Не удалось загрузить обложку события.')
@@ -7454,9 +7454,6 @@ function CatalogsWorkspace({
                   {ui.newGroup}
                 </button>
               )}
-              <button className="sp-button primary" type="button" onClick={onCreateEntry}>
-                {ui.newCatalogEntry}
-              </button>
             </>
           )}
         </div>
@@ -7532,6 +7529,11 @@ function CatalogsWorkspace({
                     <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group.id)} onEdit={() => onEditGroup(group)} />
                   </span>
                 ))}
+              </div>
+              <div className="sp-catalog-entry-actions">
+                <button className="sp-button primary" type="button" onClick={onCreateEntry}>
+                  + {ui.newCatalogEntry}
+                </button>
               </div>
               <div className="sp-cards">
                 {visibleEntries.map((entry) => (
@@ -9435,4 +9437,5 @@ function PreviewDialog({
     </div>
   )
 }
+
 

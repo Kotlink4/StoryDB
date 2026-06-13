@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore;
-using StoryDB.Api.Controllers;
+﻿using Microsoft.EntityFrameworkCore;
+using StoryDB.Api.Contracts.Timelines;
 using StoryDB.Api.Data;
 
 namespace StoryDB.Api.Validation;
@@ -292,3 +292,4 @@ public sealed class TimelineEventValidator(StoryDbContext dbContext)
         return string.IsNullOrWhiteSpace(normalizedValue) ? "point" : normalizedValue.ToLowerInvariant();
     }
 }
+

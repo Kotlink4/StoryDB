@@ -36,6 +36,14 @@ const addMaxLengthIssue = (
   }
 }
 
+const isUploadedImagePath = (value: string) => {
+  const normalizedValue = value.toLowerCase()
+  return (
+    normalizedValue.startsWith('/uploads/images/') ||
+    normalizedValue.startsWith('/uploads/projects/') ||
+    normalizedValue.startsWith('/uploads/global/images/')
+  )
+}
 const addImagePathIssue = (issues: ValidationIssue[], field: string, value: string | null) => {
   const normalizedValue = value?.trim()
   if (!normalizedValue) {
@@ -47,7 +55,7 @@ const addImagePathIssue = (issues: ValidationIssue[], field: string, value: stri
     return
   }
 
-  if (!normalizedValue.toLowerCase().startsWith('/uploads/images/')) {
+  if (!isUploadedImagePath(normalizedValue)) {
     issues.push({ field, message: 'Обложка должна быть загруженным изображением.' })
   }
 }
@@ -144,7 +152,7 @@ const validateOptionalImagePath = (value: string | null, label: string) => {
     return `${label} должна быть не длиннее 512 символов.`
   }
 
-  return normalizedValue.toLowerCase().startsWith('/uploads/images/')
+  return isUploadedImagePath(normalizedValue)
     ? null
     : `${label} должна быть загруженным изображением.`
 }
@@ -289,3 +297,4 @@ export const validateTimelineLinkDraft = (draft: TimelineEventLinkDraft) => {
 
   return draft.sourceEventId === draft.targetEventId ? 'Событие нельзя связать само с собой.' : null
 }
+

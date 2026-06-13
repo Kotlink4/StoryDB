@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using StoryDB.Api.Files;
 
 namespace StoryDB.Api.Validation;
@@ -42,7 +42,7 @@ public static class RequestValidators
             return $"{fieldName} must be 512 characters or shorter.";
         }
 
-        return normalizedImagePath.StartsWith(FileStoragePaths.ImageRequestPath, StringComparison.OrdinalIgnoreCase)
+        return FileStoragePaths.IsUploadedImagePath(normalizedImagePath)
             ? null
             : $"{fieldName} must reference an uploaded image.";
     }
@@ -336,3 +336,4 @@ public static class RequestValidators
     }
 
 }
+

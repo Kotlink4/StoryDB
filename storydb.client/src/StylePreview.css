@@ -2957,6 +2957,13 @@
   display: none;
 }
 
+.sp-catalog-entry-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
 .sp-group-blocks {
   display: grid;
   grid-template-columns: minmax(0, 240px);

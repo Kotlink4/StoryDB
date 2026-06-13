@@ -1,6 +1,7 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
-using StoryDB.Api.Controllers;
+using StoryDB.Api.Contracts.Catalogs;
+using StoryDB.Api.Contracts.Projects;
 
 namespace StoryDB.Api.IntegrationTests;
 
@@ -174,3 +175,4 @@ public class CatalogEndpointTests(StoryDbApiFactory factory) : IClassFixture<Sto
         return group;
     }
 }
+

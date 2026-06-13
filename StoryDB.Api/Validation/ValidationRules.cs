@@ -1,4 +1,4 @@
-using StoryDB.Api.Files;
+﻿using StoryDB.Api.Files;
 
 namespace StoryDB.Api.Validation;
 
@@ -66,7 +66,7 @@ public static class ValidationRules
             return "Image path is too long.";
         }
 
-        return normalizedImagePath.StartsWith(FileStoragePaths.ImageRequestPath, StringComparison.OrdinalIgnoreCase)
+        return FileStoragePaths.IsUploadedImagePath(normalizedImagePath)
             ? null
             : "Image path must reference an uploaded image.";
     }
@@ -80,3 +80,4 @@ public static class ValidationRules
         }
     }
 }
+
