@@ -1,7 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react'
 
-import { getObjectFullName } from '../objectDisplay'
-import type { PreviewText } from '../stylePreviewI18n'
+import { getObjectFullName } from '../style-preview/domain/objectDisplay'
+import { defaultTimelineEventColorToken } from '../style-preview/domain/styleRuntimeTokens'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { StoryObject, TimelineEvent, TimelineEventDraft } from '../types'
 import { CoverDropzone } from './ImageInputs'
 import { PreviewDialog } from './StylePreviewPrimitives'
@@ -108,7 +109,7 @@ export function TimelineEventDialog({
           {ui.color}
           <input
             type="color"
-            value={draft.color || '#2563eb'}
+            value={draft.color || defaultTimelineEventColorToken}
             onChange={(event) => onDraftChange((currentDraft) => ({ ...currentDraft, color: event.target.value }))}
           />
         </label>

@@ -1,4 +1,4 @@
-import type { ObjectTypeKey } from './types'
+import type { ObjectTypeKey } from '../../types'
 
 export type PreviewTab = 'database' | 'relations' | 'timeline'
 export type UtilityPage = 'profile' | 'settings' | null

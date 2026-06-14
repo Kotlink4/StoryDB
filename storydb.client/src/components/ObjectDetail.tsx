@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react'
-
-import { resolveAssetUrl } from '../api'
-import { groupAttributesByDefinition } from '../attributeDisplay'
-import { getObjectFullName } from '../objectDisplay'
-import type { PreviewText } from '../stylePreviewI18n'
-import type { ObjectDossierTab } from '../stylePreviewUiTypes'
-import { applyTimelineChangesToObject, formatTimelineChangeValue } from '../timelineDisplay'
+import { groupAttributesByDefinition } from '../style-preview/domain/attributeDisplay'
+import { getObjectFullName } from '../style-preview/domain/objectDisplay'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import type { ObjectDossierTab } from '../style-preview/domain/stylePreviewUiTypes'
+import { applyTimelineChangesToObject, formatTimelineChangeValue } from '../style-preview/domain/timelineDisplay'
 import type { AttributeDefinition, AttributeGroup, StoryObject, TimelineEvent } from '../types'
 import { LinkedText, type TextLinkTarget } from './LinkedText'
-import { AttributeIcon, ObjectPortrait } from './StylePreviewPrimitives'
+import { GalleryPanel } from './GalleryPanel'
+import { AttributeIcon, DetailActionsMenu, ObjectPortrait } from './StylePreviewPrimitives'
 
 export function ObjectDetail({
   activeTab = 'main',
@@ -51,7 +49,6 @@ export function ObjectDetail({
   onOpenTimelineEvent?: (event: TimelineEvent) => void
   onTabChange?: (tab: ObjectDossierTab) => void
 }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const dossierTimelineEvent =
     timelineEvents.find((event) => String(event.id) === dossierTimelineEventId) ?? null
   const objectTimelineChanges =
@@ -70,53 +67,9 @@ export function ObjectDetail({
     ...storyObject.incomingCharacterRelationships,
   ]
 
-  useEffect(() => {
-    const closeMenu = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target : null
-      if (target?.closest('.sp-detail-menu') === null) {
-        setIsMenuOpen(false)
-      }
-    }
-
-    document.addEventListener('pointerdown', closeMenu)
-    return () => document.removeEventListener('pointerdown', closeMenu)
-  }, [])
-
   return (
     <div className="sp-detail-card">
-      {(onDelete !== undefined || onEdit !== undefined) && (
-        <div className="sp-detail-menu">
-          <button type="button" onClick={() => setIsMenuOpen((value) => !value)}>
-            ⋮
-          </button>
-          {isMenuOpen && (
-            <div className="sp-card-dropdown">
-              {onEdit !== undefined && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false)
-                    onEdit()
-                  }}
-                >
-                  {ui.edit}
-                </button>
-              )}
-              {onDelete !== undefined && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false)
-                    onDelete()
-                  }}
-                >
-                  {ui.delete}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      <DetailActionsMenu ui={ui} onDelete={onDelete} onEdit={onEdit} />
       <div className="sp-dossier-head">
         <ObjectPortrait storyObject={displayStoryObject} />
         <div>
@@ -320,41 +273,18 @@ export function ObjectDetail({
         </section>
       )}
       {activeTab === 'gallery' && (
-        <section className="sp-panel">
-          <h3>{ui.gallery}</h3>
-          {onGalleryImageUpload !== undefined && (
-            <div className="sp-editor-row">
-              <input type="file" accept="image/*" onChange={(event) => onGalleryImageUpload(event.target.files?.[0] ?? null)} />
-              <input
-                placeholder={ui.caption}
-                value={galleryImageCaption}
-                onChange={(event) => onGalleryCaptionChange?.(event.target.value)}
-              />
-              <button disabled={galleryImagePath === null} type="button" onClick={onAddGalleryImage}>
-                {ui.addImage}
-              </button>
-            </div>
-          )}
-          {storyObject.galleryImages.length === 0 ? (
-            <p>{ui.noGalleryImages}</p>
-          ) : (
-            <div className="sp-gallery-grid">
-              {storyObject.galleryImages.map((image) => (
-                <article className="sp-gallery-card" key={image.id}>
-                  <img alt="" src={resolveAssetUrl(image.imagePath) ?? undefined} />
-                  <span>
-                    <LinkedText emptyText="-" targets={textLinkTargets} text={image.caption} />
-                  </span>
-                  {onDeleteGalleryImage !== undefined && (
-                    <button type="button" onClick={() => onDeleteGalleryImage(image.id)}>
-                      {ui.delete}
-                    </button>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        <GalleryPanel
+          caption={galleryImageCaption}
+          images={storyObject.galleryImages}
+          imagePath={galleryImagePath}
+          title={ui.gallery}
+          ui={ui}
+          renderCaption={(caption) => <LinkedText emptyText="-" targets={textLinkTargets} text={caption} />}
+          onAddImage={onAddGalleryImage}
+          onCaptionChange={onGalleryCaptionChange}
+          onDeleteImage={onDeleteGalleryImage}
+          onImageUpload={onGalleryImageUpload}
+        />
       )}
     </div>
   )

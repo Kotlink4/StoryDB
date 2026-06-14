@@ -1,4 +1,4 @@
-import type { PreviewText } from '../stylePreviewI18n'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import { CoverDropzone } from './ImageInputs'
 import { ReadySolutionsPanel } from './ReadySolutionsPanel'
 import { PreviewDialog } from './StylePreviewPrimitives'

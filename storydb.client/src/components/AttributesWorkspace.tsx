@@ -1,6 +1,6 @@
-import { attributeDataTypeLabels, groupAttributesByDefinition } from '../attributeDisplay'
-import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../stylePreviewI18n'
-import type { GroupDisplayMode } from '../stylePreviewUiTypes'
+import { attributeDataTypeLabels, groupAttributesByDefinition } from '../style-preview/domain/attributeDisplay'
+import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import type { GroupDisplayMode } from '../style-preview/domain/stylePreviewUiTypes'
 import type { AttributeDataType, AttributeDefinition, AttributeDefinitionDraft, AttributeGroup } from '../types'
 import { AttributeIcon, AttributeIconPicker, KebabMenu } from './StylePreviewPrimitives'
 

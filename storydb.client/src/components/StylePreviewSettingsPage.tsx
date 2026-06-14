@@ -1,5 +1,5 @@
-import type { PreviewLanguage, PreviewText, PreviewTheme } from '../stylePreviewI18n'
-import type { DetailMode, GroupDisplayMode } from '../stylePreviewUiTypes'
+import type { PreviewLanguage, PreviewText, PreviewTheme } from '../style-preview/domain/stylePreviewI18n'
+import type { DetailMode, GroupDisplayMode } from '../style-preview/domain/stylePreviewUiTypes'
 
 export function SettingsPage({
   detailMode,

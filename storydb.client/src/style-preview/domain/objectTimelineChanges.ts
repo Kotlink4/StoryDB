@@ -5,7 +5,7 @@ import type {
   DraftHierarchySelection,
   StoryObject,
   TimelineChangeDraft,
-} from './types'
+} from '../../types'
 
 const normalizeTimelineChangeText = (value: string | null | undefined) => {
   const normalizedValue = value?.trim() ?? ''

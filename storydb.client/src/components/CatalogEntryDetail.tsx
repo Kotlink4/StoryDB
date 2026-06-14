@@ -1,8 +1,9 @@
 import { resolveAssetUrl } from '../api'
-import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../stylePreviewI18n'
+import { getInitials } from '../style-preview/domain/previewDisplay'
+import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { Catalog, CatalogEntry, CatalogFieldDataType, CatalogFieldDefinition } from '../types'
 import { LinkedText, type TextLinkTarget } from './LinkedText'
-import { KebabMenu } from './StylePreviewPrimitives'
+import { DetailActionsMenu } from './StylePreviewPrimitives'
 
 export type CatalogEntryLinkTarget = {
   catalogId: number
@@ -17,8 +18,6 @@ export const catalogFieldDataTypeLabels: Record<CatalogFieldDataType, { ru: stri
   entryReference: { ru: 'Ссылка на запись', en: 'Entry link' },
   multipleEntryReference: { ru: 'Несколько ссылок', en: 'Multiple links' },
 }
-
-const getInitials = (name: string) => name.trim().slice(0, 1).toUpperCase() || '?'
 
 export const formatCatalogFieldDefinition = (
   field: CatalogFieldDefinition,
@@ -212,9 +211,7 @@ export function CatalogEntryDetail({
 
   return (
     <article className="sp-detail-card">
-      <div className="sp-detail-menu">
-        <KebabMenu ui={ui} onDelete={onDelete} onEdit={onEdit} />
-      </div>
+      <DetailActionsMenu ui={ui} onDelete={onDelete} onEdit={onEdit} />
       <div className="sp-dossier-head">
         <div className="sp-portrait">
           {imageUrl === null ? getInitials(entry.name) : <img alt="" src={imageUrl} />}

@@ -1,4 +1,4 @@
-import type { AttributeDataType, AttributeDefinition, ObjectAttribute } from './types'
+import type { AttributeDataType, AttributeDefinition, ObjectAttribute } from '../../types'
 
 export const attributeDataTypeLabels: Record<AttributeDataType, { ru: string; en: string }> = {
   text: { ru: 'Текст', en: 'Text' },

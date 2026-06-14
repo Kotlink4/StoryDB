@@ -1,14 +1,14 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { scaleLinear, type ScaleLinear } from 'd3-scale'
 import { select } from 'd3-selection'
 import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior, type ZoomTransform } from 'd3-zoom'
 
-import type { PreviewText } from '../stylePreviewI18n'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import {
   getTimelineEventColor,
   getTimelineEventTypeLabel,
   getTimelineLinkTypeLabel,
-} from '../timelineDisplay'
+} from '../style-preview/domain/timelineDisplay'
 import type {
   TimelineEvent,
   TimelineEventLink,

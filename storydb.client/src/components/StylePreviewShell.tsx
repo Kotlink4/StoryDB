@@ -1,8 +1,9 @@
-import type { PreviewSection, PreviewTab } from '../stylePreviewRouting'
-import type { PreviewText } from '../stylePreviewI18n'
+import { getInitials } from '../style-preview/domain/previewDisplay'
+import type { PreviewSection, PreviewTab } from '../style-preview/domain/stylePreviewRouting'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import {
   objectSections,
-} from '../stylePreviewConfig'
+} from '../style-preview/domain/stylePreviewConfig'
 import type {
   AttributeGroup,
   AuthUser,
@@ -11,7 +12,7 @@ import type {
   ObjectTypeKey,
   StoryProject,
 } from '../types'
-import type { GroupDisplayMode } from '../stylePreviewUiTypes'
+import type { GroupDisplayMode } from '../style-preview/domain/stylePreviewUiTypes'
 import {
   KebabMenu,
   SectionIcon,
@@ -82,7 +83,7 @@ export function StylePreviewTopbar({
         <div className="sp-profile">
           <button className="sp-avatar-button" type="button" onClick={onToggleSettingsMenu}>
             {currentUserAvatarUrl === null ? (
-              currentUser?.displayName.slice(0, 1).toUpperCase() ?? 'A'
+              getInitials(currentUser?.displayName ?? 'A')
             ) : (
               <img alt="" src={currentUserAvatarUrl} />
             )}

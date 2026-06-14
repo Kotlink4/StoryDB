@@ -1,9 +1,8 @@
 import { resolveAssetUrl } from '../api'
-import type { PreviewText } from '../stylePreviewI18n'
+import { getInitials } from '../style-preview/domain/previewDisplay'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { StoryProject } from '../types'
 import { KebabMenu } from './StylePreviewPrimitives'
-
-const getInitials = (name: string) => name.trim().slice(0, 1).toUpperCase() || '?'
 
 export function ProfileProjectCard({
   isSelected,

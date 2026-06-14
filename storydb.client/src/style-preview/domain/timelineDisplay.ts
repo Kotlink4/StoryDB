@@ -1,5 +1,6 @@
+import { timelineEventColorTokens } from './styleRuntimeTokens'
 import type { PreviewText } from './stylePreviewI18n'
-import type { StoryObject, TimelineChange, TimelineEvent, TimelineEventLink } from './types'
+import type { StoryObject, TimelineChange, TimelineEvent, TimelineEventLink } from '../../types'
 
 export function getTimelineEventTypeLabel(eventType: TimelineEvent['eventType'], ui: PreviewText) {
   if (eventType === 'duration') {
@@ -18,19 +19,7 @@ export function getTimelineEventTypeLabel(eventType: TimelineEvent['eventType'],
 }
 
 export function getTimelineEventColor(eventType: TimelineEvent['eventType']) {
-  if (eventType === 'duration') {
-    return '#2563eb'
-  }
-
-  if (eventType === 'era') {
-    return '#64748b'
-  }
-
-  if (eventType === 'chapter') {
-    return '#7c3aed'
-  }
-
-  return '#059669'
+  return timelineEventColorTokens[eventType]
 }
 
 export function getTimelineLinkTypeLabel(linkType: TimelineEventLink['linkType'], ui: PreviewText) {

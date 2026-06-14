@@ -1,0 +1,166 @@
+:root {
+  --app-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --app-page: #eef2f7;
+  --app-surface: #ffffff;
+  --app-soft: #f8fafc;
+  --app-control: #ffffff;
+  --app-control-muted: #f8fafc;
+  --app-ink: #0f172a;
+  --app-muted: #64748b;
+  --app-line: #dbe3ef;
+  --app-accent: #101827;
+  --app-accent-soft: #e8edf5;
+  --app-active-bg: #101827;
+  --app-active-text: #ffffff;
+  --app-active-soft-bg: #e8edf5;
+  --app-active-soft-text: #101827;
+  --app-danger-bg: #fff1f2;
+  --app-danger-border: #fecaca;
+  --app-danger-text: #b91c1c;
+  --app-overlay: rgba(255, 255, 255, 0.94);
+  --app-shadow: rgba(15, 23, 42, 0.16);
+  --app-shadow-soft: rgba(15, 23, 42, 0.08);
+  --app-focus-ring: rgba(16, 24, 39, 0.18);
+  --app-radius-xs: 6px;
+  --app-radius-sm: 8px;
+  --app-radius-md: 12px;
+  --app-radius-lg: 18px;
+  --app-radius-xl: 28px;
+  --app-transition: 160ms ease;
+}
+
+.style-preview {
+  --sp-page: var(--app-page);
+  --sp-surface: var(--app-surface);
+  --sp-soft: var(--app-soft);
+  --sp-control: var(--app-control);
+  --sp-control-muted: var(--app-control-muted);
+  --sp-ink: var(--app-ink);
+  --sp-muted: var(--app-muted);
+  --sp-line: var(--app-line);
+  --sp-accent: var(--app-accent);
+  --sp-accent-soft: var(--app-accent-soft);
+  --sp-active-bg: var(--app-active-bg);
+  --sp-active-text: var(--app-active-text);
+  --sp-active-soft-bg: var(--app-active-soft-bg);
+  --sp-active-soft-text: var(--app-active-soft-text);
+  --sp-danger-bg: var(--app-danger-bg);
+  --sp-danger-border: var(--app-danger-border);
+  --sp-danger-text: var(--app-danger-text);
+  --sp-overlay: var(--app-overlay);
+  --sp-grid-line: rgba(148, 163, 184, 0.2);
+  --sp-grid-strong: rgba(100, 116, 139, 0.26);
+  --sp-timeline-axis-line: rgba(15, 23, 42, 0.88);
+  --sp-timeline-lane-a: rgba(15, 23, 42, 0.035);
+  --sp-timeline-lane-b: rgba(255, 255, 255, 0.26);
+  --sp-timeline-tick-line: rgba(148, 163, 184, 0.28);
+  --sp-timeline-minor-tick-line: rgba(100, 116, 139, 0.5);
+  --sp-timeline-origin-line: rgba(15, 23, 42, 0.28);
+  --sp-timeline-origin-bg: rgba(255, 255, 255, 0.72);
+  --sp-era-overlay: rgba(255, 255, 255, 0.34);
+  --sp-shadow: var(--app-shadow);
+  --sp-shadow-soft: var(--app-shadow-soft);
+  --sp-link-hover: #2563eb;
+  --sp-relation-default: #334155;
+  --sp-relation-character: #2563eb;
+  --sp-relation-object: #0f766e;
+  --sp-relation-ownership: #9333ea;
+  --sp-timeline-era: #475569;
+  --sp-timeline-duration: #2563eb;
+  --sp-timeline-point: #059669;
+  --sp-timeline-chapter: #7c3aed;
+  --sp-timeline-layout-source: #0f766e;
+  --sp-timeline-link-causes: rgba(220, 38, 38, 0.72);
+  --sp-on-data-color: #ffffff;
+  --sp-data-text-shadow: rgba(15, 23, 42, 0.18);
+  --sp-glass-line: rgba(255, 255, 255, 0.38);
+  --sp-strong-line: rgba(15, 23, 42, 0.66);
+  --sp-modal-backdrop: rgba(15, 23, 42, 0.42);
+  --sp-cover-overlay: linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.58));
+  --sp-crop-stage-bg: #0f172a;
+  --sp-crop-handle-border: #ffffff;
+  --sp-crop-line: rgba(255, 255, 255, 0.76);
+  --sp-crop-grid: rgba(255, 255, 255, 0.42);
+  --sp-crop-overlay: rgba(2, 6, 23, 0.58);
+  --sp-app-background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 34rem),
+    linear-gradient(135deg, #f8fafc, var(--sp-page));
+}
+
+.style-preview.theme-dark {
+  --sp-page: #0b1120;
+  --sp-surface: #111827;
+  --sp-soft: #172033;
+  --sp-control: #101827;
+  --sp-control-muted: #172033;
+  --sp-ink: #e5edf8;
+  --sp-muted: #9fb0c7;
+  --sp-line: #26344b;
+  --sp-accent: #e5edf8;
+  --sp-accent-soft: #202b3f;
+  --sp-active-bg: #e5edf8;
+  --sp-active-text: #0f172a;
+  --sp-active-soft-bg: #253149;
+  --sp-active-soft-text: #f8fafc;
+  --sp-danger-bg: #3b1118;
+  --sp-danger-border: #7f1d1d;
+  --sp-danger-text: #fecdd3;
+  --sp-overlay: rgba(17, 24, 39, 0.94);
+  --sp-grid-line: rgba(148, 163, 184, 0.09);
+  --sp-grid-strong: rgba(148, 163, 184, 0.14);
+  --sp-timeline-axis-line: rgba(226, 232, 240, 0.5);
+  --sp-timeline-lane-a: rgba(148, 163, 184, 0.04);
+  --sp-timeline-lane-b: rgba(148, 163, 184, 0.08);
+  --sp-timeline-tick-line: rgba(148, 163, 184, 0.16);
+  --sp-timeline-minor-tick-line: rgba(148, 163, 184, 0.28);
+  --sp-timeline-origin-line: rgba(226, 232, 240, 0.32);
+  --sp-timeline-origin-bg: rgba(15, 23, 42, 0.72);
+  --sp-era-overlay: rgba(148, 163, 184, 0.1);
+  --sp-shadow: rgba(0, 0, 0, 0.34);
+  --sp-shadow-soft: rgba(0, 0, 0, 0.22);
+  --sp-link-hover: #93c5fd;
+  --sp-modal-backdrop: rgba(2, 6, 23, 0.62);
+  --sp-cover-overlay: linear-gradient(180deg, rgba(2, 6, 23, 0.08), rgba(2, 6, 23, 0.68));
+  --sp-app-background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 34rem),
+    linear-gradient(135deg, #0b1120, #111827);
+}
+
+.style-preview.theme-black {
+  --sp-page: #020305;
+  --sp-surface: #06080d;
+  --sp-soft: #0c111a;
+  --sp-control: #080b12;
+  --sp-control-muted: #111827;
+  --sp-ink: #f8fafc;
+  --sp-muted: #9ca3af;
+  --sp-line: #1f2937;
+  --sp-accent: #f8fafc;
+  --sp-accent-soft: #182131;
+  --sp-active-bg: #f8fafc;
+  --sp-active-text: #020617;
+  --sp-active-soft-bg: #1f2937;
+  --sp-active-soft-text: #f8fafc;
+  --sp-danger-bg: #2f0d12;
+  --sp-danger-border: #7f1d1d;
+  --sp-danger-text: #fecdd3;
+  --sp-overlay: rgba(6, 8, 13, 0.94);
+  --sp-grid-line: rgba(148, 163, 184, 0.075);
+  --sp-grid-strong: rgba(148, 163, 184, 0.12);
+  --sp-timeline-axis-line: rgba(226, 232, 240, 0.46);
+  --sp-timeline-lane-a: rgba(148, 163, 184, 0.035);
+  --sp-timeline-lane-b: rgba(148, 163, 184, 0.075);
+  --sp-timeline-tick-line: rgba(148, 163, 184, 0.14);
+  --sp-timeline-minor-tick-line: rgba(148, 163, 184, 0.24);
+  --sp-timeline-origin-line: rgba(226, 232, 240, 0.28);
+  --sp-timeline-origin-bg: rgba(2, 3, 5, 0.72);
+  --sp-era-overlay: rgba(148, 163, 184, 0.08);
+  --sp-shadow: rgba(0, 0, 0, 0.48);
+  --sp-shadow-soft: rgba(0, 0, 0, 0.28);
+  --sp-link-hover: #93c5fd;
+  --sp-modal-backdrop: rgba(0, 0, 0, 0.72);
+  --sp-cover-overlay: linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.72));
+  --sp-app-background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 34rem),
+    linear-gradient(135deg, #020305, #070b12);
+}

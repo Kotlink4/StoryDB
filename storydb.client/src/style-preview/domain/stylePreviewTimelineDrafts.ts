@@ -1,4 +1,4 @@
-import type { TimelineEvent, TimelineEventDraft } from './types'
+import type { TimelineEvent, TimelineEventDraft } from '../../types'
 
 export const toTimelineEventDraft = (event: TimelineEvent): TimelineEventDraft => ({
   title: event.title,

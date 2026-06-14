@@ -1,5 +1,5 @@
 import type { PreviewText } from './stylePreviewI18n'
-import type { RelationGraphEdge } from './types'
+import type { RelationGraphEdge } from '../../types'
 
 export const getObjectRelationLabels = (ui: PreviewText): Record<string, string> => ({
   hierarchyParent: ui.hierarchyParentLabel,

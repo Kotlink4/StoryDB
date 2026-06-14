@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 
-import type { PreviewText } from '../stylePreviewI18n'
-import { getTimelineLinkTypeLabel } from '../timelineDisplay'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import { getTimelineLinkTypeLabel } from '../style-preview/domain/timelineDisplay'
 import type { TimelineEvent, TimelineEventLinkDraft } from '../types'
 import { PreviewDialog } from './StylePreviewPrimitives'
 

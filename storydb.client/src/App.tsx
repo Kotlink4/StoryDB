@@ -117,7 +117,7 @@ import { ImageDropzone } from './components/ImageDropzone'
 import { ObjectCard } from './components/ObjectCard'
 import { ProjectCard } from './components/ProjectCard'
 import { ReadySolutionsPanel } from './components/ReadySolutionsPanel'
-import { StylePreview } from './StylePreview'
+import { StylePreview } from './style-preview/StylePreview'
 import { validateProjectDraft } from './validation'
 import '@xyflow/react/dist/style.css'
 import './App.css'
@@ -7025,7 +7025,6 @@ function App() {
 }
 
 export default App
-
 
 
 

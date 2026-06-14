@@ -1,4 +1,4 @@
-import type { SectionIconName } from './components/StylePreviewPrimitives'
+import type { SectionIconName } from '../../components/StylePreviewPrimitives'
 import { isStylePreviewObjectSection, type PreviewSection } from './stylePreviewRouting'
 import type {
   AttributeDefinitionDraft,
@@ -6,7 +6,7 @@ import type {
   ObjectTypeKey,
   StoryProject,
   TimelineEventDraft,
-} from './types'
+} from '../../types'
 
 export type PreviewDialogKind =
   | 'auth'

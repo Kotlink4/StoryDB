@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { PreviewText } from '../stylePreviewI18n'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { AuthUser, StoryProject } from '../types'
 import { ProfileProjectCard } from './ProfileProjectCard'
 

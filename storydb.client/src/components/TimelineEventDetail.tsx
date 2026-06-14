@@ -1,16 +1,17 @@
 import { useState } from 'react'
 
 import { resolveAssetUrl } from '../api'
-import { getObjectFullName } from '../objectDisplay'
-import type { PreviewText } from '../stylePreviewI18n'
+import { getObjectFullName } from '../style-preview/domain/objectDisplay'
+import { getInitials } from '../style-preview/domain/previewDisplay'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import {
   formatTimelineChangeValue,
   getTimelineEventColor,
   getTimelineEventTypeLabel,
   getTimelineLinkTypeLabel,
-} from '../timelineDisplay'
+} from '../style-preview/domain/timelineDisplay'
 import type { StoryObject, TimelineEvent, TimelineEventLink } from '../types'
-import { CoverDropzone } from './ImageInputs'
+import { GalleryPanel } from './GalleryPanel'
 import { ObjectPortrait } from './StylePreviewPrimitives'
 
 type TimelineEventDossierTab = 'main' | 'participants' | 'links' | 'changes' | 'gallery'
@@ -69,7 +70,7 @@ export function TimelineEventDetail({
       <div className="sp-timeline-detail-head">
         {eventImageUrl === null ? (
           <div className="sp-timeline-detail-cover" style={{ background: eventColor }}>
-            {event.title.slice(0, 1).toUpperCase()}
+            {getInitials(event.title)}
           </div>
         ) : (
           <img className="sp-timeline-detail-cover" alt="" src={eventImageUrl} />
@@ -246,47 +247,19 @@ export function TimelineEventDetail({
       )}
 
       {activeTab === 'gallery' && (
-        <section className="sp-panel">
-          <h3>{ui.gallery}</h3>
-          {onGalleryImageUpload !== undefined && (
-            <div className="sp-timeline-gallery-upload">
-              <CoverDropzone
-                cropMode="none"
-                imagePath={galleryImagePath}
-                label={ui.addGalleryImage}
-                ui={ui}
-                onFileSelected={(file) => onGalleryImageUpload(file)}
-              />
-              <div className="sp-editor-row">
-                <input
-                  placeholder={ui.caption}
-                  value={galleryImageCaption}
-                  onChange={(inputEvent) => onGalleryCaptionChange?.(inputEvent.target.value)}
-                />
-                <button disabled={galleryImagePath === null} type="button" onClick={onAddGalleryImage}>
-                  {ui.addImage}
-                </button>
-              </div>
-            </div>
-          )}
-          {event.galleryImages.length === 0 ? (
-            <p>{ui.noGalleryImages}</p>
-          ) : (
-            <div className="sp-gallery-grid">
-              {event.galleryImages.map((image) => (
-                <article className="sp-gallery-card" key={image.id}>
-                  <img alt="" src={resolveAssetUrl(image.imagePath) ?? undefined} />
-                  <span>{image.caption ?? '-'}</span>
-                  {onDeleteGalleryImage !== undefined && (
-                    <button type="button" onClick={() => onDeleteGalleryImage(image.id)}>
-                      {ui.delete}
-                    </button>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        <GalleryPanel
+          caption={galleryImageCaption}
+          className="sp-timeline-gallery-upload"
+          images={event.galleryImages}
+          imagePath={galleryImagePath}
+          title={ui.gallery}
+          ui={ui}
+          uploadMode="coverDropzone"
+          onAddImage={onAddGalleryImage}
+          onCaptionChange={onGalleryCaptionChange}
+          onDeleteImage={onDeleteGalleryImage}
+          onImageUpload={onGalleryImageUpload}
+        />
       )}
 
       <div className="sp-detail-actions">

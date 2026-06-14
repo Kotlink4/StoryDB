@@ -1,6 +1,6 @@
-﻿import { getObjectFullName } from '../objectDisplay'
-import type { PreviewText } from '../stylePreviewI18n'
-import type { DraftTimelineParticipation, ObjectEditorTab } from '../stylePreviewUiTypes'
+import { getObjectFullName } from '../style-preview/domain/objectDisplay'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import type { DraftTimelineParticipation, ObjectEditorTab } from '../style-preview/domain/stylePreviewUiTypes'
 import type {
   AttributeDefinition,
   AttributeGroup,

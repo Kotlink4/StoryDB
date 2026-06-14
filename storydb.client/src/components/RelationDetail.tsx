@@ -1,6 +1,6 @@
-import { getObjectFullName, relationGraphNodeToStoryObject } from '../objectDisplay'
-import { getRelationCategoryLabel, getRelationLabel } from '../relationDisplay'
-import type { PreviewText } from '../stylePreviewI18n'
+import { getObjectFullName, relationGraphNodeToStoryObject } from '../style-preview/domain/objectDisplay'
+import { getRelationCategoryLabel, getRelationLabel } from '../style-preview/domain/relationDisplay'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { RelationGraph, RelationGraphEdge, StoryObject } from '../types'
 import { ObjectPortrait } from './StylePreviewPrimitives'
 

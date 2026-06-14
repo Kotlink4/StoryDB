@@ -1,6 +1,6 @@
 import { resolveAssetUrl } from '../api'
-import type { PreviewText } from '../stylePreviewI18n'
-import type { GroupDisplayMode } from '../stylePreviewUiTypes'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import type { GroupDisplayMode } from '../style-preview/domain/stylePreviewUiTypes'
 import type { Catalog, CatalogEntry, CatalogEntryGroup } from '../types'
 import { KebabMenu } from './StylePreviewPrimitives'
 import { LinkedText, type TextLinkTarget } from './LinkedText'

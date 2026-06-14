@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { PreviewMessageTone } from './stylePreviewI18n'
+import type { PreviewMessageTone } from '../domain/stylePreviewI18n'
 
 export function usePreviewToast() {
   const [message, setMessage] = useState<string | null>(null)

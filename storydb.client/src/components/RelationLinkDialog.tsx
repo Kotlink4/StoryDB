@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 
-import { getObjectFullName } from '../objectDisplay'
-import type { PreviewText } from '../stylePreviewI18n'
+import { getObjectFullName } from '../style-preview/domain/objectDisplay'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { RelationLinkDraft, StoryObject } from '../types'
 import { PreviewDialog } from './StylePreviewPrimitives'
 

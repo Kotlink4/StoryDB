@@ -1,4 +1,4 @@
-import type { RelationGraphNode, StoryObject } from './types'
+import type { RelationGraphNode, StoryObject } from '../../types'
 
 export const getObjectFullName = (storyObject: Pick<StoryObject, 'name' | 'surname'>) =>
   [storyObject.name, storyObject.surname?.trim()].filter(Boolean).join(' ')

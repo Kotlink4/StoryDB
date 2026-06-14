@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Cropper, ImageRestriction, type CropperRef } from 'react-advanced-cropper'
 
 import { resolveAssetUrl } from '../api'
-import type { PreviewText } from '../stylePreviewI18n'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import { PreviewDialog } from './StylePreviewPrimitives'
 
 export type ImageCropMode = 'none' | 'avatar' | 'cover'

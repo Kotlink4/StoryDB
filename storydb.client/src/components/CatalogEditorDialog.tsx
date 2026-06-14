@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 
-import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../stylePreviewI18n'
+import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type {
   Catalog,
   CatalogFieldDataType,

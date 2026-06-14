@@ -1,4 +1,4 @@
-import type { PreviewText } from '../stylePreviewI18n'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { AuthUser } from '../types'
 import { PreviewDialog } from './StylePreviewPrimitives'
 

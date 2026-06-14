@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   Activity,
   Atom,
@@ -19,7 +19,8 @@ import {
 } from 'lucide-react'
 
 import { resolveAssetUrl } from '../api'
-import type { PreviewText } from '../stylePreviewI18n'
+import { getInitials } from '../style-preview/domain/previewDisplay'
+import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { StoryObject } from '../types'
 
 export function PreviewDialog({
@@ -64,16 +65,21 @@ const attributeIconOptions: Array<{ key: string; label: string; Icon: LucideIcon
   { key: 'atom', label: 'Система', Icon: Atom },
 ]
 
-const getInitials = (name: string) => name.trim().slice(0, 1).toUpperCase() || '?'
-
 export function ObjectPortrait({ storyObject }: { storyObject: StoryObject }) {
   const imageUrl = resolveAssetUrl(storyObject.imagePath)
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null)
+  const shouldShowImage = imageUrl !== null && imageUrl !== failedImageUrl
+
+  useEffect(() => {
+    setFailedImageUrl(null)
+  }, [imageUrl])
+
   return (
     <div className="sp-portrait">
-      {imageUrl === null ? (
-        getInitials(storyObject.name)
+      {shouldShowImage ? (
+        <img alt="" src={imageUrl} onError={() => setFailedImageUrl(imageUrl)} />
       ) : (
-        <img alt="" src={imageUrl} />
+        getInitials(storyObject.name)
       )}
     </div>
   )
@@ -155,10 +161,30 @@ export function KebabMenu({
   onEdit,
 }: {
   ui: PreviewText
-  onDelete: () => void
-  onEdit: () => void
+  onDelete?: () => void
+  onEdit?: () => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const closeMenu = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('.sp-inline-menu') === null) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', closeMenu)
+    return () => document.removeEventListener('pointerdown', closeMenu)
+  }, [isOpen])
+
+  if (onDelete === undefined && onEdit === undefined) {
+    return null
+  }
 
   return (
     <div className="sp-inline-menu">
@@ -167,26 +193,50 @@ export function KebabMenu({
       </button>
       {isOpen && (
         <div className="sp-card-dropdown">
-          <button
-            type="button"
-            onClick={() => {
-              setIsOpen(false)
-              onEdit()
-            }}
-          >
-            {ui.edit}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsOpen(false)
-              onDelete()
-            }}
-          >
-            {ui.delete}
-          </button>
+          {onEdit !== undefined && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false)
+                onEdit()
+              }}
+            >
+              {ui.edit}
+            </button>
+          )}
+          {onDelete !== undefined && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false)
+                onDelete()
+              }}
+            >
+              {ui.delete}
+            </button>
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+export function DetailActionsMenu({
+  ui,
+  onDelete,
+  onEdit,
+}: {
+  ui: PreviewText
+  onDelete?: () => void
+  onEdit?: () => void
+}) {
+  if (onDelete === undefined && onEdit === undefined) {
+    return null
+  }
+
+  return (
+    <div className="sp-detail-menu">
+      <KebabMenu ui={ui} onDelete={onDelete} onEdit={onEdit} />
     </div>
   )
 }
