@@ -2,6 +2,7 @@ import type {
   AttributeDefinitionDraft,
   CatalogEntryDraft,
   CatalogFieldDraft,
+  RelationLinkDraft,
   TimelineEventDraft,
   TimelineEventLinkDraft,
   TimelineEventType,
@@ -296,5 +297,40 @@ export const validateTimelineLinkDraft = (draft: TimelineEventLinkDraft) => {
   }
 
   return draft.sourceEventId === draft.targetEventId ? 'Событие нельзя связать само с собой.' : null
+}
+
+export const validateRelationLinkDraft = (draft: RelationLinkDraft) => {
+  const sourceCharacterId = Number(draft.sourceCharacterId)
+  const targetCharacterId = Number(draft.targetCharacterId)
+
+  if (!Number.isInteger(sourceCharacterId) || sourceCharacterId <= 0) {
+    return 'Выберите первого персонажа связи.'
+  }
+
+  if (!Number.isInteger(targetCharacterId) || targetCharacterId <= 0) {
+    return 'Выберите второго персонажа связи.'
+  }
+
+  if (sourceCharacterId === targetCharacterId) {
+    return 'Персонажа нельзя связать с самим собой.'
+  }
+
+  const relationTypeError = validateRequiredName(draft.relationType, 'тип связи')
+  if (relationTypeError !== null) {
+    return relationTypeError
+  }
+
+  const strength = parseOptionalNumber(draft.strength)
+  const tension = parseOptionalNumber(draft.tension)
+
+  if (strength === null || Number.isNaN(strength) || strength < 0 || strength > 100) {
+    return 'Сила связи должна быть числом от 0 до 100.'
+  }
+
+  if (tension === null || Number.isNaN(tension) || tension < 0 || tension > 100) {
+    return 'Напряжение должно быть числом от 0 до 100.'
+  }
+
+  return validateOptionalText(draft.description, 'Описание связи', 1000)
 }
 

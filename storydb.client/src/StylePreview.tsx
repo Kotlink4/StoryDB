@@ -87,6 +87,7 @@ import { ObjectEditor } from './components/ObjectEditor'
 import { ProfileSummaryDialog } from './components/ProfileSummaryDialog'
 import { ProjectDialog, type ProjectDialogTab } from './components/ProjectDialog'
 import { RelationDetail } from './components/RelationDetail'
+import { RelationLinkDialog } from './components/RelationLinkDialog'
 import {
   calculateRelationLayout,
   relationNodeHeight,
@@ -99,7 +100,6 @@ import {
   ObjectPortrait,
   PreviewDialog,
   SectionIcon,
-  type SectionIconName,
 } from './components/StylePreviewPrimitives'
 import { SettingsPage } from './components/StylePreviewSettingsPage'
 import { TimelineEventDetail } from './components/TimelineEventDetail'
@@ -114,12 +114,23 @@ import {
 } from './stylePreviewI18n'
 import {
   buildStylePreviewPath,
-  isStylePreviewObjectSection,
   parseStylePreviewPath,
   previewRouteBase,
   type PreviewSection,
   type PreviewTab,
 } from './stylePreviewRouting'
+import {
+  emptyAttributeDefinitionDraft,
+  emptyCatalogFieldDraft,
+  emptyTimelineEventDraft,
+  fallbackObjectTypes,
+  getProjectObjectTypeKeys,
+  isObjectSection,
+  isPreviewObjectSection,
+  objectSections,
+  type PreviewDialogKind,
+} from './stylePreviewConfig'
+import { toTimelineEventDraft } from './stylePreviewTimelineDrafts'
 import { readPreviewState, savePreviewState } from './stylePreviewStateStorage'
 import type {
   DetailMode,
@@ -152,6 +163,7 @@ import type {
   ObjectTypeKey,
   RelationGraph,
   RelationGraphLayout,
+  RelationLinkDraft,
   StoryObject,
   StoryProject,
   TimelineEvent,
@@ -175,98 +187,10 @@ import {
   validateObjectDraft,
   validateProfileDraft,
   validateProjectDraft,
+  validateRelationLinkDraft,
   validateTimelineLinkDraft,
 } from './validation'
 import './StylePreview.css'
-
-type PreviewDialogKind =
-  | 'auth'
-  | 'object'
-  | 'project'
-  | 'profile'
-  | 'detail'
-  | 'relationDetail'
-  | 'objectLegacy'
-  | 'confirmDeleteProject'
-  | 'confirmDeleteObject'
-  | 'attributeGroup'
-  | 'confirmDeleteAttribute'
-  | 'confirmDeleteAttributeGroup'
-  | 'catalog'
-  | 'catalogGroup'
-  | 'confirmDeleteCatalog'
-  | 'confirmDeleteCatalogGroup'
-  | 'catalogEntry'
-  | 'catalogEntryDetail'
-  | 'confirmDeleteCatalogEntry'
-  | 'timelineEvent'
-  | 'timelineEventDetail'
-  | 'timelineLink'
-  | 'confirmDeleteTimelineEvent'
-  | null
-
-const emptyAttributeDefinitionDraft: AttributeDefinitionDraft = {
-  name: '',
-  dataType: 'text',
-  groupName: '',
-  iconKey: '',
-  minValue: '',
-  maxValue: '',
-  unit: '',
-  optionsText: '',
-}
-
-const emptyCatalogFieldDraft: CatalogFieldDraft = {
-  name: '',
-  dataType: 'text',
-  isRequired: false,
-  minValue: '',
-  maxValue: '',
-  optionsText: '',
-  referenceCatalogId: '',
-}
-
-const emptyTimelineEventDraft: TimelineEventDraft = {
-  title: '',
-  eventType: 'point',
-  parentEventId: '',
-  description: '',
-  startLabel: '',
-  endLabel: '',
-  startValue: '',
-  endValue: '',
-  category: '',
-  color: '',
-  imagePath: null,
-  participants: [],
-  changes: [],
-}
-
-const objectSections: Array<{
-  key: ObjectTypeKey
-  labelKey: 'characters' | 'items' | 'places' | 'organizations'
-  icon: SectionIconName
-}> = [
-  { key: 'characters', labelKey: 'characters', icon: 'characters' },
-  { key: 'items', labelKey: 'items', icon: 'items' },
-  { key: 'places', labelKey: 'places', icon: 'places' },
-  { key: 'organizations', labelKey: 'organizations', icon: 'organizations' },
-]
-
-const defaultProjectObjectTypeKeys: ObjectTypeKey[] = ['characters', 'items', 'places', 'organizations']
-const normalizeProjectObjectTypeKeys = (keys: ObjectTypeKey[]) => {
-  const uniqueKeys = new Set(keys.filter((key): key is ObjectTypeKey => defaultProjectObjectTypeKeys.includes(key)))
-
-  return defaultProjectObjectTypeKeys.filter((key) => uniqueKeys.has(key))
-}
-
-
-const fallbackObjectTypes: ObjectTypeKey[] = ['characters', 'items', 'places', 'organizations']
-
-const isObjectSection = (section: PreviewSection): section is ObjectTypeKey =>
-  section !== 'attributes' && section !== 'catalogs'
-
-const isPreviewObjectSection = isStylePreviewObjectSection
 
 export function StylePreview() {
   const location = useLocation()
@@ -415,6 +339,15 @@ export function StylePreview() {
     sourceEventId: '',
     targetEventId: '',
     linkType: 'precedes',
+    description: '',
+  })
+  const [relationLinkDraft, setRelationLinkDraft] = useState<RelationLinkDraft>({
+    sourceCharacterId: '',
+    targetCharacterId: '',
+    relationType: '',
+    strength: '50',
+    tension: '0',
+    isBidirectional: true,
     description: '',
   })
   const [isLoading, setIsLoading] = useState(true)
@@ -1077,15 +1010,6 @@ export function StylePreview() {
     navigate(previewRouteBase)
   }
 
-  const getProjectObjectTypeKeys = (project: StoryProject | null) =>
-    project === null
-      ? [...defaultProjectObjectTypeKeys]
-      : normalizeProjectObjectTypeKeys(
-          project.objectTypes
-            .filter((objectType) => objectType.isEnabled)
-            .map((objectType) => objectType.key),
-        )
-
   const resetProjectForm = () => {
     setEditingProjectId(null)
     setProjectName('')
@@ -1647,6 +1571,8 @@ export function StylePreview() {
     const section = activeSection
     const objectId = editingObjectId
     const previousObject = selectedObject
+    const selectedObjectIdBeforeSave = selectedObjectId
+    const shouldSelectSavedObject = objectId !== null && selectedObjectIdBeforeSave === objectId
     const timelineParticipationsToSave = draftTimelineParticipations
 
     if (saveObjectAsTimelineChange) {
@@ -1776,7 +1702,9 @@ export function StylePreview() {
           ? [optimisticObject, ...currentObjects]
           : currentObjects.map((storyObject) => (storyObject.id === optimisticObject.id ? optimisticObject : storyObject)),
       )
-      setSelectedObjectId(optimisticObject.id)
+      if (shouldSelectSavedObject) {
+        setSelectedObjectId(optimisticObject.id)
+      }
       setDialog(null)
       resetObjectForm()
     }
@@ -1841,8 +1769,16 @@ export function StylePreview() {
           ? currentObjects.map((storyObject) => (storyObject.id === temporaryObjectId ? mergeSavedSummary(storyObject) : storyObject))
           : currentObjects.map((storyObject) => (storyObject.id === saved.id ? mergeSavedSummary(storyObject) : storyObject)),
       )
-      setSelectedObjectId(saved.id)
-      navigateToPreview(projectId, 'database', section, saved.id)
+      if (shouldSelectSavedObject) {
+        setSelectedObjectId(saved.id)
+        navigateToPreview(projectId, 'database', section, saved.id)
+      } else {
+        navigateToPreview(projectId, 'database', section, selectedObjectIdBeforeSave)
+      }
+      if (optimisticObject === null) {
+        setDialog(null)
+        resetObjectForm()
+      }
       try {
         await syncObjectTimelineParticipations(projectId, saved.id, timelineParticipationsToSave)
       } catch {
@@ -2650,34 +2586,6 @@ export function StylePreview() {
     }
   }
 
-  const toTimelineEventDraft = (event: TimelineEvent): TimelineEventDraft => ({
-    title: event.title,
-    eventType: event.eventType,
-    parentEventId: event.parentEventId === null ? '' : String(event.parentEventId),
-    description: event.description ?? '',
-    startLabel: event.startLabel ?? '',
-    endLabel: event.endLabel ?? '',
-    startValue: event.startValue === null ? '' : String(event.startValue),
-    endValue: event.endValue === null ? '' : String(event.endValue),
-    category: event.category ?? '',
-    color: event.color ?? '',
-    imagePath: event.imagePath,
-    participants: event.participants.map((participant) => ({
-      targetType: participant.targetType,
-      targetId: String(participant.targetId),
-      role: participant.role ?? '',
-    })),
-    changes: event.changes.map((change) => ({
-      changeType: change.changeType,
-      targetType: change.targetType,
-      targetId: String(change.targetId),
-      fieldName: change.fieldName ?? change.fieldKey ?? '',
-      oldValue: change.oldValueJson ?? '',
-      newValue: change.newValueJson ?? '',
-      notes: change.notes ?? '',
-    })),
-  })
-
   const openTimelineEventEditor = (event: TimelineEvent | null = null) => {
     setEditingTimelineEventId(event?.id ?? null)
     setTimelineDraft(event === null ? emptyTimelineEventDraft : toTimelineEventDraft(event))
@@ -2836,6 +2744,113 @@ export function StylePreview() {
       setDialog(null)
     } catch {
       showErrorMessage(messages.relationLinkCreateFailed)
+    }
+  }
+
+  const saveCharacterRelationLink = async () => {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    const validationMessage = validateRelationLinkDraft(relationLinkDraft)
+    if (validationMessage !== null) {
+      showErrorMessage(validationMessage)
+      return
+    }
+
+    const projectId = selectedProjectId
+    const sourceCharacterId = Number(relationLinkDraft.sourceCharacterId)
+    const targetCharacterId = Number(relationLinkDraft.targetCharacterId)
+
+    try {
+      const sourceObject = await fetchObject(projectId, sourceCharacterId)
+      const existingRelationships: DraftCharacterRelationship[] = [
+        ...sourceObject.outgoingCharacterRelationships.map((relationship) => ({
+          id: relationship.id,
+          sourceCharacterId: String(sourceObject.id),
+          targetCharacterId: String(relationship.character.id),
+          relationType: relationship.relationType,
+          strength: String(relationship.strength),
+          tension: String(relationship.tension),
+          isBidirectional: relationship.isBidirectional,
+          description: relationship.description ?? '',
+          direction: 'outgoing' as const,
+        })),
+        ...sourceObject.incomingCharacterRelationships.map((relationship) => ({
+          id: relationship.id,
+          sourceCharacterId: String(relationship.character.id),
+          targetCharacterId: String(sourceObject.id),
+          relationType: relationship.relationType,
+          strength: String(relationship.strength),
+          tension: String(relationship.tension),
+          isBidirectional: relationship.isBidirectional,
+          description: relationship.description ?? '',
+          direction: 'incoming' as const,
+        })),
+      ]
+      const savedObject = await updateObjectRequest(
+        projectId,
+        sourceObject.id,
+        sourceObject.name,
+        sourceObject.surname ?? '',
+        sourceObject.description ?? '',
+        sourceObject.age ?? '',
+        sourceObject.role ?? '',
+        sourceObject.imagePath,
+        sourceObject.attributes.map((attribute) => ({
+          name: attribute.name,
+          value: attribute.value ?? '',
+        })),
+        sourceObject.hierarchySelections.map((selection) => ({
+          groupId: selection.groupId,
+          nodeIds: selection.nodes.map((node) => node.id),
+        })),
+        sourceObject.catalogSelections.map((selection) => ({
+          targetType: selection.targetType,
+          catalogId: String(selection.catalogId),
+          catalogEntryGroupId:
+            selection.catalogEntryGroupId === null ? '' : String(selection.catalogEntryGroupId),
+          catalogEntryId: selection.catalogEntryId === null ? '' : String(selection.catalogEntryId),
+        })),
+        sourceObject.ownedItems.map((item) => item.id),
+        sourceObject.owners.map((owner) => owner.id),
+        sourceObject.territoryPlaces.map((place) => place.id),
+        sourceObject.ownerOrganizations.map((organization) => organization.id),
+        sourceObject.hierarchyParents.map((parent) => parent.id),
+        [
+          ...existingRelationships,
+          {
+            id: null,
+            sourceCharacterId: String(sourceCharacterId),
+            targetCharacterId: String(targetCharacterId),
+            relationType: relationLinkDraft.relationType.trim(),
+            strength: relationLinkDraft.strength,
+            tension: relationLinkDraft.tension,
+            isBidirectional: relationLinkDraft.isBidirectional,
+            description: relationLinkDraft.description,
+            direction: 'outgoing' as const,
+          },
+        ],
+      )
+      const graph = await fetchRelationGraph(projectId)
+
+      setObjects((currentObjects) =>
+        currentObjects.map((storyObject) => (storyObject.id === savedObject.id ? savedObject : storyObject)),
+      )
+      setRelationGraph(graph)
+      setRelationGraphLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+      setRelationLinkDraft({
+        sourceCharacterId: '',
+        targetCharacterId: '',
+        relationType: '',
+        strength: '50',
+        tension: '0',
+        isBidirectional: true,
+        description: '',
+      })
+      setDialog(null)
+    } catch {
+      showErrorMessage(messages.characterRelationshipCreateFailed)
     }
   }
 
@@ -3061,6 +3076,7 @@ export function StylePreview() {
           objects={linkableObjects}
           selectedEdgeId={selectedRelationEdgeId}
           ui={ui}
+          onCreateRelation={() => setDialog('relationLink')}
           onGenerateLayout={() => void generateRelationGraphLayout()}
           onSaveNodePosition={(storyObjectId, position) => void saveRelationGraphNodePosition(storyObjectId, position)}
           onSelectEdge={openRelationDetail}
@@ -4372,6 +4388,17 @@ export function StylePreview() {
           onCancel={() => setDialog(null)}
           onDraftChange={setTimelineLinkDraft}
           onSave={() => void saveTimelineLink()}
+        />
+      )}
+
+      {dialog === 'relationLink' && (
+        <RelationLinkDialog
+          characters={objectsByType.characters}
+          draft={relationLinkDraft}
+          ui={ui}
+          onCancel={() => setDialog(null)}
+          onDraftChange={setRelationLinkDraft}
+          onSave={() => void saveCharacterRelationLink()}
         />
       )}
 

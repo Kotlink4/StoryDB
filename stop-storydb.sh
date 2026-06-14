@@ -25,7 +25,17 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
+COMPOSE_FILE="${STORYDB_COMPOSE_FILE:-docker-compose.prod.yml}"
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+  COMPOSE_FILE="docker-compose.yml"
+fi
+
+compose_stack() {
+  compose -f "$COMPOSE_FILE" "$@"
+}
+
 echo "Stopping StoryDB Docker stack..."
-compose down
+echo "Using compose file: $COMPOSE_FILE"
+compose_stack down
 
 echo "StoryDB is stopped. PostgreSQL and uploads volumes were kept."

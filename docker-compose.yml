@@ -32,17 +32,17 @@
     ports:
       - "${API_HOST_PORT:-5282}:5282"
     volumes:
-      - storydb_uploads:/app/uploads
-      - storydb_dataprotection:/root/.aspnet/DataProtection-Keys
-      - storydb_logs:/app/logs
+      - ${STORYDB_UPLOADS_PATH:-./data/uploads}:/app/uploads
+      - ${STORYDB_DATAPROTECTION_PATH:-./data/dataprotection}:/root/.aspnet/DataProtection-Keys
+      - ${STORYDB_LOGS_PATH:-./data/logs}:/app/logs
 
   client:
     build:
       context: .
       dockerfile: storydb.client/Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5282/api}
-        VITE_ASSET_BASE_URL: ${VITE_ASSET_BASE_URL:-http://localhost:5282}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_ASSET_BASE_URL: ${VITE_ASSET_BASE_URL:-}
     container_name: storydb-client
     depends_on:
       - api
@@ -51,7 +51,4 @@
 
 volumes:
   storydb_postgres_data:
-  storydb_uploads:
-  storydb_dataprotection:
-  storydb_logs:
 

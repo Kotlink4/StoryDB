@@ -559,8 +559,8 @@ export function ObjectEditor({
               </button>
               {draftCharacterRelationships.map((relationship, index) => (
                 <section className="sp-editor-block sp-relationship-editor" key={`${relationship.id ?? 'new'}-${index}`}>
-                  <div className="sp-editor-row multi">
-                    <label>
+                  <div className="sp-relationship-grid">
+                    <label className="sp-relationship-field">
                       {ui.relationDirection}
                       <select
                         value={relationship.direction}
@@ -574,7 +574,7 @@ export function ObjectEditor({
                         </option>
                       </select>
                     </label>
-                    <label>
+                    <label className="sp-relationship-field">
                       {ui.character}
                       <select
                         value={getRelationshipCharacterId(relationship)}
@@ -588,7 +588,7 @@ export function ObjectEditor({
                         ))}
                       </select>
                     </label>
-                    <label>
+                    <label className="sp-relationship-field">
                       {ui.relationType}
                       <input
                         placeholder={ui.relationTypePlaceholder}
@@ -597,6 +597,7 @@ export function ObjectEditor({
                       />
                     </label>
                     <button
+                      className="sp-relationship-delete"
                       type="button"
                       onClick={() =>
                         onDraftCharacterRelationshipsChange(
@@ -607,8 +608,8 @@ export function ObjectEditor({
                       {ui.delete}
                     </button>
                   </div>
-                  <div className="sp-editor-row multi">
-                    <label>
+                  <div className="sp-relationship-stats">
+                    <label className="sp-relationship-field">
                       {ui.relationStrength}
                       <input
                         min={0}
@@ -618,7 +619,7 @@ export function ObjectEditor({
                         onChange={(event) => updateRelationship(index, { strength: event.target.value })}
                       />
                     </label>
-                    <label>
+                    <label className="sp-relationship-field">
                       {ui.relationTension}
                       <input
                         min={0}
@@ -628,7 +629,7 @@ export function ObjectEditor({
                         onChange={(event) => updateRelationship(index, { tension: event.target.value })}
                       />
                     </label>
-                    <label className="sp-checkline">
+                    <label className="sp-checkline sp-relationship-toggle">
                       <input
                         checked={relationship.isBidirectional}
                         type="checkbox"
@@ -637,7 +638,7 @@ export function ObjectEditor({
                       {ui.relationBidirectional}
                     </label>
                   </div>
-                  <label>
+                  <label className="sp-relationship-description">
                     {ui.relationDescription}
                     <textarea
                       value={relationship.description}

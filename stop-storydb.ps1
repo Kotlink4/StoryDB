@@ -29,7 +29,13 @@ function Invoke-Compose {
 
 Set-Location $root
 
+$composeFile = if ($env:STORYDB_COMPOSE_FILE) { $env:STORYDB_COMPOSE_FILE } else { 'docker-compose.prod.yml' }
+if (-not (Test-Path (Join-Path $root $composeFile))) {
+    $composeFile = 'docker-compose.yml'
+}
+
 Write-Host 'Stopping StoryDB Docker stack...'
-Invoke-Compose down
+Write-Host "Using compose file: $composeFile"
+Invoke-Compose -f $composeFile down
 
 Write-Host 'StoryDB is stopped. PostgreSQL and uploads volumes were kept.'

@@ -593,6 +593,7 @@ export function RelationsPage({
   objects,
   selectedEdgeId,
   ui,
+  onCreateRelation,
   onGenerateLayout,
   onSaveNodePosition,
   onSelectEdge,
@@ -604,6 +605,7 @@ export function RelationsPage({
   objects: StoryObject[]
   selectedEdgeId: string | null
   ui: PreviewText
+  onCreateRelation: () => void
   onGenerateLayout: () => void
   onSaveNodePosition: (storyObjectId: number, position: { x: number; y: number }) => void
   onSelectEdge: (edgeId: string) => void
@@ -655,6 +657,14 @@ export function RelationsPage({
           </p>
         </div>
         <div className="sp-relations-overlay-actions">
+          <button
+            className="sp-button"
+            type="button"
+            disabled={objects.filter((storyObject) => storyObject.typeKey === 'characters').length < 2}
+            onClick={onCreateRelation}
+          >
+            {ui.linkCharacters}
+          </button>
           <button
             className="sp-button"
             type="button"

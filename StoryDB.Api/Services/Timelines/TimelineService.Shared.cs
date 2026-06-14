@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Contracts.Timelines;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
@@ -9,6 +9,9 @@ using System.Text.Json.Serialization;
 namespace StoryDB.Api.Services.Timelines;
 public partial class TimelineService
 {
+    private const string DefaultTimelineName = "Основной таймлайн";
+    private const string LegacyDefaultTimelineName = "РћСЃРЅРѕРІРЅРѕР№ С‚Р°Р№РјР»Р°Р№РЅ";
+
     private async Task<Timeline?> EnsureDefaultTimeline(int projectId)
     {
         if (!await dbContext.Projects.AnyAsync(project => project.Id == projectId))
@@ -16,28 +19,43 @@ public partial class TimelineService
             return null;
         }
 
-        var timeline = await dbContext.Timelines
-            .FirstOrDefaultAsync(currentTimeline => currentTimeline.ProjectId == projectId && currentTimeline.IsDefault);
+        var timeline = await FindDefaultTimeline(projectId);
         if (timeline is not null)
         {
+            if (!timeline.IsDefault)
+            {
+                timeline.IsDefault = true;
+                timeline.UpdatedAt = DateTime.UtcNow;
+                await dbContext.SaveChangesAsync();
+            }
+
             return timeline;
         }
 
         var now = DateTime.UtcNow;
-        timeline = new Timeline
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "Timelines" ("CreatedAt", "IsDefault", "Mode", "Name", "ProjectId", "SortOrder", "UpdatedAt")
+            VALUES ({now}, {true}, {"chapters"}, {DefaultTimelineName}, {projectId}, {10}, {now})
+            ON CONFLICT ("ProjectId", "Name") DO NOTHING
+            """);
+
+        timeline = await FindDefaultTimeline(projectId);
+        if (timeline is null)
         {
-            ProjectId = projectId,
-            Name = "РћСЃРЅРѕРІРЅРѕР№ С‚Р°Р№РјР»Р°Р№РЅ",
-            Mode = "chapters",
-            IsDefault = true,
-            SortOrder = 10,
-            CreatedAt = now,
-            UpdatedAt = now,
-        };
-        dbContext.Timelines.Add(timeline);
-        await dbContext.SaveChangesAsync();
+            throw new InvalidOperationException($"Could not create or load default timeline for project {projectId}.");
+        }
 
         return timeline;
+    }
+
+    private async Task<Timeline?> FindDefaultTimeline(int projectId)
+    {
+        return await dbContext.Timelines
+            .FirstOrDefaultAsync(currentTimeline =>
+                currentTimeline.ProjectId == projectId &&
+                (currentTimeline.IsDefault ||
+                 currentTimeline.Name == DefaultTimelineName ||
+                 currentTimeline.Name == LegacyDefaultTimelineName));
     }
 
     private async Task<TimelineEventDto?> GetTimelineEventDto(int projectId, int eventId)
@@ -67,7 +85,7 @@ public partial class TimelineService
         timelineEvent.GalleryImages.Add(new TimelineEventGalleryImage
         {
             ImagePath = imagePath,
-            Caption = "РћР±Р»РѕР¶РєР°",
+            Caption = "Обложка",
             SortOrder = sortOrder + 10,
             CreatedAt = now,
             UpdatedAt = now,

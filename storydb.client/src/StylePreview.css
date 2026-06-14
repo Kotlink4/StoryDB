@@ -1226,7 +1226,11 @@
 }
 
 .sp-relations-overlay-actions {
+  display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .sp-relations-legend {
@@ -3409,6 +3413,15 @@
     grid-template-columns: 1fr;
   }
 
+  .sp-relationship-grid,
+  .sp-relationship-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-relationship-delete {
+    width: 100%;
+  }
+
   .sp-timeline-overlay-head {
     right: 12px;
     left: 12px;
@@ -3569,6 +3582,69 @@
   border-radius: 18px;
   background: var(--sp-soft);
   padding: 12px;
+}
+
+.sp-relationship-editor {
+  gap: 14px;
+  padding: 14px;
+}
+
+.sp-relationship-grid,
+.sp-relationship-stats {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+}
+
+.sp-relationship-grid {
+  grid-template-columns: minmax(150px, 1fr) minmax(190px, 1.35fr) minmax(160px, 1fr) auto;
+}
+
+.sp-relationship-stats {
+  grid-template-columns: minmax(110px, 140px) minmax(110px, 140px) minmax(180px, 1fr);
+}
+
+.sp-relationship-field,
+.sp-relationship-description {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sp-relationship-field input,
+.sp-relationship-field select,
+.sp-relationship-description textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--sp-line);
+  border-radius: 13px;
+  background: var(--sp-control);
+  color: var(--sp-ink);
+}
+
+.sp-relationship-field input,
+.sp-relationship-field select {
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.sp-relationship-description textarea {
+  min-height: 88px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.sp-relationship-toggle {
+  min-height: 38px;
+  color: var(--sp-ink);
+}
+
+.sp-relationship-delete {
+  min-width: 112px;
+  align-self: end;
 }
 
 .sp-checkbox-grid {

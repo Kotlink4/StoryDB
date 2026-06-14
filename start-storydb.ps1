@@ -43,15 +43,35 @@ function Invoke-Compose {
 
 Set-Location $root
 
+$composeFile = if ($env:STORYDB_COMPOSE_FILE) { $env:STORYDB_COMPOSE_FILE } else { 'docker-compose.prod.yml' }
+if (-not (Test-Path (Join-Path $root $composeFile))) {
+    $composeFile = 'docker-compose.yml'
+}
+
+$uploadsPath = if ($env:STORYDB_UPLOADS_PATH) { $env:STORYDB_UPLOADS_PATH } else { Join-Path $root 'data\uploads' }
+$dataProtectionPath = if ($env:STORYDB_DATAPROTECTION_PATH) { $env:STORYDB_DATAPROTECTION_PATH } else { Join-Path $root 'data\dataprotection' }
+$logsPath = if ($env:STORYDB_LOGS_PATH) { $env:STORYDB_LOGS_PATH } else { Join-Path $root 'data\logs' }
+
+New-Item -ItemType Directory -Force -Path $uploadsPath, $dataProtectionPath, $logsPath | Out-Null
+
 Write-Host 'Stopping old StoryDB Docker stack...'
-Invoke-Compose down
+Invoke-Compose -f $composeFile down
+
+Write-Host 'Removing stale StoryDB containers...'
+docker rm -f storydb-client storydb-api storydb-postgres 2>$null | Out-Null
 
 Write-Host 'Stopping old host StoryDB processes...'
 Stop-PortProcess -Port 5282
 Stop-PortProcess -Port 50201
 
 Write-Host 'Starting StoryDB Docker stack...'
-Invoke-Compose up -d --build
+Write-Host "Using compose file: $composeFile"
+if ($composeFile -like '*prod*') {
+    Invoke-Compose -f $composeFile pull
+    Invoke-Compose -f $composeFile up -d
+} else {
+    Invoke-Compose -f $composeFile up -d --build
+}
 
 Write-Host ''
 Write-Host 'StoryDB is running in Docker.'

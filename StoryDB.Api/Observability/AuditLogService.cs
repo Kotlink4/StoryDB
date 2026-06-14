@@ -29,11 +29,20 @@ public sealed class AuditLogService(StoryDbContext dbContext) : IAuditLogService
             ["origin"] = context.Request.Headers.Origin.ToString(),
         };
 
+        var projectId = RequestObservation.GetProjectId(context);
+        if (projectId.HasValue &&
+            !await dbContext.Projects
+                .AsNoTracking()
+                .AnyAsync(project => project.Id == projectId.Value, cancellationToken))
+        {
+            projectId = null;
+        }
+
         var auditLog = new AuditLog
         {
             CreatedAt = DateTime.UtcNow,
             UserId = RequestObservation.GetUserId(context),
-            ProjectId = RequestObservation.GetProjectId(context),
+            ProjectId = projectId,
             TraceId = traceId,
             Action = ResolveAction(context),
             HttpMethod = context.Request.Method,

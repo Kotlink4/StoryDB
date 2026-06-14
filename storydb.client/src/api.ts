@@ -887,7 +887,16 @@ export const fetchTimelineLayout = async (projectId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/timeline/layout`)
   await ensureOk(response, 'Failed to load timeline layout.')
 
-  return (await response.json()) as TimelineLayout | null
+  if (response.status === 204) {
+    return null
+  }
+
+  const body = await response.text()
+  if (body.trim().length === 0) {
+    return null
+  }
+
+  return JSON.parse(body) as TimelineLayout | null
 }
 
 export const fetchTimelineLayoutRules = async (projectId: number) => {

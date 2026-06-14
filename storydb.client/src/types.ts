@@ -168,6 +168,16 @@ export type DraftCharacterRelationship = {
   direction: 'outgoing' | 'incoming'
 }
 
+export type RelationLinkDraft = {
+  sourceCharacterId: string
+  targetCharacterId: string
+  relationType: string
+  strength: string
+  tension: string
+  isBidirectional: boolean
+  description: string
+}
+
 export type ObjectAttribute = {
   id: number
   attributeDefinitionId: number
