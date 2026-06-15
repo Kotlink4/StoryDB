@@ -21,6 +21,7 @@ type TopbarHandlerKeys =
   | 'onNavigateTab'
   | 'onOpenProfile'
   | 'onOpenSettings'
+  | 'showWorkspaceTabs'
   | 'onToggleSettingsMenu'
 
 type ProjectbarHandlerKeys =
@@ -44,7 +45,9 @@ type SidebarHandlerKeys =
   | 'onSelectCatalogGroup'
 
 type DetailPanelHandlerKeys =
+  | 'onCloseObject'
   | 'onCloseRelationEdge'
+  | 'onCloseRelationObject'
   | 'onCloseTimelineEvent'
   | 'onDeleteCatalogEntry'
   | 'onDeleteRelationObject'
@@ -93,6 +96,7 @@ export function useStylePreviewLayoutProps({
     setPendingDeleteCatalogEntryId: Dispatch<SetStateAction<number | null>>
     setSelectedObjectId: Dispatch<SetStateAction<number | null>>
     setSelectedRelationEdgeId: Dispatch<SetStateAction<string | null>>
+    setSelectedRelationObjectId: Dispatch<SetStateAction<number | null>>
     setSelectedTimelineEventId: Dispatch<SetStateAction<number | null>>
   }
   isLoading: boolean
@@ -153,7 +157,9 @@ export function useStylePreviewLayoutProps({
     activeTab,
     detailPanelsProps: {
       ...detailPanels,
+      onCloseObject: () => detailPanelHandlers.setSelectedObjectId(null),
       onCloseRelationEdge: () => detailPanelHandlers.setSelectedRelationEdgeId(null),
+      onCloseRelationObject: () => detailPanelHandlers.setSelectedRelationObjectId(null),
       onCloseTimelineEvent: () => detailPanelHandlers.setSelectedTimelineEventId(null),
       onDeleteCatalogEntry: (entry) => {
         detailPanelHandlers.setPendingDeleteCatalogEntryId(entry.id)
@@ -216,6 +222,7 @@ export function useStylePreviewLayoutProps({
     toastTone,
     topbarProps: {
       ...topbar,
+      showWorkspaceTabs: !isProfilePageOpen,
       onCreateObject: topbarHandlers.openCreateObjectDialog,
       onLogin: () => setDialog('auth'),
       onLogout: () => void topbarHandlers.logout(),

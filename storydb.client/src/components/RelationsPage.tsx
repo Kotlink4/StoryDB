@@ -289,6 +289,7 @@ export function RelationsPage({
         <aside className="sp-relations-legend">
           <strong>{ui.relations}</strong>
           <span className="sp-legend-line character">{ui.relationCharacters}</span>
+          <span className="sp-legend-line membership">{ui.relationMembership}</span>
           <span className="sp-legend-line ownership">{ui.relationOwnership}</span>
           <span className="sp-legend-line object">{ui.relationObject}</span>
           <p>{ui.relationHelp}</p>

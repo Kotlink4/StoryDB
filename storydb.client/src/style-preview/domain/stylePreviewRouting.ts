@@ -2,7 +2,7 @@ import type { ObjectTypeKey } from '../../types'
 
 export type PreviewTab = 'database' | 'relations' | 'timeline'
 export type UtilityPage = 'profile' | 'settings' | null
-export type PreviewSection = ObjectTypeKey | 'attributes' | 'catalogs'
+export type PreviewSection = ObjectTypeKey | 'attributes' | 'catalogs' | 'structures'
 
 export const previewRouteBase = '/style-preview'
 
@@ -40,6 +40,10 @@ export const buildStylePreviewPath = (
 
   if (section === 'attributes') {
     return `${previewRouteBase}/projects/${projectId}/attributes`
+  }
+
+  if (section === 'structures') {
+    return `${previewRouteBase}/projects/${projectId}/structures`
   }
 
   const sectionPath = `${previewRouteBase}/projects/${projectId}/database/${section}`
@@ -92,6 +96,17 @@ export const parseStylePreviewPath = (pathname: string) => {
   if (routeKind === 'attributes') {
     return {
       activeSection: 'attributes' as PreviewSection,
+      activeTab: 'database' as PreviewTab,
+      catalogId: null,
+      objectId: null,
+      projectId,
+      utilityPage: null,
+    }
+  }
+
+  if (routeKind === 'structures') {
+    return {
+      activeSection: 'structures' as PreviewSection,
       activeTab: 'database' as PreviewTab,
       catalogId: null,
       objectId: null,

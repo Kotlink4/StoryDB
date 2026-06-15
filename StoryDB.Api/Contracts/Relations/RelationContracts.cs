@@ -8,6 +8,7 @@ public record RelationGraphNodeDto(
     int Id,
     string Name,
     string? Surname,
+    string? SurnameForm,
     string? ImagePath,
     string TypeKey);
 

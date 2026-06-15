@@ -921,6 +921,90 @@ namespace StoryDB.Api.Migrations
                     b.ToTable("ObjectTypes");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureLevel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("OrganizationObjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationObjectId", "SortOrder");
+
+                    b.ToTable("OrganizationStructureLevels");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureSlot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("IconKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("OrganizationStructureLevelId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SlotType")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationStructureLevelId", "SortOrder");
+
+                    b.ToTable("OrganizationStructureSlots");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Project", b =>
                 {
                     b.Property<int>("Id")
@@ -1079,6 +1163,10 @@ namespace StoryDB.Api.Migrations
                     b.Property<string>("Surname")
                         .HasColumnType("text");
 
+                    b.Property<string>("SurnameForm")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1158,6 +1246,280 @@ namespace StoryDB.Api.Migrations
                     b.HasIndex("StoryObjectId", "SortOrder");
 
                     b.ToTable("StoryObjectHierarchySelections");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.Structure", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("LayoutKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int?>("LinkedCatalogId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("NodeBindingMode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int?>("OwnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OwnerKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LinkedCatalogId");
+
+                    b.HasIndex("ProjectId", "Name");
+
+                    b.HasIndex("ProjectId", "OwnerKind", "OwnerId");
+
+                    b.ToTable("Structures");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureAssignment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RoleLabel")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StoryObjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StructureNodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StructureUsageId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StoryObjectId");
+
+                    b.HasIndex("StructureNodeId");
+
+                    b.HasIndex("ProjectId", "StoryObjectId");
+
+                    b.HasIndex("StructureUsageId", "StructureNodeId", "SortOrder");
+
+                    b.HasIndex("StructureUsageId", "StructureNodeId", "StoryObjectId")
+                        .IsUnique();
+
+                    b.ToTable("StructureAssignments");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureEdge", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("RelationType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SourceNodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StructureId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TargetNodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TargetNodeId");
+
+                    b.HasIndex("StructureId", "SortOrder");
+
+                    b.HasIndex("SourceNodeId", "TargetNodeId", "RelationType");
+
+                    b.ToTable("StructureEdges");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureNode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("IconKey")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("LevelIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LinkedCatalogEntryGroupId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LinkedCatalogEntryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("NodeType")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int?>("ParentNodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StructureId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LinkedCatalogEntryGroupId");
+
+                    b.HasIndex("LinkedCatalogEntryId");
+
+                    b.HasIndex("ParentNodeId");
+
+                    b.HasIndex("StructureId", "LevelIndex", "SortOrder");
+
+                    b.ToTable("StructureNodes");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureUsage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StructureId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "TargetKind", "TargetId");
+
+                    b.HasIndex("StructureId", "TargetKind", "TargetId");
+
+                    b.HasIndex("ProjectId", "TargetKind", "TargetId", "StructureId")
+                        .IsUnique();
+
+                    b.ToTable("StructureUsages");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Timeline", b =>
@@ -1927,6 +2289,28 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureLevel", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.StoryObject", "OrganizationObject")
+                        .WithMany("OrganizationStructureLevels")
+                        .HasForeignKey("OrganizationObjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OrganizationObject");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureSlot", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.OrganizationStructureLevel", "OrganizationStructureLevel")
+                        .WithMany("Slots")
+                        .HasForeignKey("OrganizationStructureLevelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OrganizationStructureLevel");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Project", b =>
                 {
                     b.HasOne("StoryDB.Api.Data.Entities.AppUser", "OwnerUser")
@@ -2052,6 +2436,137 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("HierarchyNode");
 
                     b.Navigation("StoryObject");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.Structure", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.Catalog", "LinkedCatalog")
+                        .WithMany()
+                        .HasForeignKey("LinkedCatalogId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("StoryDB.Api.Data.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LinkedCatalog");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureAssignment", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.StoryObject", "StoryObject")
+                        .WithMany("StructureAssignments")
+                        .HasForeignKey("StoryObjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.StructureNode", "StructureNode")
+                        .WithMany("Assignments")
+                        .HasForeignKey("StructureNodeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.StructureUsage", "StructureUsage")
+                        .WithMany("Assignments")
+                        .HasForeignKey("StructureUsageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("StoryObject");
+
+                    b.Navigation("StructureNode");
+
+                    b.Navigation("StructureUsage");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureEdge", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.StructureNode", "SourceNode")
+                        .WithMany("OutgoingEdges")
+                        .HasForeignKey("SourceNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.Structure", "Structure")
+                        .WithMany("Edges")
+                        .HasForeignKey("StructureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.StructureNode", "TargetNode")
+                        .WithMany("IncomingEdges")
+                        .HasForeignKey("TargetNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SourceNode");
+
+                    b.Navigation("Structure");
+
+                    b.Navigation("TargetNode");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureNode", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.CatalogEntryGroup", "LinkedCatalogEntryGroup")
+                        .WithMany()
+                        .HasForeignKey("LinkedCatalogEntryGroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("StoryDB.Api.Data.Entities.CatalogEntry", "LinkedCatalogEntry")
+                        .WithMany()
+                        .HasForeignKey("LinkedCatalogEntryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("StoryDB.Api.Data.Entities.StructureNode", "ParentNode")
+                        .WithMany("ChildNodes")
+                        .HasForeignKey("ParentNodeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("StoryDB.Api.Data.Entities.Structure", "Structure")
+                        .WithMany("Nodes")
+                        .HasForeignKey("StructureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LinkedCatalogEntry");
+
+                    b.Navigation("LinkedCatalogEntryGroup");
+
+                    b.Navigation("ParentNode");
+
+                    b.Navigation("Structure");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureUsage", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.Structure", "Structure")
+                        .WithMany("Usages")
+                        .HasForeignKey("StructureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("Structure");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Timeline", b =>
@@ -2264,6 +2779,11 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("Objects");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureLevel", b =>
+                {
+                    b.Navigation("Slots");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Project", b =>
                 {
                     b.Navigation("ObjectTypes");
@@ -2292,6 +2812,8 @@ namespace StoryDB.Api.Migrations
 
                     b.Navigation("IncomingRelations");
 
+                    b.Navigation("OrganizationStructureLevels");
+
                     b.Navigation("OutgoingCharacterRelationships");
 
                     b.Navigation("OutgoingRelations");
@@ -2299,6 +2821,33 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("OwnedItems");
 
                     b.Navigation("Owners");
+
+                    b.Navigation("StructureAssignments");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.Structure", b =>
+                {
+                    b.Navigation("Edges");
+
+                    b.Navigation("Nodes");
+
+                    b.Navigation("Usages");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureNode", b =>
+                {
+                    b.Navigation("Assignments");
+
+                    b.Navigation("ChildNodes");
+
+                    b.Navigation("IncomingEdges");
+
+                    b.Navigation("OutgoingEdges");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.StructureUsage", b =>
+                {
+                    b.Navigation("Assignments");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Timeline", b =>

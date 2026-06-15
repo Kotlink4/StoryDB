@@ -23,12 +23,35 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
                 storyObject.Id,
                 storyObject.Name,
                 storyObject.Surname,
+                storyObject.SurnameForm,
                 storyObject.ImagePath,
                 storyObject.ObjectType!.Key))
             .ToListAsync();
 
         var nodeIds = nodes.Select(node => node.Id).ToHashSet();
         var edges = new List<RelationGraphEdgeDto>();
+        var automaticMemberships = nodes
+            .Where(node => node.TypeKey == "characters" && !string.IsNullOrWhiteSpace(node.Surname))
+            .SelectMany(character => nodes
+                .Where(node =>
+                    node.TypeKey == "organizations" &&
+                    !string.IsNullOrWhiteSpace(node.SurnameForm) &&
+                    string.Equals(
+                        character.Surname!.Trim(),
+                        node.SurnameForm!.Trim(),
+                        StringComparison.OrdinalIgnoreCase))
+                .Select(organization => new RelationGraphEdgeDto(
+                    $"membership:{character.Id}:{organization.Id}",
+                    character.Id,
+                    organization.Id,
+                    "organizationMembership",
+                    "membership",
+                    null,
+                    null,
+                    false,
+                    null)))
+            .ToList();
+        edges.AddRange(automaticMemberships);
 
         var characterRelationships = await dbContext.CharacterRelationships
             .AsNoTracking()

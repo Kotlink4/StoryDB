@@ -26,6 +26,7 @@ export function buildObjectTimelineChanges({
   objectName,
   objectRole,
   objectSurname,
+  objectSurnameForm,
   ownedItemIds,
   ownerCharacterIds,
   ownerOrganizationIds,
@@ -44,6 +45,7 @@ export function buildObjectTimelineChanges({
   objectName: string
   objectRole: string
   objectSurname: string
+  objectSurnameForm: string
   ownedItemIds: number[]
   ownerCharacterIds: number[]
   ownerOrganizationIds: number[]
@@ -79,6 +81,7 @@ export function buildObjectTimelineChanges({
 
   addChange('field', 'name', baseObject.name, objectName)
   addChange('field', 'surname', baseObject.surname, objectSurname)
+  addChange('field', 'surnameForm', baseObject.surnameForm, objectSurnameForm)
   addChange('field', 'description', baseObject.description, objectDescription)
   addChange('field', 'age', baseObject.age, objectAge)
   addChange('field', 'role', baseObject.role, objectRole)

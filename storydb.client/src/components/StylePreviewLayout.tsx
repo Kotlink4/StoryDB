@@ -9,6 +9,8 @@ import {
   StylePreviewTopbar,
 } from './StylePreviewShell'
 
+const clientBuildRevision = 'profile-loading-guard-2026-06-15'
+
 export function StylePreviewLayout({
   activeTab,
   children,
@@ -46,13 +48,21 @@ export function StylePreviewLayout({
   topbarProps: ComponentProps<typeof StylePreviewTopbar>
   onDismissToast: () => void
 }) {
+  const visualTabClass = isUtilityPage ? 'utility' : activeTab
+  const contentModeClass = !isUtilityPage && activeTab === 'timeline'
+    ? ' timeline-content'
+    : !isUtilityPage && activeTab === 'relations'
+      ? ' relations-content'
+      : ''
+
   return (
     <main
-      className={`style-preview theme-${previewTheme} tab-${activeTab}`}
+      className={`style-preview theme-${previewTheme} tab-${visualTabClass}${isUtilityPage ? ' is-utility-page' : ''}`}
+      data-build-revision={clientBuildRevision}
       lang={previewLanguage}
     >
       <div className="sp-shell">
-        <StylePreviewTopbar {...topbarProps} />
+        <StylePreviewTopbar {...topbarProps} activeTab={isUtilityPage ? null : topbarProps.activeTab} />
 
         <StylePreviewProjectbar {...projectbarProps} />
 
@@ -63,9 +73,7 @@ export function StylePreviewLayout({
         >
           {showSidebar && <StylePreviewSidebar {...sidebarProps} />}
 
-          <section
-            className={`sp-content${activeTab === 'timeline' ? ' timeline-content' : ''}${activeTab === 'relations' ? ' relations-content' : ''}`}
-          >
+          <section className={`sp-content${contentModeClass}`}>
             {isLoading ? <div className="sp-empty">{loadingLabel}</div> : content}
           </section>
 

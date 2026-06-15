@@ -1,4 +1,10 @@
-import { getObjectFullName } from '../style-preview/domain/objectDisplay'
+import type { ReactNode } from 'react'
+
+import { getObjectFullName, getOrganizationSurname } from '../style-preview/domain/objectDisplay'
+import {
+  getAutomaticOrganizationMembersBySurname,
+  getOrganizationMemberItems,
+} from '../style-preview/domain/organizationComposition'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { DraftTimelineParticipation, ObjectEditorTab } from '../style-preview/domain/stylePreviewUiTypes'
 import type {
@@ -41,6 +47,7 @@ export function ObjectEditor({
   objectName,
   objectRole,
   objectSurname,
+  objectSurnameForm,
   objectsByType,
   ownedItemIds,
   ownerCharacterIds,
@@ -64,6 +71,7 @@ export function ObjectEditor({
   onObjectNameChange,
   onObjectRoleChange,
   onObjectSurnameChange,
+  onObjectSurnameFormChange,
   onOwnedItemIdsChange,
   onOwnerCharacterIdsChange,
   onOwnerOrganizationIdsChange,
@@ -94,6 +102,7 @@ export function ObjectEditor({
   objectName: string
   objectRole: string
   objectSurname: string
+  objectSurnameForm: string
   objectsByType: Record<ObjectTypeKey, StoryObject[]>
   ownedItemIds: number[]
   ownerCharacterIds: number[]
@@ -117,6 +126,7 @@ export function ObjectEditor({
   onObjectNameChange: (value: string) => void
   onObjectRoleChange: (value: string) => void
   onObjectSurnameChange: (value: string) => void
+  onObjectSurnameFormChange: (value: string) => void
   onOwnedItemIdsChange: (ids: number[]) => void
   onOwnerCharacterIdsChange: (ids: number[]) => void
   onOwnerOrganizationIdsChange: (ids: number[]) => void
@@ -125,7 +135,16 @@ export function ObjectEditor({
   onTerritoryPlaceIdsChange: (ids: number[]) => void
   toggleNumberSelection: (values: number[], value: number) => number[]
 }) {
-  const allCatalogEntries = Object.values(catalogEntriesByCatalogId).flat()
+  const organizationSurnameOptions = Array.from(
+    objectsByType.organizations.reduce((options, organization) => {
+      const surname = getOrganizationSurname(organization)
+      if (surname.length > 0 && !options.has(surname)) {
+        options.set(surname, organization.name)
+      }
+
+      return options
+    }, new Map<string, string>()),
+  ).sort(([leftSurname], [rightSurname]) => leftSurname.localeCompare(rightSurname))
   const addAttribute = () => onDraftAttributesChange([...draftAttributes, { name: '', value: '' }])
   const addExistingAttribute = (definitionId: string) => {
     const definition = attributeDefinitions.find((item) => item.id === Number(definitionId))
@@ -233,6 +252,8 @@ export function ObjectEditor({
     )
   }
   const relationshipCharacters = objectsByType.characters.filter((character) => character.id !== editingObjectId)
+  const organizationMembers = getAutomaticOrganizationMembersBySurname(objectSurnameForm, objectsByType.characters)
+  const organizationMemberItems = getOrganizationMemberItems(organizationMembers)
   const getTimelineParticipation = (eventId: number) =>
     draftTimelineParticipations.find((participation) => participation.timelineEventId === String(eventId))
   const toggleTimelineParticipation = (eventId: number, isSelected: boolean) => {
@@ -300,19 +321,19 @@ export function ObjectEditor({
             <>
               <label>
                 {ui.surname}
-                <input value={objectSurname} onChange={(event) => onObjectSurnameChange(event.target.value)} />
+                <input
+                  list="sp-organization-surnames"
+                  value={objectSurname}
+                  onChange={(event) => onObjectSurnameChange(event.target.value)}
+                />
               </label>
-              <label>
-                {ui.surname}
-                <select value="" onChange={(event) => onObjectSurnameChange(event.target.value)}>
-                  <option value="">{ui.surnameCatalogChoice}</option>
-                  {allCatalogEntries.map((entry) => (
-                    <option key={entry.id} value={entry.name}>
-                      {entry.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <datalist id="sp-organization-surnames">
+                {organizationSurnameOptions.map(([surname, organizationName]) => (
+                  <option key={`${organizationName}-${surname}`} value={surname}>
+                    {organizationName}
+                  </option>
+                ))}
+              </datalist>
               <label>
                 {ui.yearAge}
                 <input value={objectAge} onChange={(event) => onObjectAgeChange(event.target.value)} />
@@ -322,6 +343,12 @@ export function ObjectEditor({
                 <input value={objectRole} onChange={(event) => onObjectRoleChange(event.target.value)} />
               </label>
             </>
+          )}
+          {activeType === 'organizations' && (
+            <label>
+              {ui.surnameForm}
+              <input value={objectSurnameForm} onChange={(event) => onObjectSurnameFormChange(event.target.value)} />
+            </label>
           )}
           <CoverDropzone
             className="wide"
@@ -554,112 +581,129 @@ export function ObjectEditor({
         <div className="sp-editor-stack">
           {activeType === 'characters' && (
             <>
-              <button className="sp-button" type="button" onClick={addRelationship}>
-                {ui.addCharacterRelationship}
-              </button>
-              {draftCharacterRelationships.map((relationship, index) => (
-                <section className="sp-editor-block sp-relationship-editor" key={`${relationship.id ?? 'new'}-${index}`}>
-                  <div className="sp-relationship-grid">
-                    <label className="sp-relationship-field">
-                      {ui.relationDirection}
-                      <select
-                        value={relationship.direction}
-                        onChange={(event) =>
-                          updateRelationshipDirection(index, event.target.value as DraftCharacterRelationship['direction'])
+              <CollapsibleEditorSection count={draftCharacterRelationships.length} title={ui.relations}>
+                <button className="sp-button" type="button" onClick={addRelationship}>
+                  {ui.addCharacterRelationship}
+                </button>
+                {draftCharacterRelationships.map((relationship, index) => (
+                  <section className="sp-editor-block sp-relationship-editor" key={`${relationship.id ?? 'new'}-${index}`}>
+                    <div className="sp-relationship-grid">
+                      <label className="sp-relationship-field">
+                        {ui.relationDirection}
+                        <select
+                          value={relationship.direction}
+                          onChange={(event) =>
+                            updateRelationshipDirection(index, event.target.value as DraftCharacterRelationship['direction'])
+                          }
+                        >
+                          <option value="outgoing">{ui.fromThisCharacter}</option>
+                          <option value="incoming" disabled={editingObjectId === null}>
+                            {ui.toThisCharacter}
+                          </option>
+                        </select>
+                      </label>
+                      <label className="sp-relationship-field">
+                        {ui.character}
+                        <select
+                          value={getRelationshipCharacterId(relationship)}
+                          onChange={(event) => updateRelationshipCharacter(index, event.target.value)}
+                        >
+                          <option value="">{ui.characters}</option>
+                          {relationshipCharacters.map((character) => (
+                            <option key={character.id} value={character.id}>
+                              {getObjectFullName(character)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="sp-relationship-field">
+                        {ui.relationType}
+                        <input
+                          placeholder={ui.relationTypePlaceholder}
+                          value={relationship.relationType}
+                          onChange={(event) => updateRelationship(index, { relationType: event.target.value })}
+                        />
+                      </label>
+                      <button
+                        className="sp-relationship-delete"
+                        type="button"
+                        onClick={() =>
+                          onDraftCharacterRelationshipsChange(
+                            draftCharacterRelationships.filter((_, itemIndex) => itemIndex !== index),
+                          )
                         }
                       >
-                        <option value="outgoing">{ui.fromThisCharacter}</option>
-                        <option value="incoming" disabled={editingObjectId === null}>
-                          {ui.toThisCharacter}
-                        </option>
-                      </select>
-                    </label>
-                    <label className="sp-relationship-field">
-                      {ui.character}
-                      <select
-                        value={getRelationshipCharacterId(relationship)}
-                        onChange={(event) => updateRelationshipCharacter(index, event.target.value)}
-                      >
-                        <option value="">{ui.characters}</option>
-                        {relationshipCharacters.map((character) => (
-                          <option key={character.id} value={character.id}>
-                            {getObjectFullName(character)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="sp-relationship-field">
-                      {ui.relationType}
-                      <input
-                        placeholder={ui.relationTypePlaceholder}
-                        value={relationship.relationType}
-                        onChange={(event) => updateRelationship(index, { relationType: event.target.value })}
+                        {ui.delete}
+                      </button>
+                    </div>
+                    <div className="sp-relationship-stats">
+                      <label className="sp-relationship-field">
+                        {ui.relationStrength}
+                        <input
+                          min={0}
+                          max={100}
+                          type="number"
+                          value={relationship.strength}
+                          onChange={(event) => updateRelationship(index, { strength: event.target.value })}
+                        />
+                      </label>
+                      <label className="sp-relationship-field">
+                        {ui.relationTension}
+                        <input
+                          min={0}
+                          max={100}
+                          type="number"
+                          value={relationship.tension}
+                          onChange={(event) => updateRelationship(index, { tension: event.target.value })}
+                        />
+                      </label>
+                      <label className="sp-checkline sp-relationship-toggle">
+                        <input
+                          checked={relationship.isBidirectional}
+                          type="checkbox"
+                          onChange={(event) => updateRelationship(index, { isBidirectional: event.target.checked })}
+                        />
+                        {ui.relationBidirectional}
+                      </label>
+                    </div>
+                    <label className="sp-relationship-description">
+                      {ui.relationDescription}
+                      <textarea
+                        value={relationship.description}
+                        onChange={(event) => updateRelationship(index, { description: event.target.value })}
                       />
                     </label>
-                    <button
-                      className="sp-relationship-delete"
-                      type="button"
-                      onClick={() =>
-                        onDraftCharacterRelationshipsChange(
-                          draftCharacterRelationships.filter((_, itemIndex) => itemIndex !== index),
-                        )
-                      }
-                    >
-                      {ui.delete}
-                    </button>
-                  </div>
-                  <div className="sp-relationship-stats">
-                    <label className="sp-relationship-field">
-                      {ui.relationStrength}
-                      <input
-                        min={0}
-                        max={100}
-                        type="number"
-                        value={relationship.strength}
-                        onChange={(event) => updateRelationship(index, { strength: event.target.value })}
-                      />
-                    </label>
-                    <label className="sp-relationship-field">
-                      {ui.relationTension}
-                      <input
-                        min={0}
-                        max={100}
-                        type="number"
-                        value={relationship.tension}
-                        onChange={(event) => updateRelationship(index, { tension: event.target.value })}
-                      />
-                    </label>
-                    <label className="sp-checkline sp-relationship-toggle">
-                      <input
-                        checked={relationship.isBidirectional}
-                        type="checkbox"
-                        onChange={(event) => updateRelationship(index, { isBidirectional: event.target.checked })}
-                      />
-                      {ui.relationBidirectional}
-                    </label>
-                  </div>
-                  <label className="sp-relationship-description">
-                    {ui.relationDescription}
-                    <textarea
-                      value={relationship.description}
-                      onChange={(event) => updateRelationship(index, { description: event.target.value })}
-                    />
-                  </label>
-                </section>
-              ))}
+                  </section>
+                ))}
+              </CollapsibleEditorSection>
+              <CollapsibleEditorSection count={ownedItemIds.length} title={ui.characterOwnsItems}>
+                <MultiObjectPicker objects={objectsByType.items} selectedIds={ownedItemIds} ui={ui} onChange={onOwnedItemIdsChange} toggleNumberSelection={toggleNumberSelection} />
+              </CollapsibleEditorSection>
             </>
           )}
-          {activeType === 'characters' && (
-            <MultiObjectPicker label={ui.characterOwnsItems} objects={objectsByType.items} selectedIds={ownedItemIds} ui={ui} onChange={onOwnedItemIdsChange} toggleNumberSelection={toggleNumberSelection} />
-          )}
           {activeType === 'items' && (
-            <MultiObjectPicker label={ui.owners} objects={objectsByType.characters} selectedIds={ownerCharacterIds} ui={ui} onChange={onOwnerCharacterIdsChange} toggleNumberSelection={toggleNumberSelection} />
+            <CollapsibleEditorSection count={ownerCharacterIds.length} title={ui.owners}>
+              <MultiObjectPicker objects={objectsByType.characters} selectedIds={ownerCharacterIds} ui={ui} onChange={onOwnerCharacterIdsChange} toggleNumberSelection={toggleNumberSelection} />
+            </CollapsibleEditorSection>
           )}
           {activeType === 'places' && (
-            <MultiObjectPicker label={ui.organizationsOnTerritory} objects={objectsByType.organizations} selectedIds={ownerOrganizationIds} ui={ui} onChange={onOwnerOrganizationIdsChange} toggleNumberSelection={toggleNumberSelection} />
+            <CollapsibleEditorSection count={ownerOrganizationIds.length} title={ui.organizationsOnTerritory}>
+              <MultiObjectPicker objects={objectsByType.organizations} selectedIds={ownerOrganizationIds} ui={ui} onChange={onOwnerOrganizationIdsChange} toggleNumberSelection={toggleNumberSelection} />
+            </CollapsibleEditorSection>
           )}
           {activeType === 'organizations' && (
-            <MultiObjectPicker label={ui.territoryPlaces} objects={objectsByType.places} selectedIds={territoryPlaceIds} ui={ui} onChange={onTerritoryPlaceIdsChange} toggleNumberSelection={toggleNumberSelection} />
+            <>
+              <CollapsibleEditorSection count={organizationMembers.length} title={ui.organizationMembers}>
+                <p className="sp-editor-hint">{ui.organizationSurnameAutoAssignHint}</p>
+                <ReadOnlyObjectList emptyText={ui.noOrganizationMembers} objects={organizationMembers} />
+              </CollapsibleEditorSection>
+              <CollapsibleEditorSection count={organizationMemberItems.length} title={ui.organizationItems}>
+                <ReadOnlyObjectList emptyText={ui.noOrganizationItems} objects={organizationMemberItems} />
+              </CollapsibleEditorSection>
+              <CollapsibleEditorSection count={territoryPlaceIds.length} title={ui.organizationTerritories}>
+                <MultiObjectPicker objects={objectsByType.places} selectedIds={territoryPlaceIds} ui={ui} onChange={onTerritoryPlaceIdsChange} toggleNumberSelection={toggleNumberSelection} />
+              </CollapsibleEditorSection>
+            </>
           )}
         </div>
       )}
@@ -736,14 +780,12 @@ export function ObjectEditor({
 }
 
 function MultiObjectPicker({
-  label,
   objects,
   selectedIds,
   ui,
   onChange,
   toggleNumberSelection,
 }: {
-  label: string
   objects: StoryObject[]
   selectedIds: number[]
   ui: PreviewText
@@ -751,21 +793,61 @@ function MultiObjectPicker({
   toggleNumberSelection: (values: number[], value: number) => number[]
 }) {
   return (
-    <div className="sp-editor-block">
-      <strong>{label}</strong>
-      <div className="sp-checkbox-grid">
-        {objects.map((storyObject) => (
-          <label key={storyObject.id}>
-            <input
-              checked={selectedIds.includes(storyObject.id)}
-              type="checkbox"
-              onChange={() => onChange(toggleNumberSelection(selectedIds, storyObject.id))}
-            />
-            {storyObject.name}
-          </label>
-        ))}
-        {objects.length === 0 && <span>{ui.noAvailableObjects}</span>}
-      </div>
+    <div className="sp-checkbox-grid">
+      {objects.map((storyObject) => (
+        <label key={storyObject.id}>
+          <input
+            checked={selectedIds.includes(storyObject.id)}
+            type="checkbox"
+            onChange={() => onChange(toggleNumberSelection(selectedIds, storyObject.id))}
+          />
+          {storyObject.name}
+        </label>
+      ))}
+      {objects.length === 0 && <span>{ui.noAvailableObjects}</span>}
+    </div>
+  )
+}
+
+function CollapsibleEditorSection({
+  children,
+  count,
+  title,
+}: {
+  children: ReactNode
+  count: number
+  title: string
+}) {
+  return (
+    <details className="sp-editor-block sp-collapsible-section" open>
+      <summary>
+        <span>{title}</span>
+        <strong>{count}</strong>
+      </summary>
+      {children}
+    </details>
+  )
+}
+
+function ReadOnlyObjectList({
+  emptyText,
+  objects,
+}: {
+  emptyText: string
+  objects: Array<Pick<StoryObject, 'id' | 'name' | 'typeKey'> & { ownerName?: string }>
+}) {
+  if (objects.length === 0) {
+    return <p className="sp-editor-hint">{emptyText}</p>
+  }
+
+  return (
+    <div className="sp-readonly-object-list">
+      {objects.map((storyObject) => (
+        <div className="sp-readonly-object-row" key={storyObject.id}>
+          <span>{storyObject.ownerName ?? storyObject.typeKey}</span>
+          <strong>{storyObject.name}</strong>
+        </div>
+      ))}
     </div>
   )
 }

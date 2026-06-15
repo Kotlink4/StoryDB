@@ -72,8 +72,8 @@ export function ProjectCard({
       )}
 
       <h2>{project.name}</h2>
-      <p className="genre">Worldbuilding</p>
-      <p className="summary">A saved StoryDB project from the local SQLite database.</p>
+      <p className="genre">{t.projectGenre}</p>
+      <p className="summary">{t.projectSummary}</p>
 
       <dl className="project-stats">
         <div>

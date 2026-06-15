@@ -108,7 +108,7 @@ export function AttributesWorkspace({
             <button className="sp-button primary" type="button" onClick={onCreateGroup}>
               +
             </button>
-            <AttributeIconPicker value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
+            <AttributeIconPicker language={language} value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
           </div>
         </aside>
         )}
@@ -123,7 +123,7 @@ export function AttributesWorkspace({
               <button className="sp-button primary" type="button" onClick={onCreateGroup}>
                 +
               </button>
-              <AttributeIconPicker value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
+              <AttributeIconPicker language={language} value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
             </div>
           )}
           <div className="sp-attribute-definition-form">
@@ -170,7 +170,11 @@ export function AttributesWorkspace({
             </div>
             <label className="sp-wide-label">
               {ui.icon}
-              <AttributeIconPicker value={attributeDefinitionDraft.iconKey} onChange={(iconKey) => updateDraft({ iconKey })} />
+              <AttributeIconPicker
+                language={language}
+                value={attributeDefinitionDraft.iconKey}
+                onChange={(iconKey) => updateDraft({ iconKey })}
+              />
             </label>
             {attributeDefinitionDraft.dataType === 'number' && (
               <div className="sp-form-row">

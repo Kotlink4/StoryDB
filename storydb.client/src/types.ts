@@ -52,6 +52,7 @@ export type StoryObject = {
   id: number
   name: string
   surname: string | null
+  surnameForm: string | null
   description: string | null
   age: string | null
   role: string | null
@@ -68,9 +69,167 @@ export type StoryObject = {
   ownedTerritories: ObjectReference[]
   hierarchyParents: ObjectReference[]
   hierarchyChildren: ObjectReference[]
+  organizationStructureLevels: OrganizationStructureLevel[]
   galleryImages: ObjectGalleryImage[]
   outgoingCharacterRelationships: CharacterRelationship[]
   incomingCharacterRelationships: CharacterRelationship[]
+}
+
+export type OrganizationStructureLevel = {
+  id: number
+  name: string
+  description: string | null
+  sortOrder: number
+  slots: OrganizationStructureSlot[]
+}
+
+export type OrganizationStructureSlot = {
+  id: number
+  name: string
+  description: string | null
+  slotType: string | null
+  color: string | null
+  iconKey: string | null
+  sortOrder: number
+}
+
+export type OrganizationStructureLevelDraft = {
+  name: string
+  description: string
+  slots: OrganizationStructureSlotDraft[]
+}
+
+export type OrganizationStructureSlotDraft = {
+  name: string
+  description: string
+  slotType: string
+  color: string
+  iconKey: string
+}
+
+export type StructureOwnerKind = 'project' | 'catalog' | 'object'
+export type StructureLayoutKind = 'levels' | 'tree' | 'graph'
+export type StructureNodeBindingMode = 'none' | 'catalogEntry' | 'catalogEntryGroup' | 'mixed'
+
+export type Structure = {
+  id: number
+  projectId: number
+  name: string
+  description: string | null
+  ownerKind: StructureOwnerKind
+  ownerId: number | null
+  layoutKind: StructureLayoutKind
+  nodeBindingMode: StructureNodeBindingMode
+  linkedCatalogId: number | null
+  nodes: StructureNode[]
+  edges: StructureEdge[]
+}
+
+export type StructureSummary = Omit<Structure, 'nodes' | 'edges'> & {
+  nodeCount: number
+  edgeCount: number
+  usageCount: number
+}
+
+export type StructureNode = {
+  id: number
+  parentNodeId: number | null
+  linkedCatalogEntryId: number | null
+  linkedCatalogEntryGroupId: number | null
+  name: string
+  description: string | null
+  nodeType: string | null
+  color: string | null
+  iconKey: string | null
+  levelIndex: number
+  sortOrder: number
+}
+
+export type StructureEdge = {
+  id: number
+  sourceNodeId: number
+  targetNodeId: number
+  relationType: string
+  description: string | null
+  sortOrder: number
+}
+
+export type StructureUsage = {
+  id: number
+  projectId: number
+  structureId: number
+  structureName: string
+  targetKind: StructureOwnerKind
+  targetId: number
+  displayName: string | null
+  notes: string | null
+  isPrimary: boolean
+}
+
+export type StructureAssignment = {
+  id: number
+  projectId: number
+  structureUsageId: number
+  structureId: number
+  structureName: string
+  structureNodeId: number
+  structureNodeName: string
+  storyObjectId: number
+  storyObjectName: string
+  storyObjectTypeKey: ObjectTypeKey
+  roleLabel: string | null
+  notes: string | null
+  sortOrder: number
+}
+
+export type StructureDraft = {
+  name: string
+  description: string
+  ownerKind: StructureOwnerKind
+  ownerId: number | null
+  layoutKind: StructureLayoutKind
+  nodeBindingMode: StructureNodeBindingMode
+  linkedCatalogId: number | null
+  nodes: StructureNodeDraft[]
+  edges: StructureEdgeDraft[]
+}
+
+export type StructureUsageDraft = {
+  targetKind: StructureOwnerKind
+  targetId: number
+  displayName: string
+  notes: string
+  isPrimary: boolean
+}
+
+export type StructureAssignmentDraft = {
+  structureNodeId: number
+  storyObjectId: number
+  roleLabel: string
+  notes: string
+  sortOrder: number
+}
+
+export type StructureNodeDraft = {
+  clientId: string
+  parentClientId: string | null
+  linkedCatalogEntryId: number | null
+  linkedCatalogEntryGroupId: number | null
+  name: string
+  description: string
+  nodeType: string
+  color: string
+  iconKey: string
+  levelIndex: number
+  sortOrder: number
+}
+
+export type StructureEdgeDraft = {
+  sourceClientId: string
+  targetClientId: string
+  relationType: string
+  description: string
+  sortOrder: number
 }
 
 export type ObjectGalleryImage = {
@@ -107,6 +266,7 @@ export type RelationGraphNode = {
   id: number
   name: string
   surname: string | null
+  surnameForm: string | null
   imagePath: string | null
   typeKey: ObjectTypeKey
 }

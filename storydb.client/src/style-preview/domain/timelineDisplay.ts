@@ -151,6 +151,7 @@ export function applyTimelineChangesToObject(storyObject: StoryObject, changes: 
     ...storyObject,
     name: getChangedNullableField(changes, 'name', storyObject.name) ?? storyObject.name,
     surname: getChangedNullableField(changes, 'surname', storyObject.surname),
+    surnameForm: getChangedNullableField(changes, 'surnameForm', storyObject.surnameForm),
     description: getChangedNullableField(changes, 'description', storyObject.description),
     age: getChangedNullableField(changes, 'age', storyObject.age),
     role: getChangedNullableField(changes, 'role', storyObject.role),

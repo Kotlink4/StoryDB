@@ -208,6 +208,7 @@ export const validateProfileDraft = (email: string, displayName: string, avatarI
 export const validateObjectDraft = (
   name: string,
   surname: string,
+  surnameForm: string,
   description: string,
   age: string,
   role: string,
@@ -215,6 +216,7 @@ export const validateObjectDraft = (
 ) =>
   validateRequiredName(name, 'название объекта') ??
   validateOptionalText(surname.trim(), 'Фамилия', 120) ??
+  validateOptionalText(surnameForm.trim(), 'Фамильная форма', 120) ??
   validateOptionalText(description, 'Описание', 1000) ??
   validateOptionalText(age.trim(), 'Возраст', 120) ??
   validateOptionalText(role.trim(), 'Роль', 120) ??

@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react'
+import { ArrowLeft } from 'lucide-react'
 
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import { getRelationLabel } from '../style-preview/domain/relationDisplay'
@@ -33,8 +34,8 @@ export function StylePreviewRelationDetailPage({
           <h2>{getRelationLabel(selectedRelationEdge.relationType, ui)}</h2>
           <p>{ui.relationStandalonePage}</p>
         </div>
-        <button className="sp-button sp-back-button" type="button" onClick={onBack}>
-          {ui.returnToGraph}
+        <button className="sp-icon-button sp-page-back-button" type="button" aria-label={ui.returnToGraph} title={ui.returnToGraph} onClick={onBack}>
+          <ArrowLeft aria-hidden="true" size={18} />
         </button>
       </div>
       <RelationDetail
@@ -64,8 +65,8 @@ export function StylePreviewTimelineEventDetailPage({
           <h2>{selectedTimelineEvent.title}</h2>
           <p>{ui.timelineEventStandalonePage}</p>
         </div>
-        <button className="sp-button sp-back-button" type="button" onClick={onBack}>
-          {ui.returnToTimeline}
+        <button className="sp-icon-button sp-page-back-button" type="button" aria-label={ui.returnToTimeline} title={ui.returnToTimeline} onClick={onBack}>
+          <ArrowLeft aria-hidden="true" size={18} />
         </button>
       </div>
       <TimelineEventDetail
@@ -97,8 +98,8 @@ export function StylePreviewObjectDetailPage({
           <h2>{selectedObject.name}</h2>
           <p>{ui.objectStandalonePage}</p>
         </div>
-        <button className="sp-button sp-back-button" type="button" onClick={onBack}>
-          {ui.returnToPanel}
+        <button className="sp-icon-button sp-page-back-button" type="button" aria-label={ui.returnToPanel} title={ui.returnToPanel} onClick={onBack}>
+          <ArrowLeft aria-hidden="true" size={18} />
         </button>
       </div>
       <ObjectDetail
@@ -132,8 +133,8 @@ export function StylePreviewCatalogEntryDetailPage({
           <h2>{selectedCatalogEntry.name}</h2>
           <p>{catalogEntryDetailProps.catalog?.name ?? ui.catalog}</p>
         </div>
-        <button className="sp-button sp-back-button" type="button" onClick={onBack}>
-          {ui.back}
+        <button className="sp-icon-button sp-page-back-button" type="button" aria-label={ui.back} title={ui.back} onClick={onBack}>
+          <ArrowLeft aria-hidden="true" size={18} />
         </button>
       </div>
       <CatalogEntryDetail

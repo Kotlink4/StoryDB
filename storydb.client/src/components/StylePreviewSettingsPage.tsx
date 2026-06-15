@@ -34,8 +34,8 @@ export function SettingsPage({
         <label className="sp-setting-card">
           <span>{ui.language}</span>
           <select value={previewLanguage} onChange={(event) => onLanguageChange(event.target.value as PreviewLanguage)}>
-            <option value="ru">Русский</option>
-            <option value="en">English</option>
+            <option value="ru">{ui.languageRussian}</option>
+            <option value="en">{ui.languageEnglish}</option>
           </select>
         </label>
         <label className="sp-setting-card">

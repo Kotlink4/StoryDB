@@ -4,6 +4,7 @@ import type { RelationGraphEdge } from '../../types'
 export const getObjectRelationLabels = (ui: PreviewText): Record<string, string> => ({
   hierarchyParent: ui.hierarchyParentLabel,
   locatedOnTerritory: ui.territoryLocationLabel,
+  organizationMembership: ui.organizationMembership,
   territoryOwner: ui.territoryOwnerLabel,
 })
 
@@ -17,6 +18,10 @@ export const getRelationCategoryLabel = (category: RelationGraphEdge['category']
 
   if (category === 'ownership') {
     return ui.relationOwnership
+  }
+
+  if (category === 'membership') {
+    return ui.relationMembership
   }
 
   if (category === 'object') {

@@ -1,10 +1,11 @@
-import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import type { PreviewLanguage, PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import { AttributeIconPicker, PreviewDialog } from './StylePreviewPrimitives'
 
 type AttributeGroupDialogProps = {
   title: string
   groupName: string
   iconKey: string
+  language: PreviewLanguage
   ui: PreviewText
   onCancel: () => void
   onIconKeyChange: (iconKey: string) => void
@@ -16,6 +17,7 @@ export function AttributeGroupDialog({
   title,
   groupName,
   iconKey,
+  language,
   ui,
   onCancel,
   onIconKeyChange,
@@ -31,7 +33,7 @@ export function AttributeGroupDialog({
         </label>
         <label className="wide">
           {ui.icon}
-          <AttributeIconPicker value={iconKey} onChange={onIconKeyChange} />
+          <AttributeIconPicker language={language} value={iconKey} onChange={onIconKeyChange} />
         </label>
         <div className="sp-dialog-actions">
           <button className="sp-button" type="button" onClick={onCancel}>

@@ -26,6 +26,7 @@ export function StylePreviewTopbar({
   currentUser,
   currentUserAvatarUrl,
   isSettingsOpen,
+  showWorkspaceTabs,
   ui,
   onCreateObject,
   onLogin,
@@ -35,10 +36,11 @@ export function StylePreviewTopbar({
   onOpenSettings,
   onToggleSettingsMenu,
 }: {
-  activeTab: PreviewTab
+  activeTab: PreviewTab | null
   currentUser: AuthUser | null
   currentUserAvatarUrl: string | null
   isSettingsOpen: boolean
+  showWorkspaceTabs: boolean
   ui: PreviewText
   onCreateObject: () => void
   onLogin: () => void
@@ -57,18 +59,20 @@ export function StylePreviewTopbar({
           <span>{ui.appSubtitle}</span>
         </div>
       </div>
-      <div className="sp-tabs sp-main-tabs">
-        {(['database', 'relations', 'timeline'] as PreviewTab[]).map((tab) => (
-          <button
-            className={activeTab === tab ? 'active' : ''}
-            key={tab}
-            type="button"
-            onClick={() => onNavigateTab(tab)}
-          >
-            {getTabLabel(tab, ui)}
-          </button>
-        ))}
-      </div>
+      {showWorkspaceTabs && (
+        <div className="sp-tabs sp-main-tabs">
+          {(['database', 'relations', 'timeline'] as PreviewTab[]).map((tab) => (
+            <button
+              className={activeTab === tab ? 'active' : ''}
+              key={tab}
+              type="button"
+              onClick={() => onNavigateTab(tab)}
+            >
+              {getTabLabel(tab, ui)}
+            </button>
+          ))}
+        </div>
+      )}
       <label className="sp-search">
         <svg aria-hidden="true" className="sp-search-svg" fill="none" viewBox="0 0 24 24">
           <path d="m21 21-4.4-4.4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
@@ -284,6 +288,14 @@ export function StylePreviewSidebar({
         >
           <SectionIcon name="attributes" />
           {ui.attributes}
+        </button>
+        <button
+          className={activeSection === 'structures' && activeTab === 'database' ? 'active' : ''}
+          type="button"
+          onClick={() => onNavigateWorkspace('database', 'structures')}
+        >
+          <SectionIcon name="structures" />
+          {ui.structures}
         </button>
         {groupDisplayMode === 'subtabs' && activeSection === 'attributes' && activeTab === 'database' && (
           <div className="sp-sidebar-subtabs">

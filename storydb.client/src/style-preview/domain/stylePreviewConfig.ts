@@ -103,6 +103,6 @@ export const getProjectObjectTypeKeys = (project: StoryProject | null) =>
       )
 
 export const isObjectSection = (section: PreviewSection): section is ObjectTypeKey =>
-  section !== 'attributes' && section !== 'catalogs'
+  isStylePreviewObjectSection(section)
 
 export const isPreviewObjectSection = isStylePreviewObjectSection

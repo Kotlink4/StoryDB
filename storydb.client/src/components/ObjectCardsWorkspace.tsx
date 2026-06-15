@@ -64,7 +64,7 @@ export function ObjectCardsWorkspace({
             className={layoutMode === 'grid' ? 'active' : ''}
             type="button"
             onClick={() => onLayoutModeChange('grid')}
-            aria-label="Grid"
+            aria-label={ui.gridView}
           >
             <span className="sp-view-icon grid" aria-hidden="true" />
           </button>
@@ -72,7 +72,7 @@ export function ObjectCardsWorkspace({
             className={layoutMode === 'list' ? 'active' : ''}
             type="button"
             onClick={() => onLayoutModeChange('list')}
-            aria-label="List"
+            aria-label={ui.listView}
           >
             <span className="sp-view-icon list" aria-hidden="true" />
           </button>
@@ -98,7 +98,7 @@ export function ObjectCardsWorkspace({
             </div>
             <div className="sp-card-menu">
               <button
-                aria-label={`${storyObject.name}: действия`}
+                aria-label={`${storyObject.name}: ${ui.actions}`}
                 type="button"
                 onClick={() => onObjectMenuChange(activeObjectMenuId === storyObject.id ? null : storyObject.id)}
               >

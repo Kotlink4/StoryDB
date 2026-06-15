@@ -2,7 +2,7 @@ export type DetailMode = 'panel' | 'modal' | 'page'
 
 export type GroupDisplayMode = 'blocks' | 'subtabs'
 
-export type ObjectDossierTab = 'main' | 'relations' | 'timeline' | 'gallery'
+export type ObjectDossierTab = 'main' | 'relations' | 'structure' | 'timeline' | 'gallery'
 
 export type ObjectEditorTab = 'main' | 'attributes' | 'catalogs' | 'hierarchy' | 'relations' | 'timeline'
 

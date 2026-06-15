@@ -201,6 +201,7 @@ export function StylePreview() {
     objectName,
     objectRole,
     objectSurname,
+    objectSurnameForm,
     ownedItemIds,
     ownerCharacterIds,
     ownerOrganizationIds,
@@ -220,6 +221,7 @@ export function StylePreview() {
     setObjectName,
     setObjectRole,
     setObjectSurname,
+    setObjectSurnameForm,
     setOwnedItemIds,
     setOwnerCharacterIds,
     setOwnerOrganizationIds,
@@ -311,12 +313,12 @@ export function StylePreview() {
     initialCatalogId: routeState.catalogId,
     messages,
     selectedObjectId,
-    selectedProjectId,
+    selectedProjectId: currentUser === null || isProfilePageOpen || isSettingsPageOpen ? null : selectedProjectId,
     setSelectedObjectId,
     showErrorMessage,
     showMessage,
   })
-  const isLoading = isLoadingProjects
+  const isLoading = !isProfilePageOpen && !isSettingsPageOpen && isLoadingProjects
   const currentUserAvatarUrl = resolveAssetUrl(currentUser?.avatarImagePath ?? null)
   const {
     catalogDialogFields,
@@ -420,6 +422,14 @@ export function StylePreview() {
     objectId: number | null = null,
     catalogId: number | null = selectedCatalogId,
   ) => {
+    if (currentUser === null) {
+      setIsSettingsPageOpen(false)
+      setIsProfilePageOpen(true)
+      setDialog('auth')
+      navigate(`${previewRouteBase}/profile`)
+      return
+    }
+
     setIsSettingsPageOpen(false)
     setIsProfilePageOpen(false)
     if (tab !== 'relations') {
@@ -448,7 +458,7 @@ export function StylePreview() {
     isProfileSaving,
     loadProjects,
     messages,
-    navigateHome: () => navigate(previewRouteBase),
+    navigateHome: () => navigate(`${previewRouteBase}/profile`),
     profileAvatarImagePath,
     profileDisplayName,
     profileEmail,
@@ -520,6 +530,7 @@ export function StylePreview() {
     objectName,
     objectRole,
     objectSurname,
+    objectSurnameForm,
     objects,
     ownedItemIds,
     ownerCharacterIds,
@@ -648,24 +659,35 @@ export function StylePreview() {
   })
 
   useEffect(() => {
+    if (isLoading || currentUser !== null) {
+      return
+    }
+
+    setIsSettingsPageOpen(false)
+    setIsProfilePageOpen(true)
+    setSelectedProjectId(null)
+    setSelectedObjectId(null)
+
+    if (routeState.utilityPage !== 'profile') {
+      navigate(`${previewRouteBase}/profile`, { replace: true })
+    }
+  }, [currentUser, isLoading, navigate, routeState.utilityPage, setSelectedProjectId])
+
+  useEffect(() => {
     if (
+      !isLoading &&
       routeState.utilityPage === null &&
-      routeState.projectId === null &&
-      selectedProjectId !== null &&
-      projects.length > 0
+      routeState.projectId === null
     ) {
-      navigateToPreview(selectedProjectId, activeTab, activeSection, selectedObjectId, selectedCatalogId, true)
+      setIsSettingsPageOpen(false)
+      setIsProfilePageOpen(true)
+      navigate(`${previewRouteBase}/profile`, { replace: true })
     }
   }, [
-    activeSection,
-    activeTab,
-    navigateToPreview,
-    projects.length,
+    isLoading,
+    navigate,
     routeState.projectId,
     routeState.utilityPage,
-    selectedCatalogId,
-    selectedObjectId,
-    selectedProjectId,
   ])
 
   useEffect(() => {
@@ -824,6 +846,7 @@ export function StylePreview() {
     objectName,
     objectRole,
     objectSurname,
+    objectSurnameForm,
     objectsByType,
     ownedItemIds,
     ownerCharacterIds,
@@ -846,6 +869,7 @@ export function StylePreview() {
     onObjectNameChange: setObjectName,
     onObjectRoleChange: setObjectRole,
     onObjectSurnameChange: setObjectSurname,
+    onObjectSurnameFormChange: setObjectSurnameForm,
     onOwnedItemIdsChange: setOwnedItemIds,
     onOwnerCharacterIdsChange: setOwnerCharacterIds,
     onOwnerOrganizationIdsChange: setOwnerOrganizationIds,
@@ -862,6 +886,8 @@ export function StylePreview() {
     dossierTimelineEventId,
     galleryImageCaption,
     galleryImagePath,
+    objectsByType,
+    selectedProjectId,
     textLinkTargets,
     timelineEvents,
     ui,
@@ -1124,6 +1150,14 @@ export function StylePreview() {
     onSelectGroup: setSelectedAttributeGroupId,
   }
 
+  const structuresWorkspaceProps = {
+    catalogs: visibleCatalogs,
+    errorMessage: messages.apiUnavailable,
+    ui,
+    onError: showErrorMessage,
+    onMessage: showMessage,
+  }
+
   const objectSectionLabel = isObjectSection(activeSection) ? getObjectSectionLabel(activeSection) : ui.catalogs
 
   const objectCardsWorkspaceProps = {
@@ -1171,6 +1205,7 @@ export function StylePreview() {
       selectedRelationEdge={selectedRelationEdge}
       selectedTimelineEvent={selectedTimelineEvent}
       settingsPageProps={settingsPageProps}
+      structuresWorkspaceProps={structuresWorkspaceProps}
       timelineEventDetailPageProps={timelineEventDetailPageProps}
       timelinePageProps={timelinePageProps}
       ui={ui}
@@ -1274,6 +1309,7 @@ export function StylePreview() {
       setPendingDeleteCatalogEntryId,
       setSelectedObjectId,
       setSelectedRelationEdgeId,
+      setSelectedRelationObjectId,
       setSelectedTimelineEventId,
     },
   })
@@ -1347,6 +1383,7 @@ export function StylePreview() {
       attributeGroups,
       dialog,
       editingAttributeGroupId,
+      language: previewLanguage,
       pendingDeleteAttributeDefinitionId,
       pendingDeleteAttributeGroupId,
       ui,

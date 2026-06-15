@@ -26,6 +26,7 @@ export const getRelationGraphNodes = (graph: RelationGraph, objects: StoryObject
         id: storyObject.id,
         name: storyObject.name,
         surname: storyObject.surname,
+        surnameForm: storyObject.surnameForm,
         imagePath: storyObject.imagePath,
         typeKey: storyObject.typeKey as ObjectTypeKey,
       }))

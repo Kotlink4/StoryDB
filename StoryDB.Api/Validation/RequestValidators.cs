@@ -77,6 +77,7 @@ public static class RequestValidators
     public static string? ValidateStoryObject(
         string name,
         string? surname,
+        string? surnameForm,
         string? description,
         string? age,
         string? role,
@@ -90,6 +91,7 @@ public static class RequestValidators
 
         return
             ValidateOptionalLength(surname, "Surname", 120) ??
+            ValidateOptionalLength(surnameForm, "Surname form", 120) ??
             ValidateOptionalLength(description, "Description", 1000, trimBeforeCheck: false) ??
             ValidateOptionalLength(age, "Age", 120) ??
             ValidateOptionalLength(role, "Role", 120) ??

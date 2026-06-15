@@ -22,6 +22,13 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     public DbSet<StoryObjectCatalogSelection> StoryObjectCatalogSelections => Set<StoryObjectCatalogSelection>();
     public DbSet<ObjectOwnership> ObjectOwnerships => Set<ObjectOwnership>();
     public DbSet<ObjectRelation> ObjectRelations => Set<ObjectRelation>();
+    public DbSet<OrganizationStructureLevel> OrganizationStructureLevels => Set<OrganizationStructureLevel>();
+    public DbSet<OrganizationStructureSlot> OrganizationStructureSlots => Set<OrganizationStructureSlot>();
+    public DbSet<Structure> Structures => Set<Structure>();
+    public DbSet<StructureNode> StructureNodes => Set<StructureNode>();
+    public DbSet<StructureEdge> StructureEdges => Set<StructureEdge>();
+    public DbSet<StructureUsage> StructureUsages => Set<StructureUsage>();
+    public DbSet<StructureAssignment> StructureAssignments => Set<StructureAssignment>();
     public DbSet<CharacterRelationship> CharacterRelationships => Set<CharacterRelationship>();
     public DbSet<ObjectGalleryImage> ObjectGalleryImages => Set<ObjectGalleryImage>();
     public DbSet<Timeline> Timelines => Set<Timeline>();
@@ -218,6 +225,10 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
         modelBuilder.Entity<StoryObject>()
             .HasIndex(storyObject => new { storyObject.ProjectId, storyObject.ObjectTypeId, storyObject.Name });
 
+        modelBuilder.Entity<StoryObject>()
+            .Property(storyObject => storyObject.SurnameForm)
+            .HasMaxLength(120);
+
         modelBuilder.Entity<ObjectAttribute>()
             .HasOne(attribute => attribute.StoryObject)
             .WithMany(storyObject => storyObject.Attributes)
@@ -245,6 +256,245 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
 
         modelBuilder.Entity<ObjectGalleryImage>()
             .HasIndex(image => new { image.StoryObjectId, image.SortOrder });
+
+        modelBuilder.Entity<OrganizationStructureLevel>()
+            .HasOne(level => level.OrganizationObject)
+            .WithMany(storyObject => storyObject.OrganizationStructureLevels)
+            .HasForeignKey(level => level.OrganizationObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<OrganizationStructureLevel>()
+            .HasIndex(level => new { level.OrganizationObjectId, level.SortOrder });
+
+        modelBuilder.Entity<OrganizationStructureLevel>()
+            .Property(level => level.Name)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<OrganizationStructureLevel>()
+            .Property(level => level.Description)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<OrganizationStructureSlot>()
+            .HasOne(slot => slot.OrganizationStructureLevel)
+            .WithMany(level => level.Slots)
+            .HasForeignKey(slot => slot.OrganizationStructureLevelId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<OrganizationStructureSlot>()
+            .HasIndex(slot => new { slot.OrganizationStructureLevelId, slot.SortOrder });
+
+        modelBuilder.Entity<OrganizationStructureSlot>()
+            .Property(slot => slot.Name)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<OrganizationStructureSlot>()
+            .Property(slot => slot.Description)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<OrganizationStructureSlot>()
+            .Property(slot => slot.SlotType)
+            .HasMaxLength(80);
+
+        modelBuilder.Entity<OrganizationStructureSlot>()
+            .Property(slot => slot.Color)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<OrganizationStructureSlot>()
+            .Property(slot => slot.IconKey)
+            .HasMaxLength(80);
+
+        modelBuilder.Entity<Structure>()
+            .HasOne(structure => structure.Project)
+            .WithMany()
+            .HasForeignKey(structure => structure.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Structure>()
+            .HasOne(structure => structure.LinkedCatalog)
+            .WithMany()
+            .HasForeignKey(structure => structure.LinkedCatalogId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Structure>()
+            .HasIndex(structure => new { structure.ProjectId, structure.OwnerKind, structure.OwnerId });
+
+        modelBuilder.Entity<Structure>()
+            .HasIndex(structure => new { structure.ProjectId, structure.Name });
+
+        modelBuilder.Entity<Structure>()
+            .Property(structure => structure.Name)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<Structure>()
+            .Property(structure => structure.Description)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<Structure>()
+            .Property(structure => structure.OwnerKind)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<Structure>()
+            .Property(structure => structure.LayoutKind)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<Structure>()
+            .Property(structure => structure.NodeBindingMode)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<StructureNode>()
+            .HasOne(node => node.Structure)
+            .WithMany(structure => structure.Nodes)
+            .HasForeignKey(node => node.StructureId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureNode>()
+            .HasOne(node => node.ParentNode)
+            .WithMany(node => node.ChildNodes)
+            .HasForeignKey(node => node.ParentNodeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StructureNode>()
+            .HasOne(node => node.LinkedCatalogEntry)
+            .WithMany()
+            .HasForeignKey(node => node.LinkedCatalogEntryId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<StructureNode>()
+            .HasOne(node => node.LinkedCatalogEntryGroup)
+            .WithMany()
+            .HasForeignKey(node => node.LinkedCatalogEntryGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<StructureNode>()
+            .HasIndex(node => new { node.StructureId, node.LevelIndex, node.SortOrder });
+
+        modelBuilder.Entity<StructureNode>()
+            .Property(node => node.Name)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<StructureNode>()
+            .Property(node => node.Description)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<StructureNode>()
+            .Property(node => node.NodeType)
+            .HasMaxLength(80);
+
+        modelBuilder.Entity<StructureNode>()
+            .Property(node => node.Color)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<StructureNode>()
+            .Property(node => node.IconKey)
+            .HasMaxLength(80);
+
+        modelBuilder.Entity<StructureEdge>()
+            .HasOne(edge => edge.Structure)
+            .WithMany(structure => structure.Edges)
+            .HasForeignKey(edge => edge.StructureId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureEdge>()
+            .HasOne(edge => edge.SourceNode)
+            .WithMany(node => node.OutgoingEdges)
+            .HasForeignKey(edge => edge.SourceNodeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureEdge>()
+            .HasOne(edge => edge.TargetNode)
+            .WithMany(node => node.IncomingEdges)
+            .HasForeignKey(edge => edge.TargetNodeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureEdge>()
+            .HasIndex(edge => new { edge.StructureId, edge.SortOrder });
+
+        modelBuilder.Entity<StructureEdge>()
+            .HasIndex(edge => new { edge.SourceNodeId, edge.TargetNodeId, edge.RelationType });
+
+        modelBuilder.Entity<StructureEdge>()
+            .Property(edge => edge.RelationType)
+            .HasMaxLength(80);
+
+        modelBuilder.Entity<StructureEdge>()
+            .Property(edge => edge.Description)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<StructureUsage>()
+            .HasOne(usage => usage.Project)
+            .WithMany()
+            .HasForeignKey(usage => usage.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureUsage>()
+            .HasOne(usage => usage.Structure)
+            .WithMany(structure => structure.Usages)
+            .HasForeignKey(usage => usage.StructureId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureUsage>()
+            .HasIndex(usage => new { usage.ProjectId, usage.TargetKind, usage.TargetId });
+
+        modelBuilder.Entity<StructureUsage>()
+            .HasIndex(usage => new { usage.ProjectId, usage.TargetKind, usage.TargetId, usage.StructureId })
+            .IsUnique();
+
+        modelBuilder.Entity<StructureUsage>()
+            .HasIndex(usage => new { usage.StructureId, usage.TargetKind, usage.TargetId });
+
+        modelBuilder.Entity<StructureUsage>()
+            .Property(usage => usage.TargetKind)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<StructureUsage>()
+            .Property(usage => usage.DisplayName)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<StructureUsage>()
+            .Property(usage => usage.Notes)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasOne(assignment => assignment.Project)
+            .WithMany()
+            .HasForeignKey(assignment => assignment.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasOne(assignment => assignment.StructureUsage)
+            .WithMany(usage => usage.Assignments)
+            .HasForeignKey(assignment => assignment.StructureUsageId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasOne(assignment => assignment.StructureNode)
+            .WithMany(node => node.Assignments)
+            .HasForeignKey(assignment => assignment.StructureNodeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasOne(assignment => assignment.StoryObject)
+            .WithMany(storyObject => storyObject.StructureAssignments)
+            .HasForeignKey(assignment => assignment.StoryObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasIndex(assignment => new { assignment.ProjectId, assignment.StoryObjectId });
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasIndex(assignment => new { assignment.StructureUsageId, assignment.StructureNodeId, assignment.SortOrder });
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasIndex(assignment => new { assignment.StructureUsageId, assignment.StructureNodeId, assignment.StoryObjectId })
+            .IsUnique();
+
+        modelBuilder.Entity<StructureAssignment>()
+            .Property(assignment => assignment.RoleLabel)
+            .HasMaxLength(120);
+
+        modelBuilder.Entity<StructureAssignment>()
+            .Property(assignment => assignment.Notes)
+            .HasMaxLength(1000);
 
         modelBuilder.Entity<TimelineEventGalleryImage>()
             .HasOne(image => image.TimelineEvent)

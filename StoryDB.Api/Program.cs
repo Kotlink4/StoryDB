@@ -14,6 +14,7 @@ using StoryDB.Api.Services.Hierarchy;
 using StoryDB.Api.Services.Objects;
 using StoryDB.Api.Services.Projects;
 using StoryDB.Api.Services.Relations;
+using StoryDB.Api.Services.Structures;
 using StoryDB.Api.Services.Timelines;
 using StoryDB.Api.Validation;
 using Serilog;
@@ -65,6 +66,7 @@ builder.Services.AddScoped<IObjectService, ObjectService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IHierarchyService, HierarchyService>();
 builder.Services.AddScoped<IRelationService, RelationService>();
+builder.Services.AddScoped<IStructureService, StructureService>();
 builder.Services.AddScoped<ITimelineService, TimelineService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddControllers(options =>

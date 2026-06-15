@@ -14,6 +14,7 @@ export function useStylePreviewObjectDraft() {
   const [editingObjectId, setEditingObjectId] = useState<number | null>(null)
   const [objectName, setObjectName] = useState('')
   const [objectSurname, setObjectSurname] = useState('')
+  const [objectSurnameForm, setObjectSurnameForm] = useState('')
   const [objectRole, setObjectRole] = useState('')
   const [objectAge, setObjectAge] = useState('')
   const [objectDescription, setObjectDescription] = useState('')
@@ -36,6 +37,7 @@ export function useStylePreviewObjectDraft() {
     setEditingObjectId(null)
     setObjectName('')
     setObjectSurname('')
+    setObjectSurnameForm('')
     setObjectRole('')
     setObjectAge('')
     setObjectDescription('')
@@ -59,6 +61,7 @@ export function useStylePreviewObjectDraft() {
     setEditingObjectId(objectToEdit.id)
     setObjectName(objectToEdit.name)
     setObjectSurname(objectToEdit.surname ?? '')
+    setObjectSurnameForm(objectToEdit.surnameForm ?? '')
     setObjectRole(objectToEdit.role ?? '')
     setObjectAge(objectToEdit.age ?? '')
     setObjectDescription(objectToEdit.description ?? '')
@@ -141,6 +144,7 @@ export function useStylePreviewObjectDraft() {
     objectName,
     objectRole,
     objectSurname,
+    objectSurnameForm,
     ownedItemIds,
     ownerCharacterIds,
     ownerOrganizationIds,
@@ -160,6 +164,7 @@ export function useStylePreviewObjectDraft() {
     setObjectName,
     setObjectRole,
     setObjectSurname,
+    setObjectSurnameForm,
     setOwnedItemIds,
     setOwnerCharacterIds,
     setOwnerOrganizationIds,

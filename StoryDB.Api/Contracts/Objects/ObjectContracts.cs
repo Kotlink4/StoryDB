@@ -6,6 +6,7 @@ public record CreateStoryObjectRequest(
     string TypeKey,
     string Name,
     string? Surname,
+    string? SurnameForm,
     string? Description,
     string? Age,
     string? Role,
@@ -33,6 +34,7 @@ public record ObjectCatalogSelectionRequest(
 public record UpdateStoryObjectRequest(
     string Name,
     string? Surname,
+    string? SurnameForm,
     string? Description,
     string? Age,
     string? Role,
@@ -51,6 +53,7 @@ public record StoryObjectDto(
     int Id,
     string Name,
     string? Surname,
+    string? SurnameForm,
     string? Description,
     string? Age,
     string? Role,
@@ -67,11 +70,42 @@ public record StoryObjectDto(
     IReadOnlyList<ObjectReferenceDto> OwnedTerritories,
     IReadOnlyList<ObjectReferenceDto> HierarchyParents,
     IReadOnlyList<ObjectReferenceDto> HierarchyChildren,
+    IReadOnlyList<OrganizationStructureLevelDto> OrganizationStructureLevels,
     IReadOnlyList<ObjectGalleryImageDto> GalleryImages,
     IReadOnlyList<CharacterRelationshipDto> OutgoingCharacterRelationships,
     IReadOnlyList<CharacterRelationshipDto> IncomingCharacterRelationships);
 
 public record ObjectReferenceDto(int Id, string Name, string? ImagePath, string TypeKey);
+
+public record OrganizationStructureLevelDto(
+    int Id,
+    string Name,
+    string? Description,
+    int SortOrder,
+    IReadOnlyList<OrganizationStructureSlotDto> Slots);
+
+public record OrganizationStructureSlotDto(
+    int Id,
+    string Name,
+    string? Description,
+    string? SlotType,
+    string? Color,
+    string? IconKey,
+    int SortOrder);
+
+public record OrganizationStructureRequest(IReadOnlyList<OrganizationStructureLevelRequest> Levels);
+
+public record OrganizationStructureLevelRequest(
+    string Name,
+    string? Description,
+    IReadOnlyList<OrganizationStructureSlotRequest> Slots);
+
+public record OrganizationStructureSlotRequest(
+    string Name,
+    string? Description,
+    string? SlotType,
+    string? Color,
+    string? IconKey);
 
 public record ObjectGalleryImageRequest(string ImagePath, string? Caption);
 

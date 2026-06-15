@@ -31,6 +31,8 @@ export function StylePreviewDetailPanels({
   selectedTimelineEvent,
   timelineEventDetailProps,
   onCloseRelationEdge,
+  onCloseRelationObject,
+  onCloseObject,
   onCloseTimelineEvent,
   onDeleteCatalogEntry,
   onDeleteRelationObject,
@@ -52,6 +54,8 @@ export function StylePreviewDetailPanels({
   selectedTimelineEvent: TimelineEvent | null
   timelineEventDetailProps: TimelineEventDetailBaseProps
   onCloseRelationEdge: () => void
+  onCloseRelationObject: () => void
+  onCloseObject: () => void
   onCloseTimelineEvent: () => void
   onDeleteCatalogEntry: (entry: CatalogEntry) => void
   onDeleteRelationObject: (object: StoryObject) => void
@@ -69,6 +73,7 @@ export function StylePreviewDetailPanels({
           <ObjectDetail
             {...objectDetailProps}
             storyObject={selectedObject}
+            onClose={onCloseObject}
             onEdit={() => onEditObject(selectedObject)}
           />
         </aside>
@@ -79,6 +84,7 @@ export function StylePreviewDetailPanels({
           <ObjectDetail
             {...objectDetailProps}
             storyObject={selectedRelationObject}
+            onClose={onCloseRelationObject}
             onDelete={() => onDeleteRelationObject(selectedRelationObject)}
             onEdit={() => onEditObject(selectedRelationObject)}
           />

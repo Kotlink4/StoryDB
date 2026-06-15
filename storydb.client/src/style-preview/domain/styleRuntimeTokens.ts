@@ -2,6 +2,7 @@ import type { TimelineEventType } from '../../types'
 
 export const relationCategoryColorTokens: Record<string, string> = {
   character: '#2563eb',
+  membership: '#db2777',
   object: '#0f766e',
   ownership: '#9333ea',
 }

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 
 import type { CatalogEntryLinkTarget } from '../../components/CatalogEntryDetail'
 import type { TextLinkTarget } from '../../components/LinkedText'
-import { getObjectFullName } from '../domain/objectDisplay'
+import { getObjectFullName, getOrganizationSurname } from '../domain/objectDisplay'
 import type {
   CatalogEntry,
   ObjectTypeKey,
@@ -93,6 +93,17 @@ export function useStylePreviewLinkTargets({
             onOpen: () => onOpenObject(storyObject),
           })
         })
+
+      if (storyObject.typeKey === 'organizations') {
+        const organizationSurname = getOrganizationSurname(storyObject)
+        if (organizationSurname.length > 0 && organizationSurname !== storyObject.name.trim()) {
+          targets.push({
+            key: `organization-surname-${storyObject.id}-${organizationSurname}`,
+            label: organizationSurname,
+            onOpen: () => onOpenObject(storyObject),
+          })
+        }
+      }
     })
 
     catalogEntryLinkTargets.forEach(({ catalogId, entry }) => {

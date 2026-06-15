@@ -20,7 +20,7 @@ import {
 
 import { resolveAssetUrl } from '../api'
 import { getInitials } from '../style-preview/domain/previewDisplay'
-import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import { attributeIconLabels, type PreviewLanguage, type PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { StoryObject } from '../types'
 
 export function PreviewDialog({
@@ -47,22 +47,22 @@ export function PreviewDialog({
   )
 }
 
-const attributeIconOptions: Array<{ key: string; label: string; Icon: LucideIcon }> = [
-  { key: 'none', label: 'Нет', Icon: Circle },
-  { key: 'star', label: 'Звезда', Icon: Star },
-  { key: 'heart', label: 'Сердце', Icon: Heart },
-  { key: 'brain', label: 'Разум', Icon: Brain },
-  { key: 'activity', label: 'Активность', Icon: Activity },
-  { key: 'dumbbell', label: 'Сила', Icon: Dumbbell },
-  { key: 'eye', label: 'Взгляд', Icon: Eye },
-  { key: 'flame', label: 'Огонь', Icon: Flame },
-  { key: 'leaf', label: 'Природа', Icon: Leaf },
-  { key: 'sparkles', label: 'Магия', Icon: Sparkles },
-  { key: 'zap', label: 'Энергия', Icon: Zap },
-  { key: 'shield', label: 'Защита', Icon: Shield },
-  { key: 'sword', label: 'Бой', Icon: Sword },
-  { key: 'book', label: 'Знание', Icon: BookOpen },
-  { key: 'atom', label: 'Система', Icon: Atom },
+const attributeIconOptions: Array<{ key: keyof typeof attributeIconLabels.ru; Icon: LucideIcon }> = [
+  { key: 'none', Icon: Circle },
+  { key: 'star', Icon: Star },
+  { key: 'heart', Icon: Heart },
+  { key: 'brain', Icon: Brain },
+  { key: 'activity', Icon: Activity },
+  { key: 'dumbbell', Icon: Dumbbell },
+  { key: 'eye', Icon: Eye },
+  { key: 'flame', Icon: Flame },
+  { key: 'leaf', Icon: Leaf },
+  { key: 'sparkles', Icon: Sparkles },
+  { key: 'zap', Icon: Zap },
+  { key: 'shield', Icon: Shield },
+  { key: 'sword', Icon: Sword },
+  { key: 'book', Icon: BookOpen },
+  { key: 'atom', Icon: Atom },
 ]
 
 export function ObjectPortrait({ storyObject }: { storyObject: StoryObject }) {
@@ -85,7 +85,14 @@ export function ObjectPortrait({ storyObject }: { storyObject: StoryObject }) {
   )
 }
 
-export type SectionIconName = 'characters' | 'items' | 'places' | 'organizations' | 'attributes' | 'catalogs'
+export type SectionIconName =
+  | 'characters'
+  | 'items'
+  | 'places'
+  | 'organizations'
+  | 'attributes'
+  | 'catalogs'
+  | 'structures'
 
 export function SectionIcon({ name }: { name: SectionIconName }) {
   const commonProps = {
@@ -142,6 +149,20 @@ export function SectionIcon({ name }: { name: SectionIconName }) {
         <path d="M4 7h16" />
         <path d="M7 12h10" />
         <path d="M10 17h4" />
+      </svg>
+    )
+  }
+
+  if (name === 'structures') {
+    return (
+      <svg {...commonProps}>
+        <path d="M12 4v4" />
+        <path d="M6 12h12" />
+        <path d="M6 12v4" />
+        <path d="M18 12v4" />
+        <rect height="4" rx="1" width="8" x="8" y="2" />
+        <rect height="4" rx="1" width="8" x="2" y="16" />
+        <rect height="4" rx="1" width="8" x="14" y="16" />
       </svg>
     )
   }
@@ -256,9 +277,11 @@ export function AttributeIcon({ iconKey }: { iconKey: string | null | undefined 
 }
 
 export function AttributeIconPicker({
+  language,
   value,
   onChange,
 }: {
+  language: PreviewLanguage
   value: string | null | undefined
   onChange: (iconKey: string) => void
 }) {
@@ -266,18 +289,21 @@ export function AttributeIconPicker({
 
   return (
     <div className="sp-icon-picker">
-      {attributeIconOptions.map(({ key, label, Icon }) => (
-        <button
-          aria-label={label}
-          className={normalizedValue === key ? 'active' : ''}
-          key={key}
-          title={label}
-          type="button"
-          onClick={() => onChange(key === 'none' ? '' : key)}
-        >
-          <Icon size={18} strokeWidth={2.4} />
-        </button>
-      ))}
+      {attributeIconOptions.map(({ key, Icon }) => {
+        const label = attributeIconLabels[language][key]
+        return (
+          <button
+            aria-label={label}
+            className={normalizedValue === key ? 'active' : ''}
+            key={key}
+            title={label}
+            type="button"
+            onClick={() => onChange(key === 'none' ? '' : key)}
+          >
+            <Icon size={18} strokeWidth={2.4} />
+          </button>
+        )
+      })}
     </div>
   )
 }

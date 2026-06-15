@@ -7,6 +7,7 @@ public class StoryObject
     public int ObjectTypeId { get; set; }
     public required string Name { get; set; }
     public string? Surname { get; set; }
+    public string? SurnameForm { get; set; }
     public string? Description { get; set; }
     public string? Age { get; set; }
     public string? Role { get; set; }
@@ -24,7 +25,9 @@ public class StoryObject
     public List<ObjectOwnership> Owners { get; set; } = [];
     public List<ObjectRelation> OutgoingRelations { get; set; } = [];
     public List<ObjectRelation> IncomingRelations { get; set; } = [];
+    public List<OrganizationStructureLevel> OrganizationStructureLevels { get; set; } = [];
     public List<CharacterRelationship> OutgoingCharacterRelationships { get; set; } = [];
     public List<CharacterRelationship> IncomingCharacterRelationships { get; set; } = [];
+    public List<StructureAssignment> StructureAssignments { get; set; } = [];
     public List<ObjectGalleryImage> GalleryImages { get; set; } = [];
 }

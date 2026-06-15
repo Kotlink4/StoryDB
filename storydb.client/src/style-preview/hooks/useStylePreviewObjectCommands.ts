@@ -83,6 +83,7 @@ type UseStylePreviewObjectCommandsOptions = {
   objectName: string
   objectRole: string
   objectSurname: string
+  objectSurnameForm: string
   objects: StoryObject[]
   ownedItemIds: number[]
   ownerCharacterIds: number[]
@@ -134,6 +135,7 @@ export function useStylePreviewObjectCommands({
   objectName,
   objectRole,
   objectSurname,
+  objectSurnameForm,
   objects,
   ownedItemIds,
   ownerCharacterIds,
@@ -363,6 +365,7 @@ export function useStylePreviewObjectCommands({
     const validationMessage = validateObjectDraft(
       objectName,
       objectSurname,
+      objectSurnameForm,
       objectDescription,
       objectAge,
       objectRole,
@@ -413,6 +416,7 @@ export function useStylePreviewObjectCommands({
         objectName,
         objectRole,
         objectSurname,
+        objectSurnameForm,
         ownedItemIds,
         ownerCharacterIds,
         ownerOrganizationIds,
@@ -487,6 +491,7 @@ export function useStylePreviewObjectCommands({
               ownedTerritories: [],
               hierarchyParents: [],
               hierarchyChildren: [],
+              organizationStructureLevels: [],
               galleryImages: [],
               outgoingCharacterRelationships: [],
               incomingCharacterRelationships: [],
@@ -494,6 +499,7 @@ export function useStylePreviewObjectCommands({
             id: temporaryObjectId,
             name: objectName.trim(),
             surname: objectSurname.trim() || null,
+            surnameForm: section === 'organizations' ? objectSurnameForm.trim() || null : null,
             description: objectDescription.trim() || null,
             age: objectAge.trim() || null,
             role: objectRole.trim() || null,
@@ -541,6 +547,7 @@ export function useStylePreviewObjectCommands({
               section,
               objectName,
               objectSurname,
+              objectSurnameForm,
               objectDescription,
               objectAge,
               objectRole,
@@ -560,6 +567,7 @@ export function useStylePreviewObjectCommands({
               objectId,
               objectName,
               objectSurname,
+              objectSurnameForm,
               objectDescription,
               objectAge,
               objectRole,
@@ -580,6 +588,7 @@ export function useStylePreviewObjectCommands({
         id: saved.id,
         name: saved.name,
         surname: saved.surname,
+        surnameForm: saved.surnameForm,
         description: saved.description,
         age: saved.age,
         role: saved.role,

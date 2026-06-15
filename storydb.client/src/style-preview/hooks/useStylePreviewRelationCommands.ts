@@ -104,6 +104,7 @@ export function useStylePreviewRelationCommands({
         sourceObject.id,
         sourceObject.name,
         sourceObject.surname ?? '',
+        sourceObject.surnameForm ?? '',
         sourceObject.description ?? '',
         sourceObject.age ?? '',
         sourceObject.role ?? '',

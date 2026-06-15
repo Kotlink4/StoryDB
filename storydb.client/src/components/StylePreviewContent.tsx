@@ -7,6 +7,7 @@ import { AttributesWorkspace } from './AttributesWorkspace'
 import { CatalogsWorkspace } from './CatalogsWorkspace'
 import { ObjectCardsWorkspace } from './ObjectCardsWorkspace'
 import { RelationsPage } from './RelationsPage'
+import { StructuresWorkspace } from './StructuresWorkspace'
 import { ProfilePage } from './StylePreviewProfilePage'
 import { SettingsPage } from './StylePreviewSettingsPage'
 import { TimelinePage } from './TimelinePage'
@@ -46,6 +47,7 @@ export function StylePreviewContent({
   selectedRelationEdge,
   selectedTimelineEvent,
   settingsPageProps,
+  structuresWorkspaceProps,
   timelineEventDetailPageProps,
   timelinePageProps,
   ui,
@@ -73,6 +75,7 @@ export function StylePreviewContent({
   selectedRelationEdge: RelationDetailPageProps['selectedRelationEdge'] | null
   selectedTimelineEvent: TimelineEventDetailPageProps['selectedTimelineEvent'] | null
   settingsPageProps: ComponentProps<typeof SettingsPage>
+  structuresWorkspaceProps: Omit<ComponentProps<typeof StructuresWorkspace>, 'selectedProject'>
   timelineEventDetailPageProps: Omit<TimelineEventDetailPageProps, 'selectedTimelineEvent'>
   timelinePageProps: ComponentProps<typeof TimelinePage>
   ui: ComponentProps<typeof ProfilePage>['ui']
@@ -148,6 +151,10 @@ export function StylePreviewContent({
 
   if (activeSection === 'attributes') {
     return <AttributesWorkspace {...attributesWorkspaceProps} />
+  }
+
+  if (activeSection === 'structures') {
+    return <StructuresWorkspace {...structuresWorkspaceProps} selectedProject={selectedProject} />
   }
 
   return <ObjectCardsWorkspace {...objectCardsWorkspaceProps} />

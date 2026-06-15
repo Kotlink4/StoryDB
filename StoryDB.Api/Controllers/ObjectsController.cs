@@ -57,6 +57,25 @@ public class ObjectsController(IObjectService objectService) : ControllerBase
         return ToNoContentResult(result);
     }
 
+    [HttpGet("{objectId:int}/structure")]
+    public async Task<ActionResult<IReadOnlyList<OrganizationStructureLevelDto>>> GetOrganizationStructure(
+        int projectId,
+        int objectId)
+    {
+        var result = await objectService.GetOrganizationStructureAsync(projectId, objectId);
+        return ToActionResult(result);
+    }
+
+    [HttpPut("{objectId:int}/structure")]
+    public async Task<ActionResult<StoryObjectDto>> UpdateOrganizationStructure(
+        int projectId,
+        int objectId,
+        OrganizationStructureRequest request)
+    {
+        var result = await objectService.UpdateOrganizationStructureAsync(projectId, objectId, request);
+        return ToActionResult(result);
+    }
+
     [HttpGet("{objectId:int}/gallery")]
     public async Task<ActionResult<IReadOnlyList<ObjectGalleryImageDto>>> GetGalleryImages(
         int projectId,

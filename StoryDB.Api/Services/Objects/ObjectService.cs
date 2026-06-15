@@ -31,6 +31,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
                 storyObject.Id,
                 storyObject.Name,
                 storyObject.Surname,
+                storyObject.SurnameForm,
                 storyObject.Description,
                 storyObject.Age,
                 storyObject.Role,
@@ -55,6 +56,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
                 Array.Empty<ObjectReferenceDto>(), // OwnedTerritories
                 Array.Empty<ObjectReferenceDto>(), // HierarchyParents
                 Array.Empty<ObjectReferenceDto>(), // HierarchyChildren
+                Array.Empty<OrganizationStructureLevelDto>(), // OrganizationStructureLevels
                 Array.Empty<ObjectGalleryImageDto>(), // GalleryImages
                 Array.Empty<CharacterRelationshipDto>(), // OutgoingCharacterRelationships
                 Array.Empty<CharacterRelationshipDto>())) // IncomingCharacterRelationships
@@ -80,6 +82,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
         var requestError = RequestValidators.ValidateStoryObject(
             request.Name,
             request.Surname,
+            request.SurnameForm,
             request.Description,
             request.Age,
             request.Role,
@@ -155,6 +158,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             ObjectTypeId = objectType.Id,
             Name = request.Name.Trim(),
             Surname = NormalizeOptionalText(request.Surname),
+            SurnameForm = objectType.Key == "organizations" ? NormalizeOptionalText(request.SurnameForm) : null,
             Description = NormalizeOptionalText(request.Description),
             Age = NormalizeOptionalText(request.Age),
             Role = NormalizeOptionalText(request.Role),
@@ -199,6 +203,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
         var requestError = RequestValidators.ValidateStoryObject(
             request.Name,
             request.Surname,
+            request.SurnameForm,
             request.Description,
             request.Age,
             request.Role,
@@ -278,6 +283,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
 
         storyObject.Name = request.Name.Trim();
         storyObject.Surname = NormalizeOptionalText(request.Surname);
+        storyObject.SurnameForm = storyObject.ObjectType!.Key == "organizations" ? NormalizeOptionalText(request.SurnameForm) : null;
         storyObject.Description = NormalizeOptionalText(request.Description);
         storyObject.Age = NormalizeOptionalText(request.Age);
         storyObject.Role = NormalizeOptionalText(request.Role);
@@ -319,6 +325,85 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
 
         return ObjectServiceResult.Success();
     }
+    public async Task<ObjectServiceResult<IReadOnlyList<OrganizationStructureLevelDto>>> GetOrganizationStructureAsync(
+        int projectId,
+        int objectId)
+    {
+        var typeKey = await GetObjectTypeKey(projectId, objectId);
+        if (typeKey is null)
+        {
+            return ObjectServiceResult<IReadOnlyList<OrganizationStructureLevelDto>>.NotFound();
+        }
+
+        if (typeKey != "organizations")
+        {
+            return ObjectServiceResult<IReadOnlyList<OrganizationStructureLevelDto>>.Invalid("Structure is available only for organizations.");
+        }
+
+        return ObjectServiceResult<IReadOnlyList<OrganizationStructureLevelDto>>.Success(
+            await GetOrganizationStructureLevels(objectId));
+    }
+
+    public async Task<ObjectServiceResult<StoryObjectDto>> UpdateOrganizationStructureAsync(
+        int projectId,
+        int objectId,
+        OrganizationStructureRequest request)
+    {
+        var typeKey = await GetObjectTypeKey(projectId, objectId);
+        if (typeKey is null)
+        {
+            return ObjectServiceResult<StoryObjectDto>.NotFound();
+        }
+
+        if (typeKey != "organizations")
+        {
+            return ObjectServiceResult<StoryObjectDto>.Invalid("Structure is available only for organizations.");
+        }
+
+        var validationError = ValidateOrganizationStructure(request);
+        if (validationError is not null)
+        {
+            return ObjectServiceResult<StoryObjectDto>.Invalid(validationError);
+        }
+
+        var existingLevels = await dbContext.OrganizationStructureLevels
+            .Include(level => level.Slots)
+            .Where(level => level.OrganizationObjectId == objectId)
+            .ToListAsync();
+        dbContext.OrganizationStructureLevels.RemoveRange(existingLevels);
+
+        var now = DateTime.UtcNow;
+        var levels = request.Levels
+            .Select((level, levelIndex) => new OrganizationStructureLevel
+            {
+                OrganizationObjectId = objectId,
+                Name = level.Name.Trim(),
+                Description = NormalizeOptionalText(level.Description),
+                SortOrder = levelIndex,
+                CreatedAt = now,
+                UpdatedAt = now,
+                Slots = level.Slots
+                    .Select((slot, slotIndex) => new OrganizationStructureSlot
+                    {
+                        Name = slot.Name.Trim(),
+                        Description = NormalizeOptionalText(slot.Description),
+                        SlotType = NormalizeOptionalText(slot.SlotType),
+                        Color = NormalizeOptionalText(slot.Color),
+                        IconKey = NormalizeOptionalText(slot.IconKey),
+                        SortOrder = slotIndex,
+                        CreatedAt = now,
+                        UpdatedAt = now,
+                    })
+                    .ToList(),
+            })
+            .ToList();
+
+        dbContext.OrganizationStructureLevels.AddRange(levels);
+        await dbContext.SaveChangesAsync();
+
+        return ObjectServiceResult<StoryObjectDto>.Success(await GetObjectDto(projectId, objectId));
+    }
+
     public async Task<ObjectServiceResult<IReadOnlyList<ObjectGalleryImageDto>>> GetGalleryImagesAsync(
         int projectId,
         int objectId)
@@ -436,6 +521,12 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             storyObject.ProjectId == projectId &&
             storyObject.Id == objectId);
 
+    private Task<string?> GetObjectTypeKey(int projectId, int objectId) =>
+        dbContext.Objects
+            .Where(storyObject => storyObject.ProjectId == projectId && storyObject.Id == objectId)
+            .Select(storyObject => storyObject.ObjectType == null ? null : storyObject.ObjectType.Key)
+            .FirstOrDefaultAsync();
+
     private Task MarkRelationGraphLayoutsStale(int projectId)
     {
         var now = DateTime.UtcNow;
@@ -450,6 +541,94 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
     private static string? NormalizeOptionalText(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private async Task<IReadOnlyList<OrganizationStructureLevelDto>> GetOrganizationStructureLevels(int objectId) =>
+        await dbContext.OrganizationStructureLevels
+            .AsNoTracking()
+            .Where(level => level.OrganizationObjectId == objectId)
+            .OrderBy(level => level.SortOrder)
+            .ThenBy(level => level.Id)
+            .Select(level => new OrganizationStructureLevelDto(
+                level.Id,
+                level.Name,
+                level.Description,
+                level.SortOrder,
+                level.Slots
+                    .OrderBy(slot => slot.SortOrder)
+                    .ThenBy(slot => slot.Id)
+                    .Select(slot => new OrganizationStructureSlotDto(
+                        slot.Id,
+                        slot.Name,
+                        slot.Description,
+                        slot.SlotType,
+                        slot.Color,
+                        slot.IconKey,
+                        slot.SortOrder))
+                    .ToList()))
+            .ToListAsync();
+
+    private static string? ValidateOrganizationStructure(OrganizationStructureRequest request)
+    {
+        if (request.Levels is null)
+        {
+            return "Organization structure levels are required.";
+        }
+
+        if (request.Levels.Count > 40)
+        {
+            return "Organization structure can contain up to 40 levels.";
+        }
+
+        foreach (var level in request.Levels)
+        {
+            if (level.Slots is null)
+            {
+                return "Structure level statuses are required.";
+            }
+
+            var levelNameError = RequestValidators.ValidateName(level.Name, "Structure level name", 160);
+            if (levelNameError is not null)
+            {
+                return levelNameError;
+            }
+
+            var levelDescriptionError = RequestValidators.ValidateOptionalLength(
+                level.Description,
+                "Structure level description",
+                1000,
+                trimBeforeCheck: false);
+            if (levelDescriptionError is not null)
+            {
+                return levelDescriptionError;
+            }
+
+            if (level.Slots.Count > 80)
+            {
+                return "Structure level can contain up to 80 statuses.";
+            }
+
+            foreach (var slot in level.Slots)
+            {
+                var slotNameError = RequestValidators.ValidateName(slot.Name, "Structure status name", 160);
+                if (slotNameError is not null)
+                {
+                    return slotNameError;
+                }
+
+                var slotError =
+                    RequestValidators.ValidateOptionalLength(slot.Description, "Structure status description", 1000, trimBeforeCheck: false) ??
+                    RequestValidators.ValidateOptionalLength(slot.SlotType, "Structure status type", 80) ??
+                    RequestValidators.ValidateOptionalLength(slot.Color, "Structure status color", 40) ??
+                    RequestValidators.ValidateOptionalLength(slot.IconKey, "Structure status icon", 80);
+                if (slotError is not null)
+                {
+                    return slotError;
+                }
+            }
+        }
+
+        return null;
     }
 
     private async Task<AttributeDefinitionsValidationResult> GetValidatedAttributeDefinitions(
@@ -753,6 +932,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
                 currentObject.Id,
                 currentObject.Name,
                 currentObject.Surname,
+                currentObject.SurnameForm,
                 currentObject.Description,
                 currentObject.Age,
                 currentObject.Role,
@@ -870,6 +1050,10 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
                         relation.SourceTypeKey))
                 .ToList();
 
+        var organizationStructureLevels = storyObject.TypeKey == "organizations"
+            ? await GetOrganizationStructureLevels(objectId)
+            : [];
+
         var galleryImages = await dbContext.ObjectGalleryImages
             .AsNoTracking()
             .Where(image => image.StoryObjectId == objectId)
@@ -956,6 +1140,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             storyObject.Id,
             storyObject.Name,
             storyObject.Surname,
+            storyObject.SurnameForm,
             storyObject.Description,
             storyObject.Age,
             storyObject.Role,
@@ -972,6 +1157,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             RelationReferences("territoryOwner", false),
             RelationReferences("hierarchyParent", true),
             RelationReferences("hierarchyParent", false),
+            organizationStructureLevels,
             galleryImages,
             outgoingCharacterRelationships,
             incomingCharacterRelationships);
@@ -986,6 +1172,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             storyObject.Id,
             storyObject.Name,
             storyObject.Surname,
+            storyObject.SurnameForm,
             storyObject.Description,
             storyObject.Age,
             storyObject.Role,
@@ -1014,6 +1201,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             [], // OwnedTerritories
             [], // HierarchyParents
             [], // HierarchyChildren
+            [], // OrganizationStructureLevels
             [], // GalleryImages
             [], // OutgoingCharacterRelationships
             []); // IncomingCharacterRelationships

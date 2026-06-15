@@ -106,7 +106,7 @@ export function useStylePreviewAuthCommands({
     setProjects([])
     setSelectedProjectId(null)
     setObjects([])
-    setIsProfilePageOpen(false)
+    setIsProfilePageOpen(true)
     setIsSettingsPageOpen(false)
     navigateHome()
   }

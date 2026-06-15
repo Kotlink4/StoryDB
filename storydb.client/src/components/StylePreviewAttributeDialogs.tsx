@@ -1,4 +1,4 @@
-import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import type { PreviewLanguage, PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { PreviewDialogKind } from '../style-preview/domain/stylePreviewConfig'
 import type { AttributeDefinition, AttributeGroup } from '../types'
 import { AttributeGroupDialog } from './AttributeGroupDialog'
@@ -11,6 +11,7 @@ export function StylePreviewAttributeDialogs({
   attributeGroups,
   dialog,
   editingAttributeGroupId,
+  language,
   pendingDeleteAttributeDefinitionId,
   pendingDeleteAttributeGroupId,
   ui,
@@ -27,6 +28,7 @@ export function StylePreviewAttributeDialogs({
   attributeGroups: AttributeGroup[]
   dialog: PreviewDialogKind
   editingAttributeGroupId: number | null
+  language: PreviewLanguage
   pendingDeleteAttributeDefinitionId: number | null
   pendingDeleteAttributeGroupId: number | null
   ui: PreviewText
@@ -44,6 +46,7 @@ export function StylePreviewAttributeDialogs({
           title={editingAttributeGroupId === null ? ui.newGroup : ui.edit}
           groupName={attributeGroupName}
           iconKey={attributeGroupIconKey}
+          language={language}
           ui={ui}
           onCancel={onClose}
           onIconKeyChange={onAttributeGroupIconChange}
