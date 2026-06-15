@@ -10,6 +10,7 @@ public record CreateStoryObjectRequest(
     string? Description,
     string? Age,
     string? Role,
+    string? CurrentStatus,
     string? ImagePath,
     IReadOnlyList<CreateObjectAttributeRequest> Attributes,
     IReadOnlyList<ObjectHierarchySelectionRequest> HierarchySelections,
@@ -38,6 +39,7 @@ public record UpdateStoryObjectRequest(
     string? Description,
     string? Age,
     string? Role,
+    string? CurrentStatus,
     string? ImagePath,
     IReadOnlyList<CreateObjectAttributeRequest> Attributes,
     IReadOnlyList<ObjectHierarchySelectionRequest> HierarchySelections,
@@ -57,6 +59,7 @@ public record StoryObjectDto(
     string? Description,
     string? Age,
     string? Role,
+    string? CurrentStatus,
     string? ImagePath,
     string TypeKey,
     IReadOnlyList<ObjectAttributeDto> Attributes,
@@ -74,6 +77,19 @@ public record StoryObjectDto(
     IReadOnlyList<ObjectGalleryImageDto> GalleryImages,
     IReadOnlyList<CharacterRelationshipDto> OutgoingCharacterRelationships,
     IReadOnlyList<CharacterRelationshipDto> IncomingCharacterRelationships);
+
+public record StoryObjectSummaryDto(
+    int Id,
+    string Name,
+    string? Surname,
+    string? SurnameForm,
+    string? Description,
+    string? Age,
+    string? Role,
+    string? CurrentStatus,
+    string? ImagePath,
+    string TypeKey,
+    IReadOnlyList<ObjectAttributeDto> Attributes);
 
 public record ObjectReferenceDto(int Id, string Name, string? ImagePath, string TypeKey);
 

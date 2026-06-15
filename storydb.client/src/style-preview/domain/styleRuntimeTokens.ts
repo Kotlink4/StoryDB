@@ -5,6 +5,7 @@ export const relationCategoryColorTokens: Record<string, string> = {
   membership: '#db2777',
   object: '#0f766e',
   ownership: '#9333ea',
+  structure: '#ca8a04',
 }
 
 export const defaultRelationColorToken = '#334155'

@@ -23,7 +23,7 @@ import type {
   StoryObject,
   TimelineEvent,
 } from '../types'
-import { CoverDropzone } from './ImageInputs'
+import { CoverDropzone, type ImageCropMode } from './ImageInputs'
 export function ObjectEditor({
   activeType,
   attributeDefinitions,
@@ -41,6 +41,7 @@ export function ObjectEditor({
   hierarchyGroups,
   hierarchyNodesByGroupId,
   objectAge,
+  objectCurrentStatus,
   objectDescription,
   objectEditorTab,
   objectImagePath,
@@ -66,6 +67,7 @@ export function ObjectEditor({
   onEditorTimelineEventIdChange,
   onImageUpload,
   onObjectAgeChange,
+  onObjectCurrentStatusChange,
   onObjectDescriptionChange,
   onObjectEditorTabChange,
   onObjectNameChange,
@@ -96,6 +98,7 @@ export function ObjectEditor({
   hierarchyGroups: HierarchyGroup[]
   hierarchyNodesByGroupId: Record<number, HierarchyNode[]>
   objectAge: string
+  objectCurrentStatus: string
   objectDescription: string
   objectEditorTab: ObjectEditorTab
   objectImagePath: string | null
@@ -121,6 +124,7 @@ export function ObjectEditor({
   onEditorTimelineEventIdChange: (eventId: string) => void
   onImageUpload: (file: File | null) => void
   onObjectAgeChange: (value: string) => void
+  onObjectCurrentStatusChange: (value: string) => void
   onObjectDescriptionChange: (value: string) => void
   onObjectEditorTabChange: (tab: ObjectEditorTab) => void
   onObjectNameChange: (value: string) => void
@@ -254,6 +258,14 @@ export function ObjectEditor({
   const relationshipCharacters = objectsByType.characters.filter((character) => character.id !== editingObjectId)
   const organizationMembers = getAutomaticOrganizationMembersBySurname(objectSurnameForm, objectsByType.characters)
   const organizationMemberItems = getOrganizationMemberItems(organizationMembers)
+  const objectImageCropMode: ImageCropMode =
+    activeType === 'characters' ? 'portrait' : activeType === 'places' ? 'landscape' : 'square'
+  const objectImageClassName =
+    activeType === 'characters'
+      ? 'object-image object-portrait'
+      : activeType === 'places'
+        ? 'object-image object-landscape'
+        : 'object-image object-square'
   const getTimelineParticipation = (eventId: number) =>
     draftTimelineParticipations.find((participation) => participation.timelineEventId === String(eventId))
   const toggleTimelineParticipation = (eventId: number, isSelected: boolean) => {
@@ -313,6 +325,14 @@ export function ObjectEditor({
 
       {objectEditorTab === 'main' && (
         <div className="sp-form">
+          <CoverDropzone
+            className={objectImageClassName}
+            cropMode={objectImageCropMode}
+            imagePath={objectImagePath}
+            label={ui.image}
+            ui={ui}
+            onFileSelected={(file) => onImageUpload(file)}
+          />
           <label>
             {ui.firstName}
             <input value={objectName} onChange={(event) => onObjectNameChange(event.target.value)} />
@@ -350,13 +370,10 @@ export function ObjectEditor({
               <input value={objectSurnameForm} onChange={(event) => onObjectSurnameFormChange(event.target.value)} />
             </label>
           )}
-          <CoverDropzone
-            className="wide"
-            imagePath={objectImagePath}
-            label={ui.image}
-            ui={ui}
-            onFileSelected={(file) => onImageUpload(file)}
-          />
+          <label>
+            {ui.currentStatus}
+            <input value={objectCurrentStatus} onChange={(event) => onObjectCurrentStatusChange(event.target.value)} />
+          </label>
           <label className="wide">
             {ui.description}
             <textarea value={objectDescription} onChange={(event) => onObjectDescriptionChange(event.target.value)} />

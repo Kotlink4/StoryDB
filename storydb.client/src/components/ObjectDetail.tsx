@@ -6,12 +6,17 @@ import {
   assignStructureRequest,
   createStructureRequest,
   deleteStructureAssignmentRequest,
+  deleteStructureUsageRequest,
   fetchStructure,
   fetchStructureAssignments,
   fetchStructures,
   fetchStructureUsages,
   getApiErrorMessage,
   makeStructureUsageIndividualRequest,
+  updateTimelineEventRequest,
+  updateStructureAssignmentRequest,
+  updateOrganizationStructureRequest,
+  updateStructureUsageRequest,
 } from '../api'
 import { groupAttributesByDefinition } from '../style-preview/domain/attributeDisplay'
 import {
@@ -21,12 +26,22 @@ import {
 } from '../style-preview/domain/organizationComposition'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { ObjectDossierTab } from '../style-preview/domain/stylePreviewUiTypes'
-import { applyTimelineChangesToObject, formatTimelineChangeValue } from '../style-preview/domain/timelineDisplay'
+import { formatTimelineChangeValue } from '../style-preview/domain/timelineDisplay'
+import { toTimelineEventDraft } from '../style-preview/domain/stylePreviewTimelineDrafts'
+import {
+  getTimelineContextChangesForObject,
+  resolveStructureAssignmentsTemporalState,
+  resolveStoryObjectTemporalState,
+} from '../style-preview/domain/temporalState'
 import { getObjectFullName } from '../style-preview/domain/objectDisplay'
 import type {
   AttributeDefinition,
   AttributeGroup,
   Catalog,
+  CatalogEntry,
+  CatalogEntryGroup,
+  HierarchyGroup,
+  HierarchyNode,
   ObjectTypeKey,
   StoryObject,
   Structure,
@@ -34,6 +49,7 @@ import type {
   StructureNodeDraft,
   StructureSummary,
   StructureUsage,
+  TimelineChangeDraft,
   TimelineEvent,
 } from '../types'
 import { LinkedText, type TextLinkTarget } from './LinkedText'
@@ -60,10 +76,14 @@ export function ObjectDetail({
   activeTab = 'main',
   attributeDefinitions,
   attributeGroups: attributeGroupDefinitions,
+  catalogEntriesByCatalogId = {},
+  catalogGroupsByCatalogId = {},
   catalogs = [],
   dossierTimelineEventId = '',
   galleryImageCaption = '',
   galleryImagePath = null,
+  hierarchyGroups = [],
+  hierarchyNodesByGroupId = {},
   selectedProjectId = null,
   storyObject,
   objectsByType,
@@ -71,6 +91,7 @@ export function ObjectDetail({
   timelineEvents = [],
   ui,
   onAddGalleryImage,
+  onAddCoverToGallery,
   onClose,
   onDelete,
   onDeleteGalleryImage,
@@ -80,14 +101,19 @@ export function ObjectDetail({
   onDossierTimelineEventIdChange,
   onOpenTimelineEvent,
   onTabChange,
+  onTimelineEventUpdated,
 }: {
   activeTab?: ObjectDossierTab
   attributeDefinitions: AttributeDefinition[]
   attributeGroups: AttributeGroup[]
+  catalogEntriesByCatalogId?: Record<number, CatalogEntry[]>
+  catalogGroupsByCatalogId?: Record<number, CatalogEntryGroup[]>
   catalogs?: Catalog[]
   dossierTimelineEventId?: string
   galleryImageCaption?: string
   galleryImagePath?: string | null
+  hierarchyGroups?: HierarchyGroup[]
+  hierarchyNodesByGroupId?: Record<number, HierarchyNode[]>
   selectedProjectId?: number | null
   storyObject: StoryObject
   objectsByType: Record<ObjectTypeKey, StoryObject[]>
@@ -95,6 +121,7 @@ export function ObjectDetail({
   timelineEvents?: TimelineEvent[]
   ui: PreviewText
   onAddGalleryImage?: () => void
+  onAddCoverToGallery?: () => void
   onClose?: () => void
   onDelete?: () => void
   onDeleteGalleryImage?: (imageId: number) => void
@@ -104,14 +131,27 @@ export function ObjectDetail({
   onDossierTimelineEventIdChange?: (eventId: string) => void
   onOpenTimelineEvent?: (event: TimelineEvent) => void
   onTabChange?: (tab: ObjectDossierTab) => void
+  onTimelineEventUpdated?: (event: TimelineEvent) => void
 }) {
   const dossierTimelineEvent =
     timelineEvents.find((event) => String(event.id) === dossierTimelineEventId) ?? null
-  const objectTimelineChanges =
+  const selectedObjectTimelineChanges =
     dossierTimelineEvent?.changes.filter(
       (change) => change.targetType === 'storyObject' && change.targetId === storyObject.id,
     ) ?? []
-  const displayStoryObject = applyTimelineChangesToObject(storyObject, objectTimelineChanges)
+  const objectTimelineChanges = getTimelineContextChangesForObject(
+    timelineEvents,
+    dossierTimelineEventId,
+    storyObject.id,
+  )
+  const displayStoryObject = resolveStoryObjectTemporalState(storyObject, objectTimelineChanges, {
+    catalogEntriesByCatalogId,
+    catalogGroupsByCatalogId,
+    catalogs,
+    hierarchyGroups,
+    hierarchyNodesByGroupId,
+    objectsByType,
+  })
   const relatedTimelineEvents = timelineEvents.filter((event) =>
     event.participants.some(
       (participant) => participant.targetType === 'storyObject' && participant.targetId === storyObject.id,
@@ -119,21 +159,21 @@ export function ObjectDetail({
   )
   const attributeGroups = groupAttributesByDefinition(displayStoryObject.attributes, attributeDefinitions, ui.main)
   const characterRelationships = [
-    ...storyObject.outgoingCharacterRelationships,
-    ...storyObject.incomingCharacterRelationships,
+    ...displayStoryObject.outgoingCharacterRelationships,
+    ...displayStoryObject.incomingCharacterRelationships,
   ]
-  const organizationMembers = getAutomaticOrganizationMembers(storyObject, objectsByType.characters)
+  const organizationMembers = getAutomaticOrganizationMembers(displayStoryObject, objectsByType.characters)
   const organizationMemberItems = getOrganizationMemberItems(organizationMembers)
-  const characterOrganizations = getAutomaticCharacterOrganizations(storyObject, objectsByType.organizations)
+  const characterOrganizations = getAutomaticCharacterOrganizations(displayStoryObject, objectsByType.organizations)
   const surnameLinkTargets = textLinkTargets.filter((target) => target.key.startsWith('organization-surname-'))
   const displaySurname = displayStoryObject.surname?.trim() ?? ''
-  const isOrganization = storyObject.typeKey === 'organizations'
-  const isCharacter = storyObject.typeKey === 'characters'
-  const effectiveActiveTab = activeTab === 'structure' && !isOrganization ? 'main' : activeTab
+  const isOrganization = displayStoryObject.typeKey === 'organizations'
+  const isCharacter = displayStoryObject.typeKey === 'characters'
+  const effectiveActiveTab = activeTab
   const dossierTabs: Array<[ObjectDossierTab, string]> = [
     ['main', ui.main],
     ['relations', ui.relations],
-    ...(isOrganization ? ([['structure', ui.structure]] as Array<[ObjectDossierTab, string]>) : []),
+    ['structure', ui.structure],
     ['timeline', ui.timeline],
     ['gallery', ui.gallery],
   ]
@@ -191,6 +231,12 @@ export function ObjectDetail({
             <LinkedText emptyText="-" targets={textLinkTargets} text={displayStoryObject.role} />
           </strong>
         </div>
+        <div>
+          <span>{ui.currentStatus}</span>
+          <strong>
+            <LinkedText emptyText="-" targets={textLinkTargets} text={displayStoryObject.currentStatus} />
+          </strong>
+        </div>
         <div><span>{ui.objectType}</span><strong>{displayStoryObject.typeKey}</strong></div>
       </div>
       <section className="sp-panel">
@@ -199,10 +245,10 @@ export function ObjectDetail({
           <LinkedText emptyText={ui.unknownDescription} targets={textLinkTargets} text={displayStoryObject.description} />
         </p>
       </section>
-      {dossierTimelineEvent !== null && objectTimelineChanges.length > 0 && (
+      {dossierTimelineEvent !== null && selectedObjectTimelineChanges.length > 0 && (
         <section className="sp-panel sp-context-change-list">
           <h3>{ui.timelineSelectedChanges}</h3>
-          {objectTimelineChanges.map((change) => (
+          {selectedObjectTimelineChanges.map((change) => (
             <div className="sp-row" key={change.id}>
               <span>{change.fieldName ?? change.fieldKey ?? change.changeType}</span>
               <strong>
@@ -265,10 +311,10 @@ export function ObjectDetail({
           </section>
           <section className="sp-panel">
             <h3>{ui.catalogs}</h3>
-            {storyObject.catalogSelections.length === 0 ? (
+            {displayStoryObject.catalogSelections.length === 0 ? (
               <p>{ui.noCatalogValues}</p>
             ) : (
-              storyObject.catalogSelections.map((selection) => (
+              displayStoryObject.catalogSelections.map((selection) => (
                 <div className="sp-row" key={`${selection.targetType}-${selection.catalogId}-${selection.catalogEntryGroupId}-${selection.catalogEntryId}`}>
                   <span>{selection.catalogName}</span>
                   <strong>
@@ -283,10 +329,10 @@ export function ObjectDetail({
           </section>
           <section className="sp-panel">
             <h3>{ui.hierarchyValues}</h3>
-            {storyObject.hierarchySelections.length === 0 ? (
+            {displayStoryObject.hierarchySelections.length === 0 ? (
               <p>{ui.noHierarchyValues}</p>
             ) : (
-              storyObject.hierarchySelections.map((selection) => (
+              displayStoryObject.hierarchySelections.map((selection) => (
                 <div className="sp-row" key={selection.groupId}>
                   <span>{selection.groupName}</span>
                   <strong>
@@ -300,11 +346,6 @@ export function ObjectDetail({
       )}
       {effectiveActiveTab === 'relations' && (
         <>
-          <StructureMembershipView
-            selectedProjectId={selectedProjectId}
-            storyObject={storyObject}
-            ui={ui}
-          />
           {isOrganization ? (
             <>
               <CollapsibleDetailSection count={organizationMembers.length} title={ui.organizationMembers}>
@@ -336,11 +377,11 @@ export function ObjectDetail({
                   ))
                 )}
               </CollapsibleDetailSection>
-              <CollapsibleDetailSection count={storyObject.territoryPlaces.length} title={ui.organizationTerritories}>
-                {storyObject.territoryPlaces.length === 0 ? (
+              <CollapsibleDetailSection count={displayStoryObject.territoryPlaces.length} title={ui.organizationTerritories}>
+                {displayStoryObject.territoryPlaces.length === 0 ? (
                   <p>{ui.noOrganizationTerritories}</p>
                 ) : (
-                  storyObject.territoryPlaces.map((reference) => (
+                  displayStoryObject.territoryPlaces.map((reference) => (
                     <div className="sp-row" key={`${reference.typeKey}-${reference.id}`}>
                       <span>{reference.typeKey}</span>
                       <strong>
@@ -385,10 +426,10 @@ export function ObjectDetail({
                 )}
               </CollapsibleDetailSection>
               <CollapsibleDetailSection
-                count={[storyObject.ownedItems, storyObject.owners, storyObject.territoryPlaces, storyObject.organizationsOnTerritory, storyObject.ownerOrganizations, storyObject.ownedTerritories].flat().length}
+                count={[displayStoryObject.ownedItems, displayStoryObject.owners, displayStoryObject.territoryPlaces, displayStoryObject.organizationsOnTerritory, displayStoryObject.ownerOrganizations, displayStoryObject.ownedTerritories].flat().length}
                 title={ui.linkedObjects}
               >
-                {[storyObject.ownedItems, storyObject.owners, storyObject.territoryPlaces, storyObject.organizationsOnTerritory, storyObject.ownerOrganizations, storyObject.ownedTerritories]
+                {[displayStoryObject.ownedItems, displayStoryObject.owners, displayStoryObject.territoryPlaces, displayStoryObject.organizationsOnTerritory, displayStoryObject.ownerOrganizations, displayStoryObject.ownedTerritories]
                   .flat()
                   .map((reference) => (
                     <div className="sp-row" key={`${reference.typeKey}-${reference.id}`}>
@@ -403,14 +444,28 @@ export function ObjectDetail({
           )}
         </>
       )}
-      {effectiveActiveTab === 'structure' && isOrganization && (
-        <OrganizationStructureView
-          catalogs={catalogs}
-          objectsByType={objectsByType}
-          selectedProjectId={selectedProjectId}
-          storyObject={storyObject}
-          ui={ui}
-        />
+      {effectiveActiveTab === 'structure' && (
+        <>
+          <StructureMembershipView
+            catalogs={catalogs}
+            dossierTimelineEventId={dossierTimelineEventId}
+            objectsByType={objectsByType}
+            selectedProjectId={selectedProjectId}
+            storyObject={displayStoryObject}
+            timelineEvents={timelineEvents}
+            ui={ui}
+            onTimelineEventUpdated={onTimelineEventUpdated}
+          />
+          {isOrganization && (
+            <OrganizationStructureView
+              catalogs={catalogs}
+              objectsByType={objectsByType}
+              selectedProjectId={selectedProjectId}
+              storyObject={storyObject}
+              ui={ui}
+            />
+          )}
+        </>
       )}
       {effectiveActiveTab === 'timeline' && (
         <section className="sp-panel">
@@ -438,12 +493,17 @@ export function ObjectDetail({
       {effectiveActiveTab === 'gallery' && (
         <GalleryPanel
           caption={galleryImageCaption}
-          images={storyObject.galleryImages}
+          images={displayStoryObject.galleryImages}
           imagePath={galleryImagePath}
+          isCoverInGallery={
+            displayStoryObject.imagePath !== null &&
+            displayStoryObject.galleryImages.some((image) => image.imagePath === displayStoryObject.imagePath)
+          }
           title={ui.gallery}
           ui={ui}
           renderCaption={(caption) => <LinkedText emptyText="-" targets={textLinkTargets} text={caption} />}
           onAddImage={onAddGalleryImage}
+          onAddCoverImage={displayStoryObject.imagePath === null ? undefined : onAddCoverToGallery}
           onCaptionChange={onGalleryCaptionChange}
           onDeleteImage={onDeleteGalleryImage}
           onImageUpload={onGalleryImageUpload}
@@ -454,13 +514,23 @@ export function ObjectDetail({
 }
 
 function StructureMembershipView({
+  catalogs,
+  dossierTimelineEventId,
+  objectsByType,
   selectedProjectId,
   storyObject,
+  timelineEvents,
   ui,
+  onTimelineEventUpdated,
 }: {
+  catalogs: Catalog[]
+  dossierTimelineEventId: string
+  objectsByType: Record<ObjectTypeKey, StoryObject[]>
   selectedProjectId: number | null
   storyObject: StoryObject
+  timelineEvents: TimelineEvent[]
   ui: PreviewText
+  onTimelineEventUpdated?: (event: TimelineEvent) => void
 }) {
   const [assignments, setAssignments] = useState<StructureAssignment[]>([])
   const [structureDetails, setStructureDetails] = useState<Record<number, Structure>>({})
@@ -475,6 +545,122 @@ function StructureMembershipView({
   const selectedUsage = structureUsages.find((usage) => String(usage.id) === selectedUsageId) ?? null
   const selectedStructure = selectedUsage === null ? null : structureDetails[selectedUsage.structureId] ?? null
   const selectedStructureNodes = selectedStructure?.nodes ?? emptyStructureNodes
+  const objectsById = useMemo(
+    () => new Map(Object.values(objectsByType).flat().map((object) => [object.id, object])),
+    [objectsByType],
+  )
+  const catalogsById = useMemo(
+    () => new Map(catalogs.map((catalog) => [catalog.id, catalog])),
+    [catalogs],
+  )
+  const temporalAssignments = useMemo(
+    () =>
+      resolveStructureAssignmentsTemporalState(assignments, timelineEvents, dossierTimelineEventId, {
+        objectsByType,
+        storyObjectId: storyObject.id,
+        structuresById: structureDetails,
+      }),
+    [assignments, dossierTimelineEventId, objectsByType, storyObject.id, structureDetails, timelineEvents],
+  )
+  const selectedTimelineEvent =
+    timelineEvents.find((event) => String(event.id) === dossierTimelineEventId) ?? null
+  const isTimelineContextActive = selectedTimelineEvent !== null
+
+  const toStructureAssignmentSnapshot = useCallback(
+    (assignment: StructureAssignment): StructureAssignment => ({
+      id: assignment.id,
+      projectId: assignment.projectId,
+      structureUsageId: assignment.structureUsageId,
+      structureId: assignment.structureId,
+      structureName: assignment.structureName,
+      structureNodeId: assignment.structureNodeId,
+      structureNodeName: assignment.structureNodeName,
+      storyObjectId: assignment.storyObjectId,
+      storyObjectName: assignment.storyObjectName,
+      storyObjectTypeKey: assignment.storyObjectTypeKey,
+      roleLabel: assignment.roleLabel,
+      notes: assignment.notes,
+      sortOrder: assignment.sortOrder,
+    }),
+    [],
+  )
+
+  const saveStructureAssignmentsSnapshot = useCallback(
+    async (nextAssignments: StructureAssignment[]) => {
+      if (selectedProjectId === null || selectedTimelineEvent === null) {
+        return false
+      }
+
+      const oldSnapshot = temporalAssignments.map(toStructureAssignmentSnapshot)
+      const nextSnapshot = nextAssignments.map(toStructureAssignmentSnapshot)
+      const oldValue = JSON.stringify(oldSnapshot)
+      const newValue = JSON.stringify(nextSnapshot)
+
+      if (oldValue === newValue) {
+        return true
+      }
+
+      const eventDraft = toTimelineEventDraft(selectedTimelineEvent)
+      const retainedChanges = eventDraft.changes.filter(
+        (change) =>
+          !(
+            change.changeType === 'structureAssignment' &&
+            change.targetType === 'storyObject' &&
+            Number(change.targetId) === storyObject.id &&
+            change.fieldName === 'structureAssignments'
+          ),
+      )
+      const participants = eventDraft.participants.some(
+        (participant) => participant.targetType === 'storyObject' && Number(participant.targetId) === storyObject.id,
+      )
+        ? eventDraft.participants
+        : [...eventDraft.participants, { targetType: 'storyObject', targetId: String(storyObject.id), role: '' }]
+      const snapshotChange: TimelineChangeDraft = {
+        changeType: 'structureAssignment',
+        targetType: 'storyObject',
+        targetId: String(storyObject.id),
+        fieldName: 'structureAssignments',
+        oldValue,
+        newValue,
+        notes: '',
+      }
+      const savedEvent = await updateTimelineEventRequest(selectedProjectId, selectedTimelineEvent.id, {
+        ...eventDraft,
+        participants,
+        changes: [...retainedChanges, snapshotChange],
+      })
+
+      onTimelineEventUpdated?.(savedEvent)
+      return true
+    },
+    [
+      onTimelineEventUpdated,
+      selectedProjectId,
+      selectedTimelineEvent,
+      storyObject.id,
+      temporalAssignments,
+      toStructureAssignmentSnapshot,
+    ],
+  )
+  const getUsageLabel = useCallback(
+    (usage: StructureUsage) => {
+      const targetLabel =
+        usage.targetKind === 'project'
+          ? ui.structureOwnerProject
+          : usage.targetKind === 'catalog'
+            ? catalogsById.get(usage.targetId)?.name ?? ui.structureOwnerCatalog
+            : objectsById.get(usage.targetId)?.name ?? ui.structureOwnerObject
+
+      return `${usage.displayName ?? usage.structureName} · ${targetLabel}`
+    },
+    [
+      catalogsById,
+      objectsById,
+      ui.structureOwnerCatalog,
+      ui.structureOwnerObject,
+      ui.structureOwnerProject,
+    ],
+  )
 
   const loadMembershipData = useCallback(async () => {
     if (selectedProjectId === null) {
@@ -538,6 +724,34 @@ function StructureMembershipView({
     setIsSaving(true)
     setError(null)
     try {
+      if (isTimelineContextActive) {
+        const selectedNode = selectedStructureNodes.find((node) => String(node.id) === selectedNodeId)
+
+        if (selectedNode === undefined || selectedStructure === null) {
+          return
+        }
+
+        const nextAssignment: StructureAssignment = {
+          id: -Date.now(),
+          projectId: selectedProjectId,
+          structureUsageId: selectedUsage.id,
+          structureId: selectedUsage.structureId,
+          structureName: selectedStructure.name,
+          structureNodeId: selectedNode.id,
+          structureNodeName: selectedNode.name,
+          storyObjectId: storyObject.id,
+          storyObjectName: storyObject.name,
+          storyObjectTypeKey: storyObject.typeKey as ObjectTypeKey,
+          roleLabel: roleLabel.trim().length === 0 ? null : roleLabel.trim(),
+          notes: null,
+          sortOrder: temporalAssignments.length,
+        }
+
+        await saveStructureAssignmentsSnapshot([...temporalAssignments, nextAssignment])
+        setRoleLabel('')
+        return
+      }
+
       await assignObjectToStructureRequest(selectedProjectId, selectedUsage.id, {
         structureNodeId: Number(selectedNodeId),
         storyObjectId: storyObject.id,
@@ -562,10 +776,49 @@ function StructureMembershipView({
     setIsSaving(true)
     setError(null)
     try {
+      if (isTimelineContextActive) {
+        await saveStructureAssignmentsSnapshot(temporalAssignments.filter((item) => item.id !== assignment.id))
+        return
+      }
+
       await deleteStructureAssignmentRequest(selectedProjectId, assignment.id)
       await loadMembershipData()
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentDeleteFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const updateAssignmentRole = async (assignment: StructureAssignment, nextRoleLabel: string) => {
+    if (selectedProjectId === null || isSaving || nextRoleLabel.trim() === (assignment.roleLabel ?? '')) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      if (isTimelineContextActive) {
+        await saveStructureAssignmentsSnapshot(
+          temporalAssignments.map((item) =>
+            item.id === assignment.id
+              ? { ...item, roleLabel: nextRoleLabel.trim().length === 0 ? null : nextRoleLabel.trim() }
+              : item,
+          ),
+        )
+        return
+      }
+
+      await updateStructureAssignmentRequest(selectedProjectId, assignment.id, {
+        structureNodeId: assignment.structureNodeId,
+        storyObjectId: assignment.storyObjectId,
+        roleLabel: nextRoleLabel,
+        notes: assignment.notes ?? '',
+        sortOrder: assignment.sortOrder,
+      })
+      await loadMembershipData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
     } finally {
       setIsSaving(false)
     }
@@ -576,28 +829,32 @@ function StructureMembershipView({
   }
 
   return (
-    <CollapsibleDetailSection count={assignments.length} title={ui.structureMembership}>
+    <CollapsibleDetailSection count={temporalAssignments.length} title={ui.structureMembership}>
       <div className="sp-structure-membership">
         <p className="sp-editor-hint">{ui.structureMembershipHint}</p>
         {error !== null && <p className="sp-editor-error">{error}</p>}
         {isLoading && <p className="sp-editor-hint">{ui.loading}</p>}
 
-        {assignments.length === 0 ? (
+        {temporalAssignments.length === 0 ? (
           <p>{ui.noStructureAssignments}</p>
         ) : (
           <div className="sp-structure-assignment-list">
-            {assignments.map((assignment) => (
+            {temporalAssignments.map((assignment) => (
               <div className="sp-row" key={assignment.id}>
                 <span>{assignment.structureName}</span>
                 <strong>
                   {assignment.structureNodeName}
-                  {assignment.roleLabel !== null && assignment.roleLabel.trim().length > 0 && (
-                    <> · {assignment.roleLabel}</>
-                  )}
+                  <input
+                    aria-label={ui.role}
+                    defaultValue={assignment.roleLabel ?? ''}
+                    disabled={isSaving || (!isTimelineContextActive && assignment.id < 0)}
+                    placeholder={ui.role}
+                    onBlur={(event) => void updateAssignmentRole(assignment, event.currentTarget.value)}
+                  />
                 </strong>
                 <button
                   className="sp-icon-button"
-                  disabled={isSaving}
+                  disabled={isSaving || (!isTimelineContextActive && assignment.id < 0)}
                   type="button"
                   onClick={() => void deleteAssignment(assignment)}
                   title={ui.delete}
@@ -622,7 +879,7 @@ function StructureMembershipView({
               ) : (
                 structureUsages.map((usage) => (
                   <option key={usage.id} value={usage.id}>
-                    {usage.displayName ?? usage.structureName}
+                    {getUsageLabel(usage)}
                   </option>
                 ))
               )}
@@ -692,6 +949,7 @@ function OrganizationStructureView({
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasMigratedLegacyStructure, setHasMigratedLegacyStructure] = useState(false)
   const unassignedStructures = availableStructures.filter(
     (structure) => !structureUsages.some((usage) => usage.structureId === structure.id),
   )
@@ -768,6 +1026,10 @@ function OrganizationStructureView({
   useEffect(() => {
     setIndividualStructureNodes(createStarterOrganizationNodes(ui))
   }, [storyObject.id, ui])
+
+  useEffect(() => {
+    setHasMigratedLegacyStructure(false)
+  }, [storyObject.id, storyObject.organizationStructureLevels.length])
 
   useEffect(() => {
     setAssignmentObjectId((currentObjectId) =>
@@ -898,6 +1160,111 @@ function OrganizationStructureView({
     }
   }
 
+  const updateUsagePrimaryState = async (usage: StructureUsage) => {
+    if (selectedProjectId === null || isSaving || usage.isPrimary) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      await updateStructureUsageRequest(selectedProjectId, usage.id, {
+        targetKind: usage.targetKind,
+        targetId: usage.targetId,
+        displayName: usage.displayName ?? '',
+        notes: usage.notes ?? '',
+        isPrimary: true,
+      })
+      await loadStructureData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureUsageUpdateFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const disconnectUsage = async (usage: StructureUsage) => {
+    if (selectedProjectId === null || isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      await deleteStructureUsageRequest(selectedProjectId, usage.id)
+      await loadStructureData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureDisconnectFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const migrateLegacyStructure = async () => {
+    if (selectedProjectId === null || isSaving || storyObject.organizationStructureLevels.length === 0) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      const nodes = storyObject.organizationStructureLevels.flatMap((level, levelIndex) => {
+        const slots = [...level.slots].sort((left, right) => left.sortOrder - right.sortOrder || left.id - right.id)
+        if (slots.length === 0) {
+          return [
+            {
+              ...createEmptyOrganizationStructureNodeDraft(levelIndex),
+              clientId: `legacy-level-${level.id}`,
+              name: level.name,
+              description: level.description ?? '',
+              nodeType: ui.structureLevelIndex,
+              levelIndex,
+              sortOrder: level.sortOrder,
+            },
+          ]
+        }
+
+        return slots.map((slot) => ({
+          ...createEmptyOrganizationStructureNodeDraft(slot.sortOrder),
+          clientId: `legacy-slot-${slot.id}`,
+          name: slot.name,
+          description: slot.description ?? level.description ?? '',
+          nodeType: slot.slotType ?? level.name,
+          color: slot.color ?? '',
+          iconKey: slot.iconKey ?? '',
+          levelIndex,
+          sortOrder: slot.sortOrder,
+        }))
+      })
+
+      const structure = await createStructureRequest(selectedProjectId, {
+        name: `${storyObject.name} - ${ui.structure}`,
+        description: ui.legacyOrganizationStructureHint,
+        ownerKind: 'object',
+        ownerId: storyObject.id,
+        layoutKind: 'levels',
+        nodeBindingMode: 'none',
+        linkedCatalogId: null,
+        nodes,
+        edges: [],
+      })
+      await assignStructureRequest(selectedProjectId, structure.id, {
+        targetKind: 'object',
+        targetId: storyObject.id,
+        displayName: '',
+        notes: ui.structureMigratedFromLegacy,
+        isPrimary: structureUsages.length === 0,
+      })
+      await updateOrganizationStructureRequest(selectedProjectId, storyObject.id, [])
+      setHasMigratedLegacyStructure(true)
+      await loadStructureData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureLegacyMigrationFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const createAssignment = async () => {
     if (
       selectedProjectId === null ||
@@ -946,7 +1313,30 @@ function OrganizationStructureView({
     }
   }
 
-  const legacyStructure = storyObject.organizationStructureLevels.length > 0
+  const updateAssignmentRole = async (assignment: StructureAssignment, nextRoleLabel: string) => {
+    if (selectedProjectId === null || isSaving || nextRoleLabel.trim() === (assignment.roleLabel ?? '')) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      await updateStructureAssignmentRequest(selectedProjectId, assignment.id, {
+        structureNodeId: assignment.structureNodeId,
+        storyObjectId: assignment.storyObjectId,
+        roleLabel: nextRoleLabel,
+        notes: assignment.notes ?? '',
+        sortOrder: assignment.sortOrder,
+      })
+      await loadStructureData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const legacyStructure = storyObject.organizationStructureLevels.length > 0 && !hasMigratedLegacyStructure
 
   if (selectedProjectId === null) {
     return (
@@ -1173,10 +1563,16 @@ function OrganizationStructureView({
                                           <span className="sp-structure-node-member" key={assignment.id}>
                                             <span>
                                               {assignment.storyObjectName}
-                                              {assignment.roleLabel !== null && assignment.roleLabel.trim().length > 0 && (
-                                                <> · {assignment.roleLabel}</>
-                                              )}
                                             </span>
+                                            <input
+                                              aria-label={ui.role}
+                                              defaultValue={assignment.roleLabel ?? ''}
+                                              disabled={isSaving}
+                                              placeholder={ui.role}
+                                              onBlur={(event) =>
+                                                void updateAssignmentRole(assignment, event.currentTarget.value)
+                                              }
+                                            />
                                             <button
                                               className="sp-icon-button"
                                               disabled={isSaving}
@@ -1199,13 +1595,34 @@ function OrganizationStructureView({
                   )
                 )}
                 <div className="sp-detail-actions">
+                  {!usage.isPrimary && (
+                    <button
+                      className="sp-button"
+                      disabled={isSaving}
+                      type="button"
+                      onClick={() => void updateUsagePrimaryState(usage)}
+                    >
+                      {ui.structureMakePrimary}
+                    </button>
+                  )}
+                  {structure?.ownerKind !== 'object' && (
+                    <button
+                      className="sp-button"
+                      disabled={isSaving}
+                      type="button"
+                      onClick={() => void makeUsageIndividual(usage)}
+                    >
+                      {ui.structureMakeIndividual}
+                    </button>
+                  )}
                   <button
-                    className="sp-button"
-                    disabled={isSaving}
+                    className="sp-button danger"
+                    disabled={isSaving || assignments.length > 0}
                     type="button"
-                    onClick={() => void makeUsageIndividual(usage)}
+                    title={assignments.length > 0 ? ui.structureDisconnectWithAssignmentsHint : ui.structureDisconnect}
+                    onClick={() => void disconnectUsage(usage)}
                   >
-                    {ui.structureMakeIndividual}
+                    {ui.structureDisconnect}
                   </button>
                 </div>
               </details>
@@ -1221,6 +1638,16 @@ function OrganizationStructureView({
             <strong>{storyObject.organizationStructureLevels.length}</strong>
           </summary>
           <p className="sp-editor-hint">{ui.legacyOrganizationStructureHint}</p>
+          <div className="sp-detail-actions">
+            <button
+              className="sp-button primary"
+              disabled={isSaving}
+              type="button"
+              onClick={() => void migrateLegacyStructure()}
+            >
+              {isSaving ? ui.saving : ui.structureMigrateLegacy}
+            </button>
+          </div>
         </details>
       )}
     </section>

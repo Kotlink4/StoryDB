@@ -28,5 +28,9 @@ export const getRelationCategoryLabel = (category: RelationGraphEdge['category']
     return ui.relationObject
   }
 
+  if (category === 'structure') {
+    return ui.relationStructure
+  }
+
   return category
 }

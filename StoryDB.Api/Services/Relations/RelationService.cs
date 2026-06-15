@@ -8,6 +8,7 @@ namespace StoryDB.Api.Services.Relations;
 
 public sealed class RelationService(StoryDbContext dbContext) : IRelationService
 {
+    private const string DefaultGraphKey = "relations:all";
     private const string LayoutAlgorithmVersion = "relation-elk-v1";
 
     public async Task<RelationServiceResult<RelationGraphDto>> GetRelationGraphAsync(int projectId)
@@ -116,15 +117,48 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
             .ToListAsync();
         edges.AddRange(objectRelations);
 
+        var structureAssignments = await dbContext.StructureAssignments
+            .AsNoTracking()
+            .Where(assignment =>
+                assignment.ProjectId == projectId &&
+                assignment.StructureUsage != null &&
+                assignment.StructureUsage.Structure != null &&
+                assignment.StructureNode != null &&
+                assignment.StructureUsage.TargetKind == "object" &&
+                nodeIds.Contains(assignment.StoryObjectId) &&
+                nodeIds.Contains(assignment.StructureUsage.TargetId))
+            .OrderBy(assignment => assignment.StructureUsage!.Structure!.Name)
+            .ThenBy(assignment => assignment.StructureNode!.LevelIndex)
+            .ThenBy(assignment => assignment.StructureNode!.SortOrder)
+            .ThenBy(assignment => assignment.SortOrder)
+            .Select(assignment => new RelationGraphEdgeDto(
+                $"structure:{assignment.Id}",
+                assignment.StoryObjectId,
+                assignment.StructureUsage!.TargetId,
+                string.IsNullOrWhiteSpace(assignment.RoleLabel)
+                    ? assignment.StructureNode!.Name
+                    : assignment.RoleLabel,
+                "structure",
+                null,
+                null,
+                false,
+                assignment.StructureUsage.Structure!.Name + " · " + assignment.StructureNode!.Name))
+            .ToListAsync();
+        edges.AddRange(structureAssignments);
+
         return RelationServiceResult<RelationGraphDto>.Success(new RelationGraphDto(nodes, edges));
     }
 
-    public async Task<RelationServiceResult<RelationGraphLayoutDto?>> GetDefaultLayoutAsync(int projectId)
+    public async Task<RelationServiceResult<RelationGraphLayoutDto?>> GetDefaultLayoutAsync(int projectId, string? graphKey)
     {
+        var normalizedGraphKey = NormalizeGraphKey(graphKey);
         var layout = await dbContext.RelationGraphLayouts
             .AsNoTracking()
             .Include(currentLayout => currentLayout.Items)
-            .Where(currentLayout => currentLayout.ProjectId == projectId && currentLayout.OwnerUserId == null)
+            .Where(currentLayout =>
+                currentLayout.ProjectId == projectId &&
+                currentLayout.OwnerUserId == null &&
+                currentLayout.GraphKey == normalizedGraphKey)
             .OrderByDescending(currentLayout => currentLayout.IsDefault)
             .ThenByDescending(currentLayout => currentLayout.GeneratedAt)
             .FirstOrDefaultAsync();
@@ -136,6 +170,7 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
         int projectId,
         RelationGraphLayoutRequest request)
     {
+        var normalizedGraphKey = NormalizeGraphKey(request.GraphKey);
         var projectExists = await dbContext.Projects.AnyAsync(project => project.Id == projectId);
         if (!projectExists)
         {
@@ -176,7 +211,10 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
         var now = DateTime.UtcNow;
         var layout = await dbContext.RelationGraphLayouts
             .Include(currentLayout => currentLayout.Items)
-            .FirstOrDefaultAsync(currentLayout => currentLayout.ProjectId == projectId && currentLayout.OwnerUserId == null);
+            .FirstOrDefaultAsync(currentLayout =>
+                currentLayout.ProjectId == projectId &&
+                currentLayout.OwnerUserId == null &&
+                currentLayout.GraphKey == normalizedGraphKey);
 
         if (layout is null)
         {
@@ -184,6 +222,7 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
             {
                 ProjectId = projectId,
                 OwnerUserId = null,
+                GraphKey = normalizedGraphKey,
                 AlgorithmVersion = LayoutAlgorithmVersion,
                 IsDefault = true,
                 IsStale = false,
@@ -196,6 +235,7 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
         else
         {
             layout.AlgorithmVersion = LayoutAlgorithmVersion;
+            layout.GraphKey = normalizedGraphKey;
             layout.IsDefault = true;
             layout.IsStale = false;
             layout.GeneratedAt = now;
@@ -222,10 +262,24 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
         return RelationServiceResult<RelationGraphLayoutDto>.Success(ToLayoutDto(layout));
     }
 
+    private static string NormalizeGraphKey(string? graphKey)
+    {
+        var trimmedGraphKey = graphKey?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedGraphKey))
+        {
+            return DefaultGraphKey;
+        }
+
+        return trimmedGraphKey.Length > 80
+            ? trimmedGraphKey[..80]
+            : trimmedGraphKey;
+    }
+
     private static RelationGraphLayoutDto ToLayoutDto(RelationGraphLayout layout) =>
         new(
             layout.Id,
             layout.ProjectId,
+            layout.GraphKey,
             layout.AlgorithmVersion,
             layout.IsDefault,
             layout.IsStale,

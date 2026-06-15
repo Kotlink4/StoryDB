@@ -26,7 +26,9 @@ export function StylePreviewTopbar({
   currentUser,
   currentUserAvatarUrl,
   isSettingsOpen,
+  searchQuery,
   showWorkspaceTabs,
+  showSearch,
   ui,
   onCreateObject,
   onLogin,
@@ -34,13 +36,16 @@ export function StylePreviewTopbar({
   onNavigateTab,
   onOpenProfile,
   onOpenSettings,
+  onSearchQueryChange,
   onToggleSettingsMenu,
 }: {
   activeTab: PreviewTab | null
   currentUser: AuthUser | null
   currentUserAvatarUrl: string | null
   isSettingsOpen: boolean
+  searchQuery: string
   showWorkspaceTabs: boolean
+  showSearch: boolean
   ui: PreviewText
   onCreateObject: () => void
   onLogin: () => void
@@ -48,6 +53,7 @@ export function StylePreviewTopbar({
   onNavigateTab: (tab: PreviewTab) => void
   onOpenProfile: () => void
   onOpenSettings: () => void
+  onSearchQueryChange: (query: string) => void
   onToggleSettingsMenu: () => void
 }) {
   return (
@@ -73,13 +79,20 @@ export function StylePreviewTopbar({
           ))}
         </div>
       )}
-      <label className="sp-search">
-        <svg aria-hidden="true" className="sp-search-svg" fill="none" viewBox="0 0 24 24">
-          <path d="m21 21-4.4-4.4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-        </svg>
-        <input placeholder={ui.searchPlaceholder} />
-      </label>
+      {showSearch && (
+        <label className="sp-search">
+          <svg aria-hidden="true" className="sp-search-svg" fill="none" viewBox="0 0 24 24">
+            <path d="m21 21-4.4-4.4" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+          </svg>
+          <input
+            placeholder={ui.searchPlaceholder}
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+          />
+        </label>
+      )}
       <div className="sp-actions">
         <button className="sp-button" type="button" onClick={onToggleSettingsMenu}>
           {ui.settings}

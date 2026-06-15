@@ -23,6 +23,7 @@ public sealed class TimelineEventValidator(StoryDbContext dbContext)
         "catalogSelection",
         "hierarchySelection",
         "location",
+        "structureAssignment",
         "status",
         "custom",
     };
@@ -37,6 +38,10 @@ public sealed class TimelineEventValidator(StoryDbContext dbContext)
         "objectRelation",
         "attributeDefinition",
         "hierarchyNode",
+        "structure",
+        "structureUsage",
+        "structureAssignment",
+        "structureNode",
         "custom",
     };
 
@@ -283,6 +288,19 @@ public sealed class TimelineEventValidator(StoryDbContext dbContext)
                 node.Id == targetId &&
                 node.Group != null &&
                 node.Group.ProjectId == projectId),
+            var value when value.Equals("structure", StringComparison.OrdinalIgnoreCase) => await dbContext.Structures.AnyAsync(structure =>
+                structure.ProjectId == projectId &&
+                structure.Id == targetId),
+            var value when value.Equals("structureUsage", StringComparison.OrdinalIgnoreCase) => await dbContext.StructureUsages.AnyAsync(usage =>
+                usage.ProjectId == projectId &&
+                usage.Id == targetId),
+            var value when value.Equals("structureAssignment", StringComparison.OrdinalIgnoreCase) => await dbContext.StructureAssignments.AnyAsync(assignment =>
+                assignment.ProjectId == projectId &&
+                assignment.Id == targetId),
+            var value when value.Equals("structureNode", StringComparison.OrdinalIgnoreCase) => await dbContext.StructureNodes.AnyAsync(node =>
+                node.Id == targetId &&
+                node.Structure != null &&
+                node.Structure.ProjectId == projectId),
             _ => false,
         };
 

@@ -1,106 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-import { Cropper, ImageRestriction, type CropperRef } from 'react-advanced-cropper'
+import { lazy, Suspense, useEffect, useState } from 'react'
 
 import { resolveAssetUrl } from '../api'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
-import { PreviewDialog } from './StylePreviewPrimitives'
 
-export type ImageCropMode = 'none' | 'avatar' | 'cover'
+export type ImageCropMode = 'none' | 'avatar' | 'cover' | 'portrait' | 'square' | 'landscape'
 
-type ImageCropSize = {
-  height: number
-  width: number
-}
-
-const imageCropOutputSizes: Record<Exclude<ImageCropMode, 'none'>, ImageCropSize> = {
-  avatar: {
-    width: 640,
-    height: 640,
-  },
-  cover: {
-    width: 1600,
-    height: 900,
-  },
-}
-
-function ImageCropDialog({
-  file,
-  label,
-  mode,
-  sourceUrl,
-  ui,
-  onCancel,
-  onConfirm,
-}: {
-  file: File
-  label: string
-  mode: Exclude<ImageCropMode, 'none'>
-  sourceUrl: string
-  ui: PreviewText
-  onCancel: () => void
-  onConfirm: (file: File) => void
-}) {
-  const aspectRatio = mode === 'avatar' ? 1 : 16 / 9
-  const outputSize = imageCropOutputSizes[mode]
-  const cropperRef = useRef<CropperRef | null>(null)
-
-  const resetCrop = () => {
-    cropperRef.current?.reset()
-  }
-
-  const applyCrop = async () => {
-    const outputCanvas = cropperRef.current?.getCanvas({
-      height: outputSize.height,
-      imageSmoothingEnabled: true,
-      imageSmoothingQuality: 'high',
-      width: outputSize.width,
-    })
-    if (outputCanvas === undefined || outputCanvas === null) {
-      return
-    }
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      outputCanvas.toBlob(resolve, 'image/jpeg', 0.92)
-    })
-
-    if (blob === null) {
-      return
-    }
-
-    const fileName = file.name.replace(/\.[^.]+$/, '') || 'image'
-    onConfirm(new File([blob], `${fileName}-${mode}.jpg`, { type: 'image/jpeg' }))
-  }
-
-  return (
-    <PreviewDialog title={`${ui.edit}: ${label.toLowerCase()}`} onClose={onCancel}>
-      <div className="sp-crop-editor">
-        <Cropper
-          ref={cropperRef}
-          className={`sp-crop-stage ${mode === 'avatar' ? 'avatar' : 'cover'}`}
-          imageRestriction={ImageRestriction.stencil}
-          src={sourceUrl}
-          stencilProps={{
-            aspectRatio,
-            grid: true,
-          }}
-          transitions
-        />
-        <p className="sp-crop-hint">{ui.cropHint}</p>
-        <div className="sp-dialog-actions">
-          <button className="sp-button" type="button" onClick={resetCrop}>
-            {ui.cropReset}
-          </button>
-          <button className="sp-button" type="button" onClick={onCancel}>
-            {ui.cancel}
-          </button>
-          <button className="sp-button primary" type="button" onClick={() => void applyCrop()}>
-            {ui.cropApply}
-          </button>
-        </div>
-      </div>
-    </PreviewDialog>
-  )
-}
+const LazyImageCropDialog = lazy(() => import('./ImageCropDialog').then((module) => ({ default: module.ImageCropDialog })))
 
 export function CoverDropzone({
   className = '',
@@ -191,18 +96,20 @@ export function CoverDropzone({
         </label>
       </div>
       {pendingCrop !== null && (
-        <ImageCropDialog
-          file={pendingCrop.file}
-          label={label}
-          mode={pendingCrop.mode}
-          sourceUrl={pendingCrop.sourceUrl}
-          ui={ui}
-          onCancel={() => setPendingCrop(null)}
-          onConfirm={(croppedFile) => {
-            setPendingCrop(null)
-            onFileSelected(croppedFile)
-          }}
-        />
+        <Suspense fallback={null}>
+          <LazyImageCropDialog
+            file={pendingCrop.file}
+            label={label}
+            mode={pendingCrop.mode}
+            sourceUrl={pendingCrop.sourceUrl}
+            ui={ui}
+            onCancel={() => setPendingCrop(null)}
+            onConfirm={(croppedFile) => {
+              setPendingCrop(null)
+              onFileSelected(croppedFile)
+            }}
+          />
+        </Suspense>
       )}
     </>
   )

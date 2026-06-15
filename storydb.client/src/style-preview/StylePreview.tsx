@@ -1,15 +1,15 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
   useState,
 } from 'react'
-import 'react-advanced-cropper/dist/style.css'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { resolveAssetUrl } from '../api'
 import { CoverDropzone } from '../components/ImageInputs'
 import { StylePreviewContent } from '../components/StylePreviewContent'
-import { StylePreviewDialogHost } from '../components/StylePreviewDialogHost'
 import { StylePreviewLayout } from '../components/StylePreviewLayout'
 import {
   previewMessages,
@@ -32,6 +32,11 @@ import {
   type PreviewDialogKind,
 } from './domain/stylePreviewConfig'
 import { readPreviewState, savePreviewState } from './domain/stylePreviewStateStorage'
+import { buildProjectSearchGroups } from './domain/projectSearch'
+import {
+  resolveObjectsByTypeTemporalState,
+  resolveRelationGraphTemporalState,
+} from './domain/temporalState'
 import type {
   DetailMode,
   GroupDisplayMode,
@@ -64,6 +69,10 @@ import type {
   TimelineEventLinkDraft,
 } from '../types'
 import './StylePreview.css'
+
+const LazyStylePreviewDialogHost = lazy(() =>
+  import('../components/StylePreviewDialogHost').then((module) => ({ default: module.StylePreviewDialogHost })),
+)
 
 export function StylePreview() {
   const location = useLocation()
@@ -108,6 +117,7 @@ export function StylePreview() {
   const [previewTheme, setPreviewTheme] = useState<PreviewTheme>(initialPreviewState.previewTheme ?? 'light')
   const [previewLanguage, setPreviewLanguage] = useState<PreviewLanguage>(initialPreviewState.previewLanguage ?? 'ru')
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid')
+  const [projectSearchQuery, setProjectSearchQuery] = useState('')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSettingsPageOpen, setIsSettingsPageOpen] = useState(routeState.utilityPage === 'settings')
   const [isProfilePageOpen, setIsProfilePageOpen] = useState(routeState.utilityPage === 'profile')
@@ -178,12 +188,10 @@ export function StylePreview() {
     profileAvatarImagePath,
     profileDisplayName,
     profileEmail,
-    profileProjectQuery,
     setIsProfileSaving,
     setProfileAvatarImagePath,
     setProfileDisplayName,
     setProfileEmail,
-    setProfileProjectQuery,
   } = useStylePreviewProfileDraft(currentUser)
   const {
     draftAttributes,
@@ -195,6 +203,7 @@ export function StylePreview() {
     editorTimelineEventId,
     fillObjectForm,
     objectAge,
+    objectCurrentStatus,
     objectDescription,
     objectEditorTab,
     objectImagePath,
@@ -215,6 +224,7 @@ export function StylePreview() {
     setDraftTimelineParticipations,
     setEditorTimelineEventId,
     setObjectAge,
+    setObjectCurrentStatus,
     setObjectDescription,
     setObjectEditorTab,
     setObjectImagePath,
@@ -281,6 +291,7 @@ export function StylePreview() {
     catalogs,
     hierarchyGroups,
     hierarchyNodesByGroupId,
+    loadRelationGraphLayout,
     loadObjectEditorData,
     objects,
     objectsByType,
@@ -288,6 +299,8 @@ export function StylePreview() {
     relationGraphLayout,
     selectedAttributeGroupId,
     selectedCatalogId,
+    structureAssignments,
+    structureUsages,
     setAttributeDefinitions,
     setAttributeGroups,
     setCatalogEntries,
@@ -329,7 +342,6 @@ export function StylePreview() {
     selectedCatalogFields,
     selectedObject,
     selectedProject,
-    selectedRelationEdge,
     selectedTimelineEvent,
     timelineDraftParentOptions,
     visibleCatalogs,
@@ -353,10 +365,64 @@ export function StylePreview() {
     selectedTimelineEventId,
     timelineEvents,
   })
-  const getObjectSectionLabel = (sectionKey: ObjectTypeKey) => {
+  const getObjectSectionLabel = useCallback((sectionKey: ObjectTypeKey) => {
     const section = objectSections.find((item) => item.key === sectionKey)
     return section === undefined ? sectionKey : ui[section.labelKey]
-  }
+  }, [ui])
+  const temporalObjectsByType = useMemo(
+    () =>
+      resolveObjectsByTypeTemporalState(objectsByType, visibleTimelineEvents, dossierTimelineEventId, {
+        catalogEntriesByCatalogId,
+        catalogGroupsByCatalogId,
+        catalogs: visibleCatalogs,
+        hierarchyGroups,
+        hierarchyNodesByGroupId,
+      }),
+    [
+      catalogEntriesByCatalogId,
+      catalogGroupsByCatalogId,
+      dossierTimelineEventId,
+      hierarchyGroups,
+      hierarchyNodesByGroupId,
+      objectsByType,
+      visibleCatalogs,
+      visibleTimelineEvents,
+    ],
+  )
+  const temporalVisibleObjects = useMemo(
+    () => Object.values(temporalObjectsByType).flat(),
+    [temporalObjectsByType],
+  )
+  const selectedTemporalObject = useMemo(
+    () =>
+      selectedObjectId === null
+        ? null
+        : temporalVisibleObjects.find((storyObject) => storyObject.id === selectedObjectId) ?? selectedObject,
+    [selectedObject, selectedObjectId, temporalVisibleObjects],
+  )
+  const temporalRelationGraph = useMemo(
+    () =>
+      resolveRelationGraphTemporalState(
+        relationGraph,
+        temporalObjectsByType,
+        structureAssignments,
+        structureUsages,
+        visibleTimelineEvents,
+        dossierTimelineEventId,
+      ),
+    [
+      dossierTimelineEventId,
+      relationGraph,
+      structureAssignments,
+      structureUsages,
+      temporalObjectsByType,
+      visibleTimelineEvents,
+    ],
+  )
+  const selectedTemporalRelationEdge = useMemo(
+    () => temporalRelationGraph.edges.find((edge) => edge.id === selectedRelationEdgeId) ?? null,
+    [selectedRelationEdgeId, temporalRelationGraph.edges],
+  )
 
   const navigateToPreview = useCallback(
     (
@@ -419,33 +485,49 @@ export function StylePreview() {
     setSelectedProjectId,
   ])
 
-  const navigateToWorkspace = (
-    tab: PreviewTab,
-    section: PreviewSection = activeSection,
-    objectId: number | null = null,
-    catalogId: number | null = selectedCatalogId,
-  ) => {
-    if (currentUser === null) {
-      setIsSettingsPageOpen(false)
-      setIsProfilePageOpen(true)
-      setDialog('auth')
-      navigate(`${previewRouteBase}/profile`)
-      return
+  useEffect(() => {
+    if (isProfilePageOpen || isSettingsPageOpen) {
+      setProjectSearchQuery('')
     }
+  }, [isProfilePageOpen, isSettingsPageOpen])
 
-    setIsSettingsPageOpen(false)
-    setIsProfilePageOpen(false)
-    if (tab !== 'relations') {
-      setSelectedRelationEdgeId(null)
-      setSelectedRelationObjectId(null)
-      setIsRelationPageOpen(false)
-    }
-    if (tab !== 'timeline') {
-      setSelectedTimelineEventId(null)
-      setIsTimelineEventPageOpen(false)
-    }
-    navigateToPreview(selectedProjectId, tab, section, objectId, catalogId)
-  }
+  const navigateToWorkspace = useCallback(
+    (
+      tab: PreviewTab,
+      section: PreviewSection = activeSection,
+      objectId: number | null = null,
+      catalogId: number | null = selectedCatalogId,
+    ) => {
+      if (currentUser === null) {
+        setIsSettingsPageOpen(false)
+        setIsProfilePageOpen(true)
+        setDialog('auth')
+        navigate(`${previewRouteBase}/profile`)
+        return
+      }
+
+      setIsSettingsPageOpen(false)
+      setIsProfilePageOpen(false)
+      if (tab !== 'relations') {
+        setSelectedRelationEdgeId(null)
+        setSelectedRelationObjectId(null)
+        setIsRelationPageOpen(false)
+      }
+      if (tab !== 'timeline') {
+        setSelectedTimelineEventId(null)
+        setIsTimelineEventPageOpen(false)
+      }
+      navigateToPreview(selectedProjectId, tab, section, objectId, catalogId)
+    },
+    [
+      activeSection,
+      currentUser,
+      navigate,
+      navigateToPreview,
+      selectedCatalogId,
+      selectedProjectId,
+    ],
+  )
 
   const {
     logout,
@@ -503,6 +585,7 @@ export function StylePreview() {
 
   const {
     addGalleryImage,
+    addObjectCoverToGallery,
     deleteGalleryImage,
     deleteSelectedObject,
     openCreateObjectDialog,
@@ -528,6 +611,7 @@ export function StylePreview() {
     messages,
     navigateToPreview,
     objectAge,
+    objectCurrentStatus,
     objectDescription,
     objectImagePath,
     objectName,
@@ -733,7 +817,7 @@ export function StylePreview() {
     activeSection,
     detailMode,
     navigateToPreview,
-    objectsByType,
+    objectsByType: temporalObjectsByType,
     selectedProjectId,
     setActiveSection,
     setActiveTab,
@@ -757,12 +841,12 @@ export function StylePreview() {
   } = useStylePreviewLinkTargets({
     catalogEntries,
     catalogEntriesByCatalogId,
-    objectsByType,
+    objectsByType: temporalObjectsByType,
     selectedCatalog,
     selectedCatalogEntry,
-    selectedObject,
+    selectedObject: selectedTemporalObject,
     selectedRelationObjectId,
-    visibleObjects,
+    visibleObjects: temporalVisibleObjects,
     onOpenCatalogEntry: openCatalogEntryDetail,
     onOpenObject: openObjectDetail,
   })
@@ -812,7 +896,6 @@ export function StylePreview() {
   } = useStylePreviewRelationCommands({
     linkableObjects,
     messages,
-    relationGraph,
     relationGraphLayout,
     relationLinkDraft,
     selectedProjectId,
@@ -843,6 +926,7 @@ export function StylePreview() {
     hierarchyNodesByGroupId,
     isSaving: isObjectSaving,
     objectAge,
+    objectCurrentStatus,
     objectDescription,
     objectEditorTab,
     objectImagePath,
@@ -850,7 +934,7 @@ export function StylePreview() {
     objectRole,
     objectSurname,
     objectSurnameForm,
-    objectsByType,
+    objectsByType: temporalObjectsByType,
     ownedItemIds,
     ownerCharacterIds,
     ownerOrganizationIds,
@@ -867,6 +951,7 @@ export function StylePreview() {
     onEditorTimelineEventIdChange: setEditorTimelineEventId,
     onImageUpload: uploadObjectImage,
     onObjectAgeChange: setObjectAge,
+    onObjectCurrentStatusChange: setObjectCurrentStatus,
     onObjectDescriptionChange: setObjectDescription,
     onObjectEditorTabChange: setObjectEditorTab,
     onObjectNameChange: setObjectName,
@@ -886,16 +971,21 @@ export function StylePreview() {
     activeTab: dossierTab,
     attributeDefinitions,
     attributeGroups,
+    catalogEntriesByCatalogId,
+    catalogGroupsByCatalogId,
     catalogs: visibleCatalogs,
     dossierTimelineEventId,
     galleryImageCaption,
     galleryImagePath,
+    hierarchyGroups,
+    hierarchyNodesByGroupId,
     objectsByType,
     selectedProjectId,
     textLinkTargets,
     timelineEvents,
     ui,
     onAddGalleryImage: () => void addGalleryImage(),
+    onAddCoverToGallery: () => void addObjectCoverToGallery(),
     onDelete: () => setDialog('confirmDeleteObject'),
     onDeleteGalleryImage: (imageId: number) => void deleteGalleryImage(imageId),
     onGalleryCaptionChange: setGalleryImageCaption,
@@ -903,10 +993,16 @@ export function StylePreview() {
     onDossierTimelineEventIdChange: setDossierTimelineEventId,
     onOpenTimelineEvent: openTimelineEventFromDossier,
     onTabChange: setDossierTab,
+    onTimelineEventUpdated: (timelineEvent: typeof timelineEvents[number]) => {
+      setTimelineEvents((currentEvents) =>
+        currentEvents.map((currentEvent) => (currentEvent.id === timelineEvent.id ? timelineEvent : currentEvent)),
+      )
+      setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+    },
   }
 
   const relationDetailProps = {
-    graph: relationGraph,
+    graph: temporalRelationGraph,
     objects: linkableObjects,
     ui,
     onOpenObject: openRelationObjectDetail,
@@ -985,7 +1081,6 @@ export function StylePreview() {
     displayName: profileDisplayName,
     email: profileEmail,
     isSaving: isProfileSaving,
-    projectQuery: profileProjectQuery,
     projects,
     selectedProjectId,
     ui,
@@ -1007,7 +1102,6 @@ export function StylePreview() {
       setIsProfilePageOpen(false)
       navigateToPreview(project.id, 'database', 'characters')
     },
-    onProjectQueryChange: setProfileProjectQuery,
     onSave: () => void saveProfile(),
   }
 
@@ -1030,16 +1124,17 @@ export function StylePreview() {
   }
 
   const relationsPageProps = {
-    graph: relationGraph,
+    graph: temporalRelationGraph,
     isLayoutGenerating: isRelationLayoutGenerating,
     layout: relationGraphLayout,
     objects: linkableObjects,
     selectedEdgeId: selectedRelationEdgeId,
     ui,
     onCreateRelation: () => setDialog('relationLink'),
-    onGenerateLayout: () => void generateRelationGraphLayout(),
-    onSaveNodePosition: (storyObjectId: number, position: { x: number; y: number }) =>
-      void saveRelationGraphNodePosition(storyObjectId, position),
+    onGenerateLayout: (graphKey: string, graph: typeof relationGraph) => void generateRelationGraphLayout(graphKey, graph),
+    onGraphKeyChange: loadRelationGraphLayout,
+    onSaveNodePosition: (graphKey: string, graph: typeof relationGraph, storyObjectId: number, position: { x: number; y: number }) =>
+      void saveRelationGraphNodePosition(graphKey, graph, storyObjectId, position),
     onSelectEdge: openRelationDetail,
     onSelect: openRelationObjectDetail,
   }
@@ -1065,6 +1160,72 @@ export function StylePreview() {
     onGenerate: () => void generateTimelineLayout(),
     onSelectEvent: openTimelineEventDetail,
   }
+
+  const projectSearchGroups = useMemo(
+    () =>
+      buildProjectSearchGroups({
+        attributeDefinitions,
+        attributeGroups,
+        catalogEntriesByCatalogId,
+        catalogGroupsByCatalogId,
+        catalogs: visibleCatalogs,
+        getObjectSectionLabel,
+        objectsByType: temporalObjectsByType,
+        query: projectSearchQuery,
+        relationGraph: temporalRelationGraph,
+        timelineEvents,
+        ui,
+        onOpenAttributes: () => {
+          setProjectSearchQuery('')
+          navigateToWorkspace('database', 'attributes')
+        },
+        onOpenCatalog: (catalog) => {
+          setProjectSearchQuery('')
+          setSelectedCatalogId(catalog.id)
+          navigateToWorkspace('database', 'catalogs', null, catalog.id)
+        },
+        onOpenCatalogEntry: (entry, catalogId) => {
+          setProjectSearchQuery('')
+          openCatalogEntryDetail(entry, catalogId)
+        },
+        onOpenObject: (storyObject) => {
+          setProjectSearchQuery('')
+          openObjectDetail(storyObject)
+        },
+        onOpenRelation: (edgeId) => {
+          const edge = temporalRelationGraph.edges.find((relationEdge) => relationEdge.id === edgeId)
+          if (edge === undefined) {
+            return
+          }
+
+          setProjectSearchQuery('')
+          openRelationDetail(edge.id)
+        },
+        onOpenTimelineEvent: (event) => {
+          setProjectSearchQuery('')
+          openTimelineEventDetail(event.id)
+        },
+      }),
+    [
+      attributeDefinitions,
+      attributeGroups,
+      catalogEntriesByCatalogId,
+      catalogGroupsByCatalogId,
+      getObjectSectionLabel,
+      navigateToWorkspace,
+      temporalObjectsByType,
+      openCatalogEntryDetail,
+      openObjectDetail,
+      openRelationDetail,
+      openTimelineEventDetail,
+      projectSearchQuery,
+      temporalRelationGraph,
+      setSelectedCatalogId,
+      timelineEvents,
+      ui,
+      visibleCatalogs,
+    ],
+  )
 
   const objectDetailPageProps = {
     objectDetailProps,
@@ -1195,12 +1356,12 @@ export function StylePreview() {
     currentUser,
     layoutMode,
     sectionTitle: isObjectSection(activeSection) ? objectSectionLabel : ui.database,
-    selectedObjectId: selectedObject?.id ?? null,
+    selectedObjectId: selectedTemporalObject?.id ?? null,
     ui,
     viewSectionLabel: objectSectionLabel,
-    visibleObjects,
+    visibleObjects: temporalVisibleObjects,
     onCreateObject: openCreateObjectDialog,
-    onDeleteObject: (storyObject: typeof visibleObjects[number]) => {
+    onDeleteObject: (storyObject: typeof temporalVisibleObjects[number]) => {
       setSelectedObjectId(storyObject.id)
       setDialog('confirmDeleteObject')
     },
@@ -1227,12 +1388,14 @@ export function StylePreview() {
       objectCardsWorkspaceProps={objectCardsWorkspaceProps}
       objectDetailPageProps={objectDetailPageProps}
       profilePageProps={profilePageProps}
+      projectSearchGroups={projectSearchGroups}
+      projectSearchQuery={projectSearchQuery}
       relationDetailPageProps={relationDetailPageProps}
       relationsPageProps={relationsPageProps}
       selectedCatalogEntry={selectedCatalogEntry}
-      selectedObject={selectedObject}
+      selectedObject={selectedTemporalObject}
       selectedProject={selectedProject}
-      selectedRelationEdge={selectedRelationEdge}
+      selectedRelationEdge={selectedTemporalRelationEdge}
       selectedTimelineEvent={selectedTimelineEvent}
       settingsPageProps={settingsPageProps}
       structuresWorkspaceProps={structuresWorkspaceProps}
@@ -1257,7 +1420,7 @@ export function StylePreview() {
     selectedCatalogEntry,
     selectedCatalogId,
     selectedObject,
-    selectedRelationEdge,
+    selectedRelationEdge: selectedTemporalRelationEdge,
     selectedRelationObject,
     selectedTimelineEvent,
     toastMessage: message,
@@ -1273,11 +1436,13 @@ export function StylePreview() {
       currentUser,
       currentUserAvatarUrl,
       isSettingsOpen,
+      searchQuery: projectSearchQuery,
       ui,
     },
     topbarHandlers: {
       logout,
       openCreateObjectDialog,
+      setProjectSearchQuery,
     },
     projectbar: {
       activeTab,
@@ -1327,8 +1492,8 @@ export function StylePreview() {
       objectDetailProps,
       relationDetailProps,
       selectedCatalogEntry,
-      selectedObject,
-      selectedRelationEdge,
+      selectedObject: selectedTemporalObject,
+      selectedRelationEdge: selectedTemporalRelationEdge,
       selectedRelationObject,
       selectedTimelineEvent,
       timelineEventDetailProps,
@@ -1380,6 +1545,7 @@ export function StylePreview() {
       dialog,
       editingObjectId,
       objectAge,
+      objectCurrentStatus,
       objectDescription,
       objectDetailProps,
       objectEditorProps,
@@ -1387,7 +1553,7 @@ export function StylePreview() {
       objectName,
       objectRole,
       objectSurname,
-      selectedObject,
+      selectedObject: selectedTemporalObject,
       ui,
     },
     objectHandlers: {
@@ -1397,7 +1563,7 @@ export function StylePreview() {
     detail: {
       dialog,
       relationDetailProps,
-      selectedRelationEdge,
+      selectedRelationEdge: selectedTemporalRelationEdge,
       selectedTimelineEvent,
       timelineEventDetailProps,
       ui,
@@ -1501,8 +1667,11 @@ export function StylePreview() {
       {...layoutProps}
       content={renderContent()}
     >
-
-      <StylePreviewDialogHost {...dialogHostProps} />
+      {dialog !== null && (
+        <Suspense fallback={null}>
+          <LazyStylePreviewDialogHost {...dialogHostProps} />
+        </Suspense>
+      )}
     </StylePreviewLayout>
   )
 }

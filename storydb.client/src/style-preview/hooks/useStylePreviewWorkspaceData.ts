@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 
 import {
   fetchAttributeDefinitions,
@@ -8,16 +8,20 @@ import {
   fetchCatalogFieldDefinitions,
   fetchCatalogs,
   fetchObject,
-  fetchObjects,
+  fetchObjectSummaries,
   fetchRelationGraph,
   fetchRelationGraphLayout,
+  fetchStructureAssignments,
+  fetchStructureUsages,
   fetchTimelineEventLinks,
   fetchTimelineEvents,
   fetchTimelineInfo,
   fetchTimelineLayout,
   fetchTimelineLayoutRules,
 } from '../../api'
-import { isObjectSection } from '../domain/stylePreviewConfig'
+import { readProjectClientCache, writeProjectClientCachePatch } from '../domain/projectClientCache'
+import { storyObjectSummariesToListItems } from '../domain/storyObjectSummaries'
+import { isObjectSection, isPreviewObjectSection } from '../domain/stylePreviewConfig'
 import type { PreviewSection } from '../domain/stylePreviewRouting'
 import type {
   AttributeDefinition,
@@ -31,6 +35,8 @@ import type {
   ObjectTypeKey,
   RelationGraph,
   RelationGraphLayout,
+  StructureAssignment,
+  StructureUsage,
   StoryObject,
   TimelineEvent,
   TimelineEventLink,
@@ -85,6 +91,8 @@ export function useStylePreviewWorkspaceData({
   const [timelineLayoutRules, setTimelineLayoutRules] = useState<TimelineLayoutRules | null>(null)
   const [relationGraph, setRelationGraph] = useState<RelationGraph>({ nodes: [], edges: [] })
   const [relationGraphLayout, setRelationGraphLayout] = useState<RelationGraphLayout | null>(null)
+  const [structureAssignments, setStructureAssignments] = useState<StructureAssignment[]>([])
+  const [structureUsages, setStructureUsages] = useState<StructureUsage[]>([])
   const [attributeDefinitions, setAttributeDefinitions] = useState<AttributeDefinition[]>([])
   const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([])
   const [selectedAttributeGroupId, setSelectedAttributeGroupId] = useState<number | null>(null)
@@ -97,6 +105,126 @@ export function useStylePreviewWorkspaceData({
   const [selectedCatalogId, setSelectedCatalogId] = useState<number | null>(initialCatalogId)
   const [catalogEntries, setCatalogEntries] = useState<CatalogEntry[]>([])
   const [catalogGroups, setCatalogGroups] = useState<CatalogEntryGroup[]>([])
+  const relationLayoutRequestId = useRef(0)
+
+  useEffect(() => {
+    let isActive = true
+
+    if (selectedProjectId === null) {
+      return undefined
+    }
+
+    readProjectClientCache(selectedProjectId).then((snapshot) => {
+      if (!isActive || snapshot === null) {
+        return
+      }
+
+      if (snapshot.objectsByType !== undefined) {
+        setObjectsByType((currentObjectsByType) => ({
+          ...currentObjectsByType,
+          ...snapshot.objectsByType,
+        }))
+
+        if (isObjectSection(activeSection)) {
+          setObjects(snapshot.objectsByType[activeSection] ?? [])
+        }
+      }
+
+      if (snapshot.catalogs !== undefined) {
+        setCatalogs(snapshot.catalogs)
+        setSelectedCatalogId((currentId) =>
+          currentId !== null && snapshot.catalogs?.some((catalog) => catalog.id === currentId)
+            ? currentId
+            : snapshot.catalogs?.[0]?.id ?? currentId,
+        )
+      }
+
+      if (snapshot.catalogEntriesByCatalogId !== undefined) {
+        setCatalogEntriesByCatalogId(snapshot.catalogEntriesByCatalogId)
+        if (selectedCatalogId !== null) {
+          setCatalogEntries(snapshot.catalogEntriesByCatalogId[selectedCatalogId] ?? [])
+        }
+      }
+
+      if (snapshot.catalogGroupsByCatalogId !== undefined) {
+        setCatalogGroupsByCatalogId(snapshot.catalogGroupsByCatalogId)
+        if (selectedCatalogId !== null) {
+          setCatalogGroups(snapshot.catalogGroupsByCatalogId[selectedCatalogId] ?? [])
+        }
+      }
+
+      if (snapshot.catalogFieldsByCatalogId !== undefined) {
+        setCatalogFieldsByCatalogId(snapshot.catalogFieldsByCatalogId)
+      }
+
+      const attributeType = isObjectSection(activeSection) ? activeSection : 'characters'
+      if (snapshot.attributeDefinitionsByType?.[attributeType] !== undefined) {
+        setAttributeDefinitions(snapshot.attributeDefinitionsByType[attributeType])
+      }
+      if (snapshot.attributeGroupsByType?.[attributeType] !== undefined) {
+        setAttributeGroups(snapshot.attributeGroupsByType[attributeType])
+      }
+
+      if (snapshot.relationGraph !== undefined) {
+        setRelationGraph(snapshot.relationGraph)
+      }
+      if (snapshot.relationGraphLayout !== undefined) {
+        setRelationGraphLayout(snapshot.relationGraphLayout)
+      }
+      if (snapshot.structureAssignments !== undefined) {
+        setStructureAssignments(snapshot.structureAssignments)
+      }
+      if (snapshot.structureUsages !== undefined) {
+        setStructureUsages(snapshot.structureUsages)
+      }
+      if (snapshot.timelineEvents !== undefined) {
+        setTimelineEvents(snapshot.timelineEvents)
+      }
+      if (snapshot.timelineInfo !== undefined) {
+        setTimelineInfo(snapshot.timelineInfo)
+      }
+      if (snapshot.timelineLayout !== undefined) {
+        setTimelineLayout(snapshot.timelineLayout)
+      }
+      if (snapshot.timelineLayoutRules !== undefined) {
+        setTimelineLayoutRules(snapshot.timelineLayoutRules)
+      }
+      if (snapshot.timelineLinks !== undefined) {
+        setTimelineLinks(snapshot.timelineLinks)
+      }
+    })
+
+    return () => {
+      isActive = false
+    }
+  }, [activeSection, selectedCatalogId, selectedProjectId])
+
+  const loadRelationGraphLayout = useCallback(
+    async (graphKey?: string | null) => {
+      if (selectedProjectId === null) {
+        relationLayoutRequestId.current += 1
+        setRelationGraphLayout(null)
+        return
+      }
+
+      const requestId = relationLayoutRequestId.current + 1
+      relationLayoutRequestId.current = requestId
+      setRelationGraphLayout(null)
+      try {
+        const layout = await fetchRelationGraphLayout(selectedProjectId, graphKey)
+        if (requestId === relationLayoutRequestId.current) {
+          setRelationGraphLayout(layout)
+          void writeProjectClientCachePatch(selectedProjectId, { relationGraphLayout: layout })
+        }
+      } catch {
+        if (requestId === relationLayoutRequestId.current) {
+          setRelationGraphLayout(null)
+          showMessage(messages.graphLayoutLoadMissing)
+        }
+      }
+    },
+    [messages.graphLayoutLoadMissing, selectedProjectId, showMessage],
+  )
 
   useEffect(() => {
     let isActive = true
@@ -104,39 +232,46 @@ export function useStylePreviewWorkspaceData({
     if (selectedProjectId === null) {
       setRelationGraph({ nodes: [], edges: [] })
       setRelationGraphLayout(null)
+      setStructureAssignments([])
+      setStructureUsages([])
       return undefined
     }
 
-    fetchRelationGraph(selectedProjectId)
-      .then((graph) => {
-        if (isActive) {
-          setRelationGraph(graph)
-        }
-      })
-      .catch(() => {
-        if (isActive) {
+    const loadRelationGraphData = async () => {
+      const [graphResult, assignmentsResult, usagesResult] = await Promise.allSettled([
+        fetchRelationGraph(selectedProjectId),
+        fetchStructureAssignments(selectedProjectId),
+        fetchStructureUsages(selectedProjectId),
+      ])
+
+      if (!isActive) {
+        return
+      }
+
+      if (graphResult.status === 'fulfilled') {
+        setRelationGraph(graphResult.value)
+      } else {
           setRelationGraph({ nodes: [], edges: [] })
           showErrorMessage(messages.graphLoadFailed)
-        }
-      })
+      }
 
-    fetchRelationGraphLayout(selectedProjectId)
-      .then((layout) => {
-        if (isActive) {
-          setRelationGraphLayout(layout)
-        }
+      setStructureAssignments(assignmentsResult.status === 'fulfilled' ? assignmentsResult.value : [])
+      setStructureUsages(usagesResult.status === 'fulfilled' ? usagesResult.value : [])
+      void writeProjectClientCachePatch(selectedProjectId, {
+        ...(graphResult.status === 'fulfilled' ? { relationGraph: graphResult.value } : {}),
+        ...(assignmentsResult.status === 'fulfilled' ? { structureAssignments: assignmentsResult.value } : {}),
+        ...(usagesResult.status === 'fulfilled' ? { structureUsages: usagesResult.value } : {}),
       })
-      .catch(() => {
-        if (isActive) {
-          setRelationGraphLayout(null)
-          showMessage(messages.graphLayoutLoadMissing)
-        }
-      })
+    }
+
+    void loadRelationGraphData()
+
+    void loadRelationGraphLayout('relations:all')
 
     return () => {
       isActive = false
     }
-  }, [messages.graphLayoutLoadMissing, messages.graphLoadFailed, selectedProjectId, showErrorMessage, showMessage])
+  }, [loadRelationGraphLayout, messages.graphLoadFailed, selectedProjectId, showErrorMessage])
 
   useEffect(() => {
     let isActive = true
@@ -151,10 +286,10 @@ export function useStylePreviewWorkspaceData({
       const projectId = selectedProjectId
       const [charactersResult, itemsResult, placesResult, organizationsResult, catalogsResult] =
         await Promise.allSettled([
-          fetchObjects(projectId, 'characters'),
-          fetchObjects(projectId, 'items'),
-          fetchObjects(projectId, 'places'),
-          fetchObjects(projectId, 'organizations'),
+          fetchObjectSummaries(projectId, 'characters'),
+          fetchObjectSummaries(projectId, 'items'),
+          fetchObjectSummaries(projectId, 'places'),
+          fetchObjectSummaries(projectId, 'organizations'),
           fetchCatalogs(projectId),
         ])
 
@@ -164,12 +299,38 @@ export function useStylePreviewWorkspaceData({
 
       setObjectsByType((currentObjectsByType) => ({
         ...currentObjectsByType,
-        characters: charactersResult.status === 'fulfilled' ? charactersResult.value : currentObjectsByType.characters,
-        items: itemsResult.status === 'fulfilled' ? itemsResult.value : currentObjectsByType.items,
-        places: placesResult.status === 'fulfilled' ? placesResult.value : currentObjectsByType.places,
+        characters:
+          charactersResult.status === 'fulfilled'
+            ? storyObjectSummariesToListItems(charactersResult.value)
+            : currentObjectsByType.characters,
+        items:
+          itemsResult.status === 'fulfilled'
+            ? storyObjectSummariesToListItems(itemsResult.value)
+            : currentObjectsByType.items,
+        places:
+          placesResult.status === 'fulfilled'
+            ? storyObjectSummariesToListItems(placesResult.value)
+            : currentObjectsByType.places,
         organizations:
-          organizationsResult.status === 'fulfilled' ? organizationsResult.value : currentObjectsByType.organizations,
+          organizationsResult.status === 'fulfilled'
+            ? storyObjectSummariesToListItems(organizationsResult.value)
+            : currentObjectsByType.organizations,
       }))
+      void writeProjectClientCachePatch(projectId, {
+        objectsByType: {
+          ...(charactersResult.status === 'fulfilled'
+            ? { characters: storyObjectSummariesToListItems(charactersResult.value) }
+            : {}),
+          ...(itemsResult.status === 'fulfilled' ? { items: storyObjectSummariesToListItems(itemsResult.value) } : {}),
+          ...(placesResult.status === 'fulfilled'
+            ? { places: storyObjectSummariesToListItems(placesResult.value) }
+            : {}),
+          ...(organizationsResult.status === 'fulfilled'
+            ? { organizations: storyObjectSummariesToListItems(organizationsResult.value) }
+            : {}),
+        },
+        ...(catalogsResult.status === 'fulfilled' ? { catalogs: catalogsResult.value } : {}),
+      })
 
       if (catalogsResult.status !== 'fulfilled') {
         return
@@ -191,6 +352,13 @@ export function useStylePreviewWorkspaceData({
             .map((result) => result.value),
         ),
       }))
+      void writeProjectClientCachePatch(projectId, {
+        catalogEntriesByCatalogId: Object.fromEntries(
+          entriesByCatalogResults
+            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntry[]]> => result.status === 'fulfilled')
+            .map((result) => result.value),
+        ),
+      })
     }
 
     void loadTextLinkTargets()
@@ -215,6 +383,7 @@ export function useStylePreviewWorkspaceData({
         }
 
         setCatalogs(loadedCatalogs)
+        void writeProjectClientCachePatch(selectedProjectId, { catalogs: loadedCatalogs })
         setSelectedCatalogId((currentId) =>
           currentId !== null && loadedCatalogs.some((catalog) => catalog.id === currentId)
             ? currentId
@@ -254,7 +423,7 @@ export function useStylePreviewWorkspaceData({
     const loadWorkspace = async () => {
       if (isObjectSection(activeSection)) {
         const [loadedObjects, definitions, groups] = await Promise.all([
-          fetchObjects(selectedProjectId, activeSection),
+          fetchObjectSummaries(selectedProjectId, activeSection).then(storyObjectSummariesToListItems),
           fetchAttributeDefinitions(selectedProjectId, activeSection),
           fetchAttributeGroups(selectedProjectId, activeSection),
         ])
@@ -262,6 +431,17 @@ export function useStylePreviewWorkspaceData({
           setObjects(loadedObjects)
           setAttributeDefinitions(definitions)
           setAttributeGroups(groups)
+          void writeProjectClientCachePatch(selectedProjectId, {
+            objectsByType: {
+              [activeSection]: loadedObjects,
+            },
+            attributeDefinitionsByType: {
+              [activeSection]: definitions,
+            },
+            attributeGroupsByType: {
+              [activeSection]: groups,
+            },
+          })
           setSelectedObjectId((currentId) =>
             currentId !== null && loadedObjects.some((storyObject) => storyObject.id === currentId)
               ? currentId
@@ -277,11 +457,20 @@ export function useStylePreviewWorkspaceData({
           setAttributeDefinitions(definitions)
           setAttributeGroups(groups)
           setObjects([])
+          void writeProjectClientCachePatch(selectedProjectId, {
+            attributeDefinitionsByType: {
+              characters: definitions,
+            },
+            attributeGroupsByType: {
+              characters: groups,
+            },
+          })
         }
       } else {
         const loadedCatalogs = await fetchCatalogs(selectedProjectId)
         if (isActive) {
           setCatalogs(loadedCatalogs)
+          void writeProjectClientCachePatch(selectedProjectId, { catalogs: loadedCatalogs })
           setSelectedCatalogId((currentId) =>
             currentId !== null && loadedCatalogs.some((catalog) => catalog.id === currentId)
               ? currentId
@@ -303,6 +492,13 @@ export function useStylePreviewWorkspaceData({
         setTimelineLayout(loadedTimelineLayout)
         setTimelineLinks(loadedTimelineLinks)
         setTimelineLayoutRules(loadedTimelineRules)
+        void writeProjectClientCachePatch(selectedProjectId, {
+          timelineEvents: loadedEvents,
+          timelineInfo: loadedTimelineInfo,
+          timelineLayout: loadedTimelineLayout,
+          timelineLayoutRules: loadedTimelineRules,
+          timelineLinks: loadedTimelineLinks,
+        })
       }
     }
 
@@ -336,11 +532,35 @@ export function useStylePreviewWorkspaceData({
           return
         }
 
-        setObjects((currentObjects) =>
-          currentObjects.some((storyObject) => storyObject.id === loadedObject.id)
+        let nextObjectsForCache: StoryObject[] = []
+        setObjects((currentObjects) => {
+          nextObjectsForCache = currentObjects.some((storyObject) => storyObject.id === loadedObject.id)
             ? currentObjects.map((storyObject) => (storyObject.id === loadedObject.id ? loadedObject : storyObject))
-            : [loadedObject, ...currentObjects],
-        )
+            : [loadedObject, ...currentObjects]
+
+          return nextObjectsForCache
+        })
+        const loadedSection = isPreviewObjectSection(loadedObject.typeKey) ? loadedObject.typeKey : activeSection
+        if (isObjectSection(loadedSection)) {
+          setObjectsByType((currentObjectsByType) => ({
+            ...currentObjectsByType,
+            [loadedSection]: (() => {
+              const currentTypeObjects = currentObjectsByType[loadedSection] ?? []
+              return currentTypeObjects.some((storyObject) => storyObject.id === loadedObject.id)
+                ? currentTypeObjects.map((storyObject) =>
+                    storyObject.id === loadedObject.id ? loadedObject : storyObject,
+                  )
+                : [loadedObject, ...currentTypeObjects]
+            })(),
+          }))
+          if (loadedSection === activeSection) {
+            void writeProjectClientCachePatch(selectedProjectId, {
+              objectsByType: {
+                [loadedSection]: nextObjectsForCache,
+              },
+            })
+          }
+        }
       })
       .catch(() => {
         if (isActive) {
@@ -376,6 +596,17 @@ export function useStylePreviewWorkspaceData({
           ...currentFieldsByCatalogId,
           [selectedCatalogId]: loadedFields,
         }))
+        void writeProjectClientCachePatch(selectedProjectId, {
+          catalogEntriesByCatalogId: {
+            [selectedCatalogId]: loadedEntries,
+          },
+          catalogGroupsByCatalogId: {
+            [selectedCatalogId]: loadedGroups,
+          },
+          catalogFieldsByCatalogId: {
+            [selectedCatalogId]: loadedFields,
+          },
+        })
       }
     }
 
@@ -409,10 +640,10 @@ export function useStylePreviewWorkspaceData({
         fetchAttributeDefinitions(projectId, typeKey),
         fetchAttributeGroups(projectId, typeKey),
         fetchCatalogs(projectId),
-        fetchObjects(projectId, 'characters'),
-        fetchObjects(projectId, 'items'),
-        fetchObjects(projectId, 'places'),
-        fetchObjects(projectId, 'organizations'),
+        fetchObjectSummaries(projectId, 'characters'),
+        fetchObjectSummaries(projectId, 'items'),
+        fetchObjectSummaries(projectId, 'places'),
+        fetchObjectSummaries(projectId, 'organizations'),
       ])
 
       const loadedCatalogs = catalogsResult.status === 'fulfilled' ? catalogsResult.value : []
@@ -431,10 +662,14 @@ export function useStylePreviewWorkspaceData({
       setCatalogs(loadedCatalogs)
       setHierarchyGroups([])
       setObjectsByType({
-        characters: charactersResult.status === 'fulfilled' ? charactersResult.value : [],
-        items: itemsResult.status === 'fulfilled' ? itemsResult.value : [],
-        places: placesResult.status === 'fulfilled' ? placesResult.value : [],
-        organizations: organizationsResult.status === 'fulfilled' ? organizationsResult.value : [],
+        characters:
+          charactersResult.status === 'fulfilled' ? storyObjectSummariesToListItems(charactersResult.value) : [],
+        items: itemsResult.status === 'fulfilled' ? storyObjectSummariesToListItems(itemsResult.value) : [],
+        places: placesResult.status === 'fulfilled' ? storyObjectSummariesToListItems(placesResult.value) : [],
+        organizations:
+          organizationsResult.status === 'fulfilled'
+            ? storyObjectSummariesToListItems(organizationsResult.value)
+            : [],
         hierarchy: [],
       })
       setCatalogEntriesByCatalogId(
@@ -452,6 +687,36 @@ export function useStylePreviewWorkspaceData({
         ),
       )
       setHierarchyNodesByGroupId({})
+      void writeProjectClientCachePatch(projectId, {
+        attributeDefinitionsByType: {
+          [typeKey]: definitionsResult.status === 'fulfilled' ? definitionsResult.value : [],
+        },
+        attributeGroupsByType: {
+          [typeKey]: groupsResult.status === 'fulfilled' ? groupsResult.value : [],
+        },
+        catalogs: loadedCatalogs,
+        objectsByType: {
+          characters:
+            charactersResult.status === 'fulfilled' ? storyObjectSummariesToListItems(charactersResult.value) : [],
+          items: itemsResult.status === 'fulfilled' ? storyObjectSummariesToListItems(itemsResult.value) : [],
+          places: placesResult.status === 'fulfilled' ? storyObjectSummariesToListItems(placesResult.value) : [],
+          organizations:
+            organizationsResult.status === 'fulfilled'
+              ? storyObjectSummariesToListItems(organizationsResult.value)
+              : [],
+          hierarchy: [],
+        },
+        catalogEntriesByCatalogId: Object.fromEntries(
+          entriesByCatalogResults
+            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntry[]]> => result.status === 'fulfilled')
+            .map((result) => result.value),
+        ),
+        catalogGroupsByCatalogId: Object.fromEntries(
+          groupsByCatalogResults
+            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntryGroup[]]> => result.status === 'fulfilled')
+            .map((result) => result.value),
+        ),
+      })
     },
     [selectedProjectId],
   )
@@ -467,6 +732,7 @@ export function useStylePreviewWorkspaceData({
     catalogs,
     hierarchyGroups,
     hierarchyNodesByGroupId,
+    loadRelationGraphLayout,
     loadObjectEditorData,
     objects,
     objectsByType,
@@ -493,6 +759,8 @@ export function useStylePreviewWorkspaceData({
     setTimelineEvents,
     setTimelineLayout,
     setTimelineLinks,
+    structureAssignments,
+    structureUsages,
     timelineEvents,
     timelineInfo,
     timelineLayout,

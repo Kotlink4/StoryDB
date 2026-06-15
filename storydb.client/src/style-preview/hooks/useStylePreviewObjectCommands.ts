@@ -78,6 +78,7 @@ type UseStylePreviewObjectCommandsOptions = {
   messages: ObjectCommandMessages
   navigateToPreview: NavigateToPreview
   objectAge: string
+  objectCurrentStatus: string
   objectDescription: string
   objectImagePath: string | null
   objectName: string
@@ -130,6 +131,7 @@ export function useStylePreviewObjectCommands({
   messages,
   navigateToPreview,
   objectAge,
+  objectCurrentStatus,
   objectDescription,
   objectImagePath,
   objectName,
@@ -280,6 +282,24 @@ export function useStylePreviewObjectCommands({
     }
   }
 
+  const addObjectCoverToGallery = async () => {
+    if (selectedProjectId === null || selectedObject === null || selectedObject.imagePath === null) {
+      return
+    }
+
+    try {
+      const updatedObject = await addObjectGalleryImageRequest(
+        selectedProjectId,
+        selectedObject.id,
+        selectedObject.imagePath,
+        '',
+      )
+      updateSelectedObject(updatedObject)
+    } catch {
+      showErrorMessage(messages.galleryImageAddFailed)
+    }
+  }
+
   const deleteGalleryImage = async (imageId: number) => {
     if (selectedProjectId === null || selectedObject === null) {
       return
@@ -369,6 +389,7 @@ export function useStylePreviewObjectCommands({
       objectDescription,
       objectAge,
       objectRole,
+      objectCurrentStatus,
       objectImagePath,
     )
     if (validationMessage !== null) {
@@ -411,6 +432,7 @@ export function useStylePreviewObjectCommands({
         draftCharacterRelationships,
         draftHierarchySelections,
         objectAge,
+        objectCurrentStatus,
         objectDescription,
         objectImagePath,
         objectName,
@@ -503,6 +525,7 @@ export function useStylePreviewObjectCommands({
             description: objectDescription.trim() || null,
             age: objectAge.trim() || null,
             role: objectRole.trim() || null,
+            currentStatus: objectCurrentStatus.trim() || null,
             imagePath: objectImagePath,
             attributes: draftAttributes
               .map((attribute, index) => {
@@ -551,6 +574,7 @@ export function useStylePreviewObjectCommands({
               objectDescription,
               objectAge,
               objectRole,
+              objectCurrentStatus,
               objectImagePath,
               draftAttributes,
               draftHierarchySelections,
@@ -571,6 +595,7 @@ export function useStylePreviewObjectCommands({
               objectDescription,
               objectAge,
               objectRole,
+              objectCurrentStatus,
               objectImagePath,
               draftAttributes,
               draftHierarchySelections,
@@ -592,6 +617,7 @@ export function useStylePreviewObjectCommands({
         description: saved.description,
         age: saved.age,
         role: saved.role,
+        currentStatus: saved.currentStatus,
         imagePath: saved.imagePath,
         typeKey: saved.typeKey,
         attributes: saved.attributes,
@@ -652,6 +678,7 @@ export function useStylePreviewObjectCommands({
 
   return {
     addGalleryImage,
+    addObjectCoverToGallery,
     deleteGalleryImage,
     deleteSelectedObject,
     openCreateObjectDialog,

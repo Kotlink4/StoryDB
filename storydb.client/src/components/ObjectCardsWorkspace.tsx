@@ -1,10 +1,22 @@
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+
+import {
+  calculateObjectGridColumns,
+  calculateObjectListVirtualWindow,
+  defaultObjectListVirtualizationThreshold,
+  getObjectGridCardHeight,
+  objectGridGap,
+} from '../style-preview/domain/objectListVirtualization'
 import { getObjectFullName } from '../style-preview/domain/objectDisplay'
+import { getFilteredStoryObjects, type ObjectCardsFilter } from '../style-preview/domain/objectFilters'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type {
   AuthUser,
   StoryObject,
 } from '../types'
 import { ObjectPortrait } from './StylePreviewPrimitives'
+
+const objectListVirtualRowHeight = 154
 
 export function ObjectCardsWorkspace({
   activeObjectMenuId,
@@ -37,6 +49,91 @@ export function ObjectCardsWorkspace({
   onObjectMenuChange: (objectId: number | null) => void
   onOpenObject: (storyObject: StoryObject) => void
 }) {
+  const cardsRef = useRef<HTMLDivElement | null>(null)
+  const [objectFilter, setObjectFilter] = useState<ObjectCardsFilter>('all')
+  const [listViewport, setListViewport] = useState({ scrollTop: 0, viewportHeight: 0 })
+  const [gridWidth, setGridWidth] = useState(0)
+  const filteredObjects = useMemo(
+    () => getFilteredStoryObjects(visibleObjects, objectFilter),
+    [objectFilter, visibleObjects],
+  )
+  const canUseWindowVirtualization = filteredObjects.length > defaultObjectListVirtualizationThreshold
+  const virtualColumns = layoutMode === 'grid' ? calculateObjectGridColumns(gridWidth) : 1
+  const virtualCardHeight = layoutMode === 'grid' ? getObjectGridCardHeight(filteredObjects[0]?.typeKey) : objectListVirtualRowHeight
+  const virtualRowHeight = layoutMode === 'grid' ? virtualCardHeight + objectGridGap : objectListVirtualRowHeight
+
+  useEffect(() => {
+    if (!canUseWindowVirtualization) {
+      setListViewport({ scrollTop: 0, viewportHeight: 0 })
+      return undefined
+    }
+
+    const cardsElement = cardsRef.current
+    const scrollElement = cardsElement?.closest('.sp-content')
+    if (!(scrollElement instanceof HTMLElement) || cardsElement === null) {
+      return undefined
+    }
+
+    let animationFrame = 0
+    const updateViewport = () => {
+      cancelAnimationFrame(animationFrame)
+      animationFrame = requestAnimationFrame(() => {
+        const cardsRect = cardsElement.getBoundingClientRect()
+        const scrollRect = scrollElement.getBoundingClientRect()
+        const gridTop = scrollElement.scrollTop + cardsRect.top - scrollRect.top
+        setListViewport({
+          scrollTop: Math.max(0, scrollElement.scrollTop - gridTop),
+          viewportHeight: scrollElement.clientHeight,
+        })
+      })
+    }
+
+    updateViewport()
+    scrollElement.addEventListener('scroll', updateViewport, { passive: true })
+    window.addEventListener('resize', updateViewport)
+
+    return () => {
+      cancelAnimationFrame(animationFrame)
+      scrollElement.removeEventListener('scroll', updateViewport)
+      window.removeEventListener('resize', updateViewport)
+    }
+  }, [canUseWindowVirtualization, filteredObjects.length, layoutMode])
+
+  useEffect(() => {
+    const cardsElement = cardsRef.current
+    if (cardsElement === null || typeof ResizeObserver === 'undefined') {
+      return undefined
+    }
+
+    const observer = new ResizeObserver(([entry]) => {
+      setGridWidth(entry?.contentRect.width ?? cardsElement.clientWidth)
+    })
+    observer.observe(cardsElement)
+    setGridWidth(cardsElement.clientWidth)
+
+    return () => observer.disconnect()
+  }, [])
+
+  const virtualWindow = useMemo(
+    () =>
+      calculateObjectListVirtualWindow({
+        columns: virtualColumns,
+        itemCount: filteredObjects.length,
+        rowHeight: virtualRowHeight,
+        scrollTop: listViewport.scrollTop,
+        viewportHeight: listViewport.viewportHeight,
+      }),
+    [filteredObjects.length, listViewport.scrollTop, listViewport.viewportHeight, virtualColumns, virtualRowHeight],
+  )
+  const renderedObjects = canUseWindowVirtualization
+    ? filteredObjects.slice(virtualWindow.startIndex, virtualWindow.endIndex)
+    : filteredObjects
+  const topSpacerStyle = { height: virtualWindow.topSpacerHeight } satisfies CSSProperties
+  const bottomSpacerStyle = { height: virtualWindow.bottomSpacerHeight } satisfies CSSProperties
+  const cardsStyle: CSSProperties & Record<'--sp-object-card-height', string> = {
+    '--sp-object-card-height': `${virtualCardHeight}px`,
+  }
+
   return (
     <>
       <div className="sp-content-head">
@@ -50,9 +147,21 @@ export function ObjectCardsWorkspace({
           </button>
         )}
         <div className="sp-filters">
-          <button className="sp-pill active" type="button">{ui.all}</button>
-          <button className="sp-pill" type="button">{ui.active}</button>
-          <button className="sp-pill" type="button">{ui.favorites}</button>
+          <button
+            className={objectFilter === 'all' ? 'sp-pill active' : 'sp-pill'}
+            type="button"
+            onClick={() => setObjectFilter('all')}
+          >
+            {ui.all}
+          </button>
+          <button
+            className={objectFilter === 'active' ? 'sp-pill active' : 'sp-pill'}
+            type="button"
+            onClick={() => setObjectFilter('active')}
+          >
+            {ui.active}
+          </button>
+          <button className="sp-pill" disabled type="button">{ui.favorites}</button>
         </div>
       </div>
       <div className="sp-toolbar">
@@ -78,8 +187,15 @@ export function ObjectCardsWorkspace({
           </button>
         </div>
       </div>
-      <div className={`sp-cards ${layoutMode === 'list' ? 'list' : ''}`}>
-        {visibleObjects.map((storyObject) => (
+      <div
+        className={`sp-cards ${layoutMode === 'list' ? 'list' : ''} ${canUseWindowVirtualization ? 'is-windowed' : ''}`}
+        ref={cardsRef}
+        style={cardsStyle}
+      >
+        {canUseWindowVirtualization && virtualWindow.topSpacerHeight > 0 && (
+          <div aria-hidden="true" className="sp-cards-virtual-spacer" style={topSpacerStyle} />
+        )}
+        {renderedObjects.map((storyObject) => (
           <article
             className={`sp-card ${storyObject.id === selectedObjectId ? 'selected' : ''}`}
             key={storyObject.id}
@@ -137,7 +253,10 @@ export function ObjectCardsWorkspace({
             </div>
           </article>
         ))}
-        {visibleObjects.length === 0 && (
+        {canUseWindowVirtualization && virtualWindow.bottomSpacerHeight > 0 && (
+          <div aria-hidden="true" className="sp-cards-virtual-spacer" style={bottomSpacerStyle} />
+        )}
+        {filteredObjects.length === 0 && (
           <div className="sp-empty">
             <strong>{ui.noObjects}</strong>
             <span>{ui.noObjectsHint}</span>

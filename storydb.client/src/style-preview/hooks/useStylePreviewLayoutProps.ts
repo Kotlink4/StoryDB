@@ -21,7 +21,9 @@ type TopbarHandlerKeys =
   | 'onNavigateTab'
   | 'onOpenProfile'
   | 'onOpenSettings'
+  | 'onSearchQueryChange'
   | 'showWorkspaceTabs'
+  | 'showSearch'
   | 'onToggleSettingsMenu'
 
 type ProjectbarHandlerKeys =
@@ -137,6 +139,7 @@ export function useStylePreviewLayoutProps({
   topbarHandlers: {
     logout: () => MaybePromise
     openCreateObjectDialog: () => void
+    setProjectSearchQuery: Dispatch<SetStateAction<string>>
   }
   ui: LayoutChromeProps['topbarProps']['ui']
   onDismissToast: () => void
@@ -222,6 +225,7 @@ export function useStylePreviewLayoutProps({
     toastTone,
     topbarProps: {
       ...topbar,
+      showSearch: !isUtilityPage,
       showWorkspaceTabs: !isUtilityPage,
       onCreateObject: topbarHandlers.openCreateObjectDialog,
       onLogin: () => setDialog('auth'),
@@ -241,6 +245,7 @@ export function useStylePreviewLayoutProps({
         setDialog(null)
         navigate(`${previewRouteBase}/settings`)
       },
+      onSearchQueryChange: topbarHandlers.setProjectSearchQuery,
       onToggleSettingsMenu: () => setIsSettingsOpen((value) => !value),
     },
     onDismissToast,

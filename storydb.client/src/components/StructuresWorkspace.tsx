@@ -17,6 +17,7 @@ import type {
   CatalogEntryGroup,
   Structure,
   StructureDraft,
+  StructureEdgeDraft,
   StructureLayoutKind,
   StructureNodeDraft,
   StructureNodeBindingMode,
@@ -155,6 +156,25 @@ const createEmptyStructureNodeDraft = (sortOrder: number): StructureNodeDraft =>
   levelIndex: 0,
   sortOrder,
 })
+
+const getFirstDifferentNodeClientId = (nodes: StructureNodeDraft[], clientId: string) =>
+  nodes.find((node) => node.clientId !== clientId)?.clientId ?? ''
+
+const createEmptyStructureEdgeDraft = (
+  nodes: StructureNodeDraft[],
+  sortOrder: number,
+  relationType: string,
+): StructureEdgeDraft => {
+  const sourceClientId = nodes[0]?.clientId ?? ''
+
+  return {
+    sourceClientId,
+    targetClientId: getFirstDifferentNodeClientId(nodes, sourceClientId),
+    relationType,
+    description: '',
+    sortOrder,
+  }
+}
 
 const toStructureDraft = (structure: Structure): StructureDraft => ({
   name: structure.name,
@@ -330,6 +350,35 @@ export function StructuresWorkspace({
       nodes: [...currentDraft.nodes, createEmptyStructureNodeDraft(currentDraft.nodes.length)],
     }))
 
+  const updateDraftEdge = (edgeIndex: number, patch: Partial<StructureEdgeDraft>) =>
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      edges: currentDraft.edges.map((edge, index) => (index === edgeIndex ? { ...edge, ...patch } : edge)),
+    }))
+
+  const addDraftEdge = () =>
+    setDraft((currentDraft) =>
+      currentDraft.nodes.length < 2
+        ? currentDraft
+        : {
+            ...currentDraft,
+            edges: [
+              ...currentDraft.edges,
+              createEmptyStructureEdgeDraft(
+                currentDraft.nodes,
+                currentDraft.edges.length,
+                ui.structureEdgeDefaultType,
+              ),
+            ],
+          },
+    )
+
+  const removeDraftEdge = (edgeIndex: number) =>
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      edges: currentDraft.edges.filter((_, index) => index !== edgeIndex),
+    }))
+
   const removeDraftNode = (clientId: string) =>
     setDraft((currentDraft) => ({
       ...currentDraft,
@@ -379,6 +428,43 @@ export function StructuresWorkspace({
         : {
             ...currentDraft,
             nodes: [...currentDraft.nodes, createEmptyStructureNodeDraft(currentDraft.nodes.length)],
+          },
+    )
+
+  const updateSelectedEdge = (edgeIndex: number, patch: Partial<StructureEdgeDraft>) =>
+    setSelectedDraft((currentDraft) =>
+      currentDraft === null
+        ? currentDraft
+        : {
+            ...currentDraft,
+            edges: currentDraft.edges.map((edge, index) => (index === edgeIndex ? { ...edge, ...patch } : edge)),
+          },
+    )
+
+  const addSelectedEdge = () =>
+    setSelectedDraft((currentDraft) =>
+      currentDraft === null || currentDraft.nodes.length < 2
+        ? currentDraft
+        : {
+            ...currentDraft,
+            edges: [
+              ...currentDraft.edges,
+              createEmptyStructureEdgeDraft(
+                currentDraft.nodes,
+                currentDraft.edges.length,
+                ui.structureEdgeDefaultType,
+              ),
+            ],
+          },
+    )
+
+  const removeSelectedEdge = (edgeIndex: number) =>
+    setSelectedDraft((currentDraft) =>
+      currentDraft === null
+        ? currentDraft
+        : {
+            ...currentDraft,
+            edges: currentDraft.edges.filter((_, index) => index !== edgeIndex),
           },
     )
 
@@ -558,7 +644,7 @@ export function StructuresWorkspace({
         </div>
         {draft.nodes.length > 0 && (
           <>
-            <StructureLevelPreview nodes={draft.nodes} ui={ui} />
+            <StructureMapPreview draft={draft} ui={ui} />
             <StructureNodeDraftList
               nodes={draft.nodes}
               ui={ui}
@@ -568,6 +654,14 @@ export function StructuresWorkspace({
               catalogGroupsByCatalogId={catalogGroupsByCatalogId}
               onNodeChange={updateDraftNode}
               onNodeRemove={removeDraftNode}
+            />
+            <StructureEdgeDraftSection
+              edges={draft.edges}
+              nodes={draft.nodes}
+              ui={ui}
+              onEdgeAdd={addDraftEdge}
+              onEdgeChange={updateDraftEdge}
+              onEdgeRemove={removeDraftEdge}
             />
           </>
         )}
@@ -751,7 +845,7 @@ export function StructuresWorkspace({
                 </div>
               ) : (
                 <>
-                  <StructureLevelPreview nodes={selectedDraft.nodes} ui={ui} />
+                  <StructureMapPreview draft={selectedDraft} ui={ui} />
                   <StructureNodeDraftList
                     nodes={selectedDraft.nodes}
                     ui={ui}
@@ -761,6 +855,14 @@ export function StructuresWorkspace({
                     catalogGroupsByCatalogId={catalogGroupsByCatalogId}
                     onNodeChange={updateSelectedNode}
                     onNodeRemove={removeSelectedNode}
+                  />
+                  <StructureEdgeDraftSection
+                    edges={selectedDraft.edges}
+                    nodes={selectedDraft.nodes}
+                    ui={ui}
+                    onEdgeAdd={addSelectedEdge}
+                    onEdgeChange={updateSelectedEdge}
+                    onEdgeRemove={removeSelectedEdge}
                   />
                 </>
               )}
@@ -772,31 +874,115 @@ export function StructuresWorkspace({
   )
 }
 
-function StructureLevelPreview({
-  nodes,
+function StructureMapPreview({
+  draft,
   ui,
 }: {
-  nodes: StructureNodeDraft[]
+  draft: StructureDraft
   ui: PreviewText
 }) {
+  const [focusedNodeClientId, setFocusedNodeClientId] = useState<string | null>(null)
+  const nodes = draft.nodes
+  const validNodeIds = new Set(nodes.map((node) => node.clientId))
+  const validEdges = draft.edges.filter(
+    (edge) =>
+      validNodeIds.has(edge.sourceClientId) &&
+      validNodeIds.has(edge.targetClientId) &&
+      edge.sourceClientId !== edge.targetClientId,
+  )
+  const focusedEdges =
+    focusedNodeClientId === null
+      ? validEdges
+      : validEdges.filter(
+          (edge) => edge.sourceClientId === focusedNodeClientId || edge.targetClientId === focusedNodeClientId,
+        )
+  const focusedNodeIds = new Set<string>(
+    focusedNodeClientId === null
+      ? nodes.map((node) => node.clientId)
+      : [
+          focusedNodeClientId,
+          ...focusedEdges.flatMap((edge) => [edge.sourceClientId, edge.targetClientId]),
+        ],
+  )
   const levelIndexes = Array.from(new Set(nodes.map((node) => node.levelIndex))).sort((left, right) => left - right)
+  const getNodeName = (clientId: string) =>
+    nodes.find((node) => node.clientId === clientId)?.name.trim() || ui.structureNode
 
   return (
-    <div className="sp-structure-level-preview">
-      {levelIndexes.map((levelIndex) => (
-        <section key={levelIndex}>
-          <strong>{ui.structureLevelIndex} {levelIndex + 1}</strong>
-          <div>
-            {nodes
-              .filter((node) => node.levelIndex === levelIndex)
-              .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name))
-              .map((node) => (
-                <span key={node.clientId}>{node.name.trim() || ui.structureNode}</span>
-              ))}
-          </div>
-        </section>
-      ))}
-    </div>
+    <section className="sp-structure-map-preview">
+      <div className="sp-structure-map-head">
+        <div>
+          <h3>{ui.structurePreview}</h3>
+          <p>{ui.structurePreviewHint}</p>
+        </div>
+        <div className="sp-tags">
+          <span>{ui.structureLayoutKind}: {draft.layoutKind}</span>
+          <span>{ui.structureNodesCount}: {nodes.length}</span>
+          <span>{ui.relationsCount}: {validEdges.length}</span>
+        </div>
+      </div>
+
+      {focusedNodeClientId !== null && (
+        <div className="sp-structure-focus-bar">
+          <span>{ui.structureFocusedNode}: {getNodeName(focusedNodeClientId)}</span>
+          <button className="sp-button" type="button" onClick={() => setFocusedNodeClientId(null)}>
+            {ui.structureFocusReset}
+          </button>
+        </div>
+      )}
+
+      <div className="sp-structure-level-preview">
+        {levelIndexes.map((levelIndex) => (
+          <section key={levelIndex}>
+            <strong>{ui.structureLevelIndex} {levelIndex + 1}</strong>
+            <div>
+              {nodes
+                .filter((node) => node.levelIndex === levelIndex)
+                .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name))
+                .map((node) => (
+                  <button
+                    className={
+                      focusedNodeClientId === node.clientId
+                        ? 'active'
+                        : focusedNodeIds.has(node.clientId)
+                          ? ''
+                          : 'muted'
+                    }
+                    key={node.clientId}
+                    type="button"
+                    onClick={() =>
+                      setFocusedNodeClientId((currentNodeClientId) =>
+                        currentNodeClientId === node.clientId ? null : node.clientId,
+                      )
+                    }
+                  >
+                    <span>{node.name.trim() || ui.structureNode}</span>
+                    {node.nodeType.trim().length > 0 && <small>{node.nodeType}</small>}
+                  </button>
+                ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      {validEdges.length > 0 && (
+        <div className="sp-structure-route-preview">
+          {focusedEdges.length === 0 ? (
+            <p>{ui.noStructureEdges}</p>
+          ) : (
+            focusedEdges
+              .sort((left, right) => left.sortOrder - right.sortOrder || left.relationType.localeCompare(right.relationType))
+              .map((edge, edgeIndex) => (
+                <div className="sp-structure-route" key={`${edge.sourceClientId}-${edge.targetClientId}-${edgeIndex}`}>
+                  <span>{getNodeName(edge.sourceClientId)}</span>
+                  <strong>{edge.relationType.trim() || ui.structureEdgeDefaultType}</strong>
+                  <span>{getNodeName(edge.targetClientId)}</span>
+                </div>
+              ))
+          )}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -950,5 +1136,128 @@ function StructureNodeDraftList({
         </article>
       ))}
     </div>
+  )
+}
+
+function StructureEdgeDraftSection({
+  edges,
+  nodes,
+  ui,
+  onEdgeAdd,
+  onEdgeChange,
+  onEdgeRemove,
+}: {
+  edges: StructureEdgeDraft[]
+  nodes: StructureNodeDraft[]
+  ui: PreviewText
+  onEdgeAdd: () => void
+  onEdgeChange: (edgeIndex: number, patch: Partial<StructureEdgeDraft>) => void
+  onEdgeRemove: (edgeIndex: number) => void
+}) {
+  const canCreateEdge = nodes.length > 1
+  const getNodeName = (clientId: string) =>
+    nodes.find((node) => node.clientId === clientId)?.name.trim() || ui.structureNode
+
+  return (
+    <section className="sp-structure-edges">
+      <div className="sp-structure-nodes-head">
+        <div>
+          <h3>{ui.structureEdges}</h3>
+          <p>{ui.structureEdgesHint}</p>
+        </div>
+        <button className="sp-button" disabled={!canCreateEdge} type="button" onClick={onEdgeAdd}>
+          {ui.structureAddEdge}
+        </button>
+      </div>
+
+      {edges.length === 0 ? (
+        <div className="sp-empty compact">
+          <strong>{ui.noStructureEdges}</strong>
+          <span>{canCreateEdge ? ui.structureEdgesHint : ui.structureEdgesNeedNodes}</span>
+        </div>
+      ) : (
+        <div className="sp-structure-edge-list">
+          {edges.map((edge, edgeIndex) => (
+            <article className="sp-structure-edge-row" key={`${edge.sourceClientId}-${edge.targetClientId}-${edgeIndex}`}>
+              <label>
+                {ui.structureEdgeSource}
+                <select
+                  value={edge.sourceClientId}
+                  onChange={(event) => {
+                    const sourceClientId = event.target.value
+                    onEdgeChange(edgeIndex, {
+                      sourceClientId,
+                      targetClientId:
+                        edge.targetClientId === sourceClientId
+                          ? getFirstDifferentNodeClientId(nodes, sourceClientId)
+                          : edge.targetClientId,
+                    })
+                  }}
+                >
+                  {nodes.map((node) => (
+                    <option key={node.clientId} value={node.clientId}>
+                      {node.name.trim() || ui.structureNode}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {ui.structureEdgeTarget}
+                <select
+                  value={edge.targetClientId}
+                  onChange={(event) => onEdgeChange(edgeIndex, { targetClientId: event.target.value })}
+                >
+                  {nodes
+                    .filter((node) => node.clientId !== edge.sourceClientId)
+                    .map((node) => (
+                      <option key={node.clientId} value={node.clientId}>
+                        {node.name.trim() || ui.structureNode}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                {ui.relationType}
+                <input
+                  value={edge.relationType}
+                  placeholder={ui.structureEdgeTypePlaceholder}
+                  onChange={(event) => onEdgeChange(edgeIndex, { relationType: event.target.value })}
+                />
+              </label>
+              <label>
+                {ui.description}
+                <input
+                  value={edge.description}
+                  onChange={(event) => onEdgeChange(edgeIndex, { description: event.target.value })}
+                />
+              </label>
+              <label>
+                {ui.structureSortOrder}
+                <input
+                  min="0"
+                  type="number"
+                  value={edge.sortOrder}
+                  onChange={(event) =>
+                    onEdgeChange(edgeIndex, {
+                      sortOrder: Math.max(0, Number(event.target.value) || 0),
+                    })
+                  }
+                />
+              </label>
+              <div className="sp-structure-edge-preview">
+                <span>{getNodeName(edge.sourceClientId)}</span>
+                <strong>{edge.relationType.trim() || ui.structureEdgeDefaultType}</strong>
+                <span>{getNodeName(edge.targetClientId)}</span>
+              </div>
+              <div className="sp-structure-node-actions">
+                <button className="sp-button danger" type="button" onClick={() => onEdgeRemove(edgeIndex)}>
+                  {ui.delete}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }

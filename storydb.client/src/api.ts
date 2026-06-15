@@ -31,6 +31,7 @@
   StructureUsage,
   StructureUsageDraft,
   StoryObject,
+  StoryObjectSummary,
   StoryProject,
   TimelineEvent,
   TimelineEventDraft,
@@ -40,6 +41,7 @@
   TimelineLayout,
   TimelineLayoutRules,
 } from './types'
+import { prepareImageForUpload, validatePreparedImageUpload } from './imageUploadPreparation'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'
 export const assetBaseUrl = import.meta.env.VITE_ASSET_BASE_URL ?? ''
@@ -391,8 +393,14 @@ export const resolveAssetUrl = (path: string | null) =>
   path === null ? null : `${assetBaseUrl}${path}`
 
 export const uploadImageRequest = async (file: File, projectId: number | null = null) => {
+  const preparedImage = await prepareImageForUpload(file)
+  const validationError = validatePreparedImageUpload(preparedImage.file)
+  if (validationError !== null) {
+    throw new Error(validationError)
+  }
+
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', preparedImage.file)
 
   const uploadUrl = projectId === null ? `${apiBaseUrl}/uploads/images` : `${apiBaseUrl}/uploads/images?projectId=${projectId}`
   const response = await apiFetch(uploadUrl, {
@@ -729,6 +737,13 @@ export const fetchObjects = async (projectId: number, typeKey: ObjectTypeKey) =>
   return (await response.json()) as StoryObject[]
 }
 
+export const fetchObjectSummaries = async (projectId: number, typeKey: ObjectTypeKey) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/objects/summaries?typeKey=${typeKey}`)
+  await ensureOk(response, 'Failed to load object summaries.')
+
+  return (await response.json()) as StoryObjectSummary[]
+}
+
 export const fetchRelationGraph = async (projectId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/relations/graph`)
   await ensureOk(response, 'Failed to load relation graph.')
@@ -736,8 +751,13 @@ export const fetchRelationGraph = async (projectId: number) => {
   return (await response.json()) as RelationGraph
 }
 
-export const fetchRelationGraphLayout = async (projectId: number) => {
-  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/relations/layout`)
+export const fetchRelationGraphLayout = async (projectId: number, graphKey?: string | null) => {
+  const searchParams = new URLSearchParams()
+  if (graphKey !== undefined && graphKey !== null && graphKey.trim().length > 0) {
+    searchParams.set('graphKey', graphKey.trim())
+  }
+  const query = searchParams.toString()
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/relations/layout${query ? `?${query}` : ''}`)
   await ensureOk(response, 'Failed to load relation graph layout.')
 
   return (await response.json()) as RelationGraphLayout | null
@@ -777,6 +797,7 @@ export const createObjectRequest = async (
   description: string,
   age: string,
   role: string,
+  currentStatus: string,
   imagePath: string | null,
   draftAttributes: DraftAttribute[],
   draftHierarchySelections: DraftHierarchySelection[],
@@ -799,6 +820,7 @@ export const createObjectRequest = async (
       description: description.trim() || null,
       age: age.trim() || null,
       role: role.trim() || null,
+      currentStatus: currentStatus.trim() || null,
       imagePath,
       attributes: normalizeAttributes(draftAttributes),
       hierarchySelections: normalizeHierarchySelections(draftHierarchySelections),
@@ -824,6 +846,7 @@ export const createCharacterRequest = (
   description: string,
   age: string,
   role: string,
+  currentStatus: string,
   imagePath: string | null,
   draftAttributes: DraftAttribute[],
   draftHierarchySelections: DraftHierarchySelection[],
@@ -838,6 +861,7 @@ export const createCharacterRequest = (
     description,
     age,
     role,
+    currentStatus,
     imagePath,
     draftAttributes,
     draftHierarchySelections,
@@ -859,6 +883,7 @@ export const updateObjectRequest = async (
   description: string,
   age: string,
   role: string,
+  currentStatus: string,
   imagePath: string | null,
   draftAttributes: DraftAttribute[],
   draftHierarchySelections: DraftHierarchySelection[],
@@ -880,6 +905,7 @@ export const updateObjectRequest = async (
       description: description.trim() || null,
       age: age.trim() || null,
       role: role.trim() || null,
+      currentStatus: currentStatus.trim() || null,
       imagePath,
       attributes: normalizeAttributes(draftAttributes),
       hierarchySelections: normalizeHierarchySelections(draftHierarchySelections),
@@ -906,6 +932,7 @@ export const updateCharacterRequest = (
   description: string,
   age: string,
   role: string,
+  currentStatus: string,
   imagePath: string | null,
   draftAttributes: DraftAttribute[],
   draftHierarchySelections: DraftHierarchySelection[],
@@ -920,6 +947,7 @@ export const updateCharacterRequest = (
     description,
     age,
     role,
+    currentStatus,
     imagePath,
     draftAttributes,
     draftHierarchySelections,

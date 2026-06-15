@@ -6,6 +6,8 @@ public interface IObjectService
 {
     Task<IReadOnlyList<StoryObjectDto>> GetObjectsAsync(int projectId, string? typeKey);
 
+    Task<IReadOnlyList<StoryObjectSummaryDto>> GetObjectSummariesAsync(int projectId, string? typeKey);
+
     Task<ObjectServiceResult<StoryObjectDto>> GetObjectAsync(int projectId, int objectId);
 
     Task<ObjectServiceResult<StoryObjectDto>> CreateObjectAsync(int projectId, CreateStoryObjectRequest request);

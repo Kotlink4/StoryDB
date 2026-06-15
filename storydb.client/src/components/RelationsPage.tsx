@@ -17,7 +17,7 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { getObjectFullName, relationGraphNodeToStoryObject } from '../style-preview/domain/objectDisplay'
-import { getRelationLabel } from '../style-preview/domain/relationDisplay'
+import { getRelationCategoryLabel, getRelationLabel } from '../style-preview/domain/relationDisplay'
 import {
   getRelationDegrees,
   getRelationGraphNodes,
@@ -31,6 +31,12 @@ import {
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { RelationGraph, RelationGraphLayout, RelationGraphNode, StoryObject } from '../types'
 import { ObjectPortrait } from './StylePreviewPrimitives'
+
+const relationGraphCategories = ['character', 'membership', 'ownership', 'object', 'structure'] as const
+
+type RelationGraphCategory = typeof relationGraphCategories[number]
+type RelationGraphMode = 'all' | RelationGraphCategory
+
 type RelationNodeData = {
   storyObject: StoryObject
   relationCount: number
@@ -49,6 +55,49 @@ const relationHandlePositions = [
   { id: 'bottom', position: Position.Bottom },
   { id: 'left', position: Position.Left },
 ]
+
+const getRelationGraphKey = (mode: RelationGraphMode, focusedObjectId: number | null) => {
+  if (mode === 'all' && focusedObjectId === null) {
+    return 'relations:all'
+  }
+
+  return focusedObjectId === null
+    ? `relations:${mode}`
+    : `relations:${mode}:focus:${focusedObjectId}`
+}
+
+const getVisibleRelationGraph = (
+  graph: RelationGraph,
+  mode: RelationGraphMode,
+  focusedObjectId: number | null,
+): RelationGraph => {
+  const modeEdges = mode === 'all'
+    ? graph.edges
+    : graph.edges.filter((edge) => edge.category === mode)
+
+  const visibleEdges = focusedObjectId === null
+    ? modeEdges
+    : modeEdges.filter((edge) => edge.sourceId === focusedObjectId || edge.targetId === focusedObjectId)
+
+  if (mode === 'all' && focusedObjectId === null) {
+    return { nodes: graph.nodes, edges: visibleEdges }
+  }
+
+  const visibleNodeIds = new Set<number>()
+  visibleEdges.forEach((edge) => {
+    visibleNodeIds.add(edge.sourceId)
+    visibleNodeIds.add(edge.targetId)
+  })
+
+  if (focusedObjectId !== null && graph.nodes.some((node) => node.id === focusedObjectId)) {
+    visibleNodeIds.add(focusedObjectId)
+  }
+
+  return {
+    nodes: graph.nodes.filter((node) => visibleNodeIds.has(node.id)),
+    edges: visibleEdges,
+  }
+}
 
 function RelationObjectNode({ data }: NodeProps<RelationObjectFlowNode>) {
   return (
@@ -196,6 +245,21 @@ const buildRelationFlow = (
   return { nodes, edges }
 }
 
+export type RelationsPageProps = {
+  graph: RelationGraph
+  isLayoutGenerating: boolean
+  layout: RelationGraphLayout | null
+  objects: StoryObject[]
+  selectedEdgeId: string | null
+  ui: PreviewText
+  onCreateRelation: () => void
+  onGenerateLayout: (graphKey: string, graph: RelationGraph) => void
+  onGraphKeyChange: (graphKey: string) => void
+  onSaveNodePosition: (graphKey: string, graph: RelationGraph, storyObjectId: number, position: { x: number; y: number }) => void
+  onSelectEdge: (edgeId: string) => void
+  onSelect: (storyObject: StoryObject) => void
+}
+
 export function RelationsPage({
   graph,
   isLayoutGenerating,
@@ -205,26 +269,23 @@ export function RelationsPage({
   ui,
   onCreateRelation,
   onGenerateLayout,
+  onGraphKeyChange,
   onSaveNodePosition,
   onSelectEdge,
   onSelect,
-}: {
-  graph: RelationGraph
-  isLayoutGenerating: boolean
-  layout: RelationGraphLayout | null
-  objects: StoryObject[]
-  selectedEdgeId: string | null
-  ui: PreviewText
-  onCreateRelation: () => void
-  onGenerateLayout: () => void
-  onSaveNodePosition: (storyObjectId: number, position: { x: number; y: number }) => void
-  onSelectEdge: (edgeId: string) => void
-  onSelect: (storyObject: StoryObject) => void
-}) {
+}: RelationsPageProps) {
+  const [graphMode, setGraphMode] = useState<RelationGraphMode>('all')
+  const [focusedObjectId, setFocusedObjectId] = useState<number | null>(null)
+  const visibleGraph = useMemo(
+    () => getVisibleRelationGraph(graph, graphMode, focusedObjectId),
+    [focusedObjectId, graph, graphMode],
+  )
+  const graphKey = useMemo(() => getRelationGraphKey(graphMode, focusedObjectId), [focusedObjectId, graphMode])
+  const activeLayout = layout?.graphKey === graphKey ? layout : null
   const layoutPositions = useMemo(
     () =>
       new Map(
-        layout?.items.map((item) => [
+        activeLayout?.items.map((item) => [
           item.storyObjectId,
           {
             x: item.x,
@@ -232,21 +293,29 @@ export function RelationsPage({
           },
         ]) ?? [],
       ),
-    [layout],
+    [activeLayout],
   )
   const { nodes, edges } = useMemo(
-    () => buildRelationFlow(graph, objects, onSelect, layoutPositions, selectedEdgeId, ui),
-    [graph, layoutPositions, objects, onSelect, selectedEdgeId, ui],
+    () => buildRelationFlow(visibleGraph, objects, onSelect, layoutPositions, selectedEdgeId, ui),
+    [layoutPositions, objects, onSelect, selectedEdgeId, ui, visibleGraph],
   )
   const [flowNodes, setFlowNodes] = useState(nodes)
-  const relationTypes = Array.from(new Set(graph.edges.map((edge) => getRelationLabel(edge.relationType, ui)))).sort()
+  const relationTypes = Array.from(new Set(visibleGraph.edges.map((edge) => getRelationLabel(edge.relationType, ui)))).sort()
+  const focusOptions = [...graph.nodes].sort((left, right) => left.name.localeCompare(right.name))
+  const graphModeOptions: Array<{ label: string; value: RelationGraphMode }> = [
+    { label: ui.graphModeAll, value: 'all' },
+    ...relationGraphCategories.map((category) => ({
+      label: getRelationCategoryLabel(category, ui),
+      value: category,
+    })),
+  ]
   const layoutStatus =
-    layout === null
+    activeLayout === null
       ? ui.layoutNotGenerated
-      : layout.isStale
+      : activeLayout.isStale
         ? ui.layoutStale
         : ui.layoutSaved
-  const layoutButtonLabel = layout === null ? ui.layoutGenerate : layout.isStale ? ui.layoutUpdate : ui.layoutRegenerate
+  const layoutButtonLabel = activeLayout === null ? ui.layoutGenerate : activeLayout.isStale ? ui.layoutUpdate : ui.layoutRegenerate
   const onNodesChange = useCallback(
     (changes: NodeChange[]) =>
       setFlowNodes((currentNodes) => applyNodeChanges(changes, currentNodes) as RelationObjectFlowNode[]),
@@ -257,16 +326,52 @@ export function RelationsPage({
     setFlowNodes(nodes)
   }, [nodes])
 
+  useEffect(() => {
+    onGraphKeyChange(graphKey)
+  }, [graphKey, onGraphKeyChange])
+
+  useEffect(() => {
+    if (focusedObjectId !== null && !graph.nodes.some((node) => node.id === focusedObjectId)) {
+      setFocusedObjectId(null)
+    }
+  }, [focusedObjectId, graph.nodes])
+
   return (
     <div className="sp-relations-page">
       <div className="sp-relations-overlay-head">
         <div>
           <h2>{ui.relations}</h2>
           <p>
-            {graph.nodes.length} {ui.objectsCount} · {graph.edges.length} {ui.relationsCount} · {layoutStatus}
+            {visibleGraph.nodes.length} {ui.objectsCount} · {visibleGraph.edges.length} {ui.relationsCount} · {layoutStatus}
           </p>
         </div>
         <div className="sp-relations-overlay-actions">
+          <label className="sp-graph-control">
+            <span>{ui.graphMode}</span>
+            <select value={graphMode} onChange={(event) => setGraphMode(event.target.value as RelationGraphMode)}>
+              {graphModeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="sp-graph-control">
+            <span>{ui.graphFocus}</span>
+            <select
+              value={focusedObjectId ?? ''}
+              onChange={(event) =>
+                setFocusedObjectId(event.target.value.trim().length === 0 ? null : Number(event.target.value))
+              }
+            >
+              <option value="">{ui.graphFocusAll}</option>
+              {focusOptions.map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             className="sp-button"
             type="button"
@@ -278,8 +383,8 @@ export function RelationsPage({
           <button
             className="sp-button"
             type="button"
-            disabled={isLayoutGenerating || graph.nodes.length === 0}
-            onClick={onGenerateLayout}
+            disabled={isLayoutGenerating || visibleGraph.nodes.length === 0}
+            onClick={() => onGenerateLayout(graphKey, visibleGraph)}
           >
             {isLayoutGenerating ? ui.layoutGenerating : layoutButtonLabel}
           </button>
@@ -292,6 +397,7 @@ export function RelationsPage({
           <span className="sp-legend-line membership">{ui.relationMembership}</span>
           <span className="sp-legend-line ownership">{ui.relationOwnership}</span>
           <span className="sp-legend-line object">{ui.relationObject}</span>
+          <span className="sp-legend-line structure">{ui.relationStructure}</span>
           <p>{ui.relationHelp}</p>
           {relationTypes.length > 0 && (
             <div className="sp-relation-types">
@@ -316,7 +422,7 @@ export function RelationsPage({
               nodes={flowNodes}
               nodeTypes={relationNodeTypes}
               onEdgeClick={(_, edge) => onSelectEdge(edge.id)}
-              onNodeDragStop={(_, node) => onSaveNodePosition(Number(node.id), node.position)}
+              onNodeDragStop={(_, node) => onSaveNodePosition(graphKey, visibleGraph, Number(node.id), node.position)}
               onNodesChange={onNodesChange}
             >
               <Background color="var(--sp-grid-line)" gap={32} variant={BackgroundVariant.Lines} />

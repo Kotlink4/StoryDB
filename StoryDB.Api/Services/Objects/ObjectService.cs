@@ -13,6 +13,14 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
         int projectId,
         string? typeKey)
     {
+        var summaries = await GetObjectSummariesAsync(projectId, typeKey);
+        return summaries.Select(ToStoryObjectListDto).ToList();
+    }
+
+    public async Task<IReadOnlyList<StoryObjectSummaryDto>> GetObjectSummariesAsync(
+        int projectId,
+        string? typeKey)
+    {
         var query = dbContext.Objects
             .AsNoTracking()
             .Where(storyObject =>
@@ -27,7 +35,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
 
         var objects = await query
             .OrderBy(storyObject => storyObject.Name)
-            .Select(storyObject => new StoryObjectDto(
+            .Select(storyObject => new StoryObjectSummaryDto(
                 storyObject.Id,
                 storyObject.Name,
                 storyObject.Surname,
@@ -35,6 +43,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
                 storyObject.Description,
                 storyObject.Age,
                 storyObject.Role,
+                storyObject.CurrentStatus,
                 storyObject.ImagePath,
                 storyObject.ObjectType!.Key,
                 storyObject.Attributes
@@ -45,25 +54,39 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
                         attribute.AttributeDefinitionId,
                         attribute.AttributeDefinition!.Name,
                         attribute.Value))
-                    .ToList(),
-                Array.Empty<ObjectHierarchySelectionDto>(), // HierarchySelections
-                Array.Empty<ObjectCatalogSelectionDto>(), // CatalogSelections
-                Array.Empty<ObjectReferenceDto>(), // OwnedItems
-                Array.Empty<ObjectReferenceDto>(), // Owners
-                Array.Empty<ObjectReferenceDto>(), // TerritoryPlaces
-                Array.Empty<ObjectReferenceDto>(), // OrganizationsOnTerritory
-                Array.Empty<ObjectReferenceDto>(), // OwnerOrganizations
-                Array.Empty<ObjectReferenceDto>(), // OwnedTerritories
-                Array.Empty<ObjectReferenceDto>(), // HierarchyParents
-                Array.Empty<ObjectReferenceDto>(), // HierarchyChildren
-                Array.Empty<OrganizationStructureLevelDto>(), // OrganizationStructureLevels
-                Array.Empty<ObjectGalleryImageDto>(), // GalleryImages
-                Array.Empty<CharacterRelationshipDto>(), // OutgoingCharacterRelationships
-                Array.Empty<CharacterRelationshipDto>())) // IncomingCharacterRelationships
+                    .ToList()))
             .ToListAsync();
 
         return objects;
     }
+
+    private static StoryObjectDto ToStoryObjectListDto(StoryObjectSummaryDto summary) => new(
+        summary.Id,
+        summary.Name,
+        summary.Surname,
+        summary.SurnameForm,
+        summary.Description,
+        summary.Age,
+        summary.Role,
+        summary.CurrentStatus,
+        summary.ImagePath,
+        summary.TypeKey,
+        summary.Attributes,
+        Array.Empty<ObjectHierarchySelectionDto>(),
+        Array.Empty<ObjectCatalogSelectionDto>(),
+        Array.Empty<ObjectReferenceDto>(),
+        Array.Empty<ObjectReferenceDto>(),
+        Array.Empty<ObjectReferenceDto>(),
+        Array.Empty<ObjectReferenceDto>(),
+        Array.Empty<ObjectReferenceDto>(),
+        Array.Empty<ObjectReferenceDto>(),
+        Array.Empty<ObjectReferenceDto>(),
+        Array.Empty<ObjectReferenceDto>(),
+        Array.Empty<OrganizationStructureLevelDto>(),
+        Array.Empty<ObjectGalleryImageDto>(),
+        Array.Empty<CharacterRelationshipDto>(),
+        Array.Empty<CharacterRelationshipDto>());
+
     public async Task<ObjectServiceResult<StoryObjectDto>> GetObjectAsync(int projectId, int objectId)
     {
         var storyObjectExists = await dbContext.Objects
@@ -86,6 +109,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             request.Description,
             request.Age,
             request.Role,
+            request.CurrentStatus,
             request.ImagePath);
         if (requestError is not null)
         {
@@ -162,6 +186,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             Description = NormalizeOptionalText(request.Description),
             Age = NormalizeOptionalText(request.Age),
             Role = NormalizeOptionalText(request.Role),
+            CurrentStatus = NormalizeOptionalText(request.CurrentStatus),
             ImagePath = ValidationRules.NormalizeOptionalText(request.ImagePath),
             CreatedAt = now,
             UpdatedAt = now,
@@ -207,6 +232,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             request.Description,
             request.Age,
             request.Role,
+            request.CurrentStatus,
             request.ImagePath);
         if (requestError is not null)
         {
@@ -287,6 +313,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
         storyObject.Description = NormalizeOptionalText(request.Description);
         storyObject.Age = NormalizeOptionalText(request.Age);
         storyObject.Role = NormalizeOptionalText(request.Role);
+        storyObject.CurrentStatus = NormalizeOptionalText(request.CurrentStatus);
         storyObject.ImagePath = ValidationRules.NormalizeOptionalText(request.ImagePath);
         storyObject.UpdatedAt = DateTime.UtcNow;
 
@@ -366,39 +393,18 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             return ObjectServiceResult<StoryObjectDto>.Invalid(validationError);
         }
 
+        if (request.Levels.Count > 0)
+        {
+            return ObjectServiceResult<StoryObjectDto>.Invalid(
+                "Legacy organization structure is read-only. Use universal structures instead.");
+        }
+
         var existingLevels = await dbContext.OrganizationStructureLevels
             .Include(level => level.Slots)
             .Where(level => level.OrganizationObjectId == objectId)
             .ToListAsync();
         dbContext.OrganizationStructureLevels.RemoveRange(existingLevels);
 
-        var now = DateTime.UtcNow;
-        var levels = request.Levels
-            .Select((level, levelIndex) => new OrganizationStructureLevel
-            {
-                OrganizationObjectId = objectId,
-                Name = level.Name.Trim(),
-                Description = NormalizeOptionalText(level.Description),
-                SortOrder = levelIndex,
-                CreatedAt = now,
-                UpdatedAt = now,
-                Slots = level.Slots
-                    .Select((slot, slotIndex) => new OrganizationStructureSlot
-                    {
-                        Name = slot.Name.Trim(),
-                        Description = NormalizeOptionalText(slot.Description),
-                        SlotType = NormalizeOptionalText(slot.SlotType),
-                        Color = NormalizeOptionalText(slot.Color),
-                        IconKey = NormalizeOptionalText(slot.IconKey),
-                        SortOrder = slotIndex,
-                        CreatedAt = now,
-                        UpdatedAt = now,
-                    })
-                    .ToList(),
-            })
-            .ToList();
-
-        dbContext.OrganizationStructureLevels.AddRange(levels);
         await dbContext.SaveChangesAsync();
 
         return ObjectServiceResult<StoryObjectDto>.Success(await GetObjectDto(projectId, objectId));
@@ -936,6 +942,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
                 currentObject.Description,
                 currentObject.Age,
                 currentObject.Role,
+                currentObject.CurrentStatus,
                 currentObject.ImagePath,
                 TypeKey = currentObject.ObjectType!.Key,
             })
@@ -1144,6 +1151,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             storyObject.Description,
             storyObject.Age,
             storyObject.Role,
+            storyObject.CurrentStatus,
             storyObject.ImagePath,
             storyObject.TypeKey,
             attributes,
@@ -1176,6 +1184,7 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             storyObject.Description,
             storyObject.Age,
             storyObject.Role,
+            storyObject.CurrentStatus,
             storyObject.ImagePath,
             typeKey,
             storyObject.Attributes

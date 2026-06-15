@@ -11,6 +11,7 @@ public class StoryObject
     public string? Description { get; set; }
     public string? Age { get; set; }
     public string? Role { get; set; }
+    public string? CurrentStatus { get; set; }
     public string? ImagePath { get; set; }
     public string? DataJson { get; set; }
     public DateTime CreatedAt { get; set; }

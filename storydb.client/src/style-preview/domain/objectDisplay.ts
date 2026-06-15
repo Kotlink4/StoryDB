@@ -14,6 +14,7 @@ export const relationGraphNodeToStoryObject = (node: RelationGraphNode): StoryOb
   description: null,
   age: null,
   role: null,
+  currentStatus: null,
   imagePath: node.imagePath,
   typeKey: node.typeKey,
   attributes: [],

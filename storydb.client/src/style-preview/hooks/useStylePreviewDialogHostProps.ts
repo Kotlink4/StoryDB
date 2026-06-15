@@ -1,16 +1,16 @@
 import type { ComponentProps, Dispatch, SetStateAction } from 'react'
 
-import { StylePreviewAttributeDialogs } from '../../components/StylePreviewAttributeDialogs'
-import { StylePreviewCatalogDialogs } from '../../components/StylePreviewCatalogDialogs'
-import { StylePreviewDetailDialogs } from '../../components/StylePreviewDetailDialogs'
-import { StylePreviewDialogHost } from '../../components/StylePreviewDialogHost'
-import { StylePreviewObjectDialogs } from '../../components/StylePreviewObjectDialogs'
-import { StylePreviewProjectDialogs } from '../../components/StylePreviewProjectDialogs'
-import { StylePreviewTimelineDialogs } from '../../components/StylePreviewTimelineDialogs'
+import type { StylePreviewAttributeDialogs } from '../../components/StylePreviewAttributeDialogs'
+import type { StylePreviewCatalogDialogs } from '../../components/StylePreviewCatalogDialogs'
+import type { StylePreviewDetailDialogs } from '../../components/StylePreviewDetailDialogs'
+import type { StylePreviewDialogHostProps } from '../../components/StylePreviewDialogHost'
+import type { StylePreviewObjectDialogs } from '../../components/StylePreviewObjectDialogs'
+import type { StylePreviewProjectDialogs } from '../../components/StylePreviewProjectDialogs'
+import type { StylePreviewTimelineDialogs } from '../../components/StylePreviewTimelineDialogs'
 import { emptyCatalogFieldDraft, type PreviewDialogKind } from '../domain/stylePreviewConfig'
 
 type MaybePromise = void | Promise<void>
-type DialogHostProps = ComponentProps<typeof StylePreviewDialogHost>
+type DialogHostProps = StylePreviewDialogHostProps
 type ProjectDialogsProps = ComponentProps<typeof StylePreviewProjectDialogs>
 type ObjectDialogsProps = ComponentProps<typeof StylePreviewObjectDialogs>
 type DetailDialogsProps = ComponentProps<typeof StylePreviewDetailDialogs>

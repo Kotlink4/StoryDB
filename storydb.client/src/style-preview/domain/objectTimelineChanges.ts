@@ -21,6 +21,7 @@ export function buildObjectTimelineChanges({
   draftCharacterRelationships,
   draftHierarchySelections,
   objectAge,
+  objectCurrentStatus,
   objectDescription,
   objectImagePath,
   objectName,
@@ -40,6 +41,7 @@ export function buildObjectTimelineChanges({
   draftCharacterRelationships: DraftCharacterRelationship[]
   draftHierarchySelections: DraftHierarchySelection[]
   objectAge: string
+  objectCurrentStatus: string
   objectDescription: string
   objectImagePath: string | null
   objectName: string
@@ -85,6 +87,7 @@ export function buildObjectTimelineChanges({
   addChange('field', 'description', baseObject.description, objectDescription)
   addChange('field', 'age', baseObject.age, objectAge)
   addChange('field', 'role', baseObject.role, objectRole)
+  addChange('field', 'currentStatus', baseObject.currentStatus, objectCurrentStatus)
   addChange('field', 'imagePath', baseObject.imagePath, objectImagePath)
 
   const currentAttributes = new Map(

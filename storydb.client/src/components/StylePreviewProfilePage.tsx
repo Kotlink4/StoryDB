@@ -9,7 +9,6 @@ export function ProfilePage({
   displayName,
   email,
   isSaving,
-  projectQuery,
   projects,
   selectedProjectId,
   ui,
@@ -19,7 +18,6 @@ export function ProfilePage({
   onEditProject,
   onEmailChange,
   onOpenProject,
-  onProjectQueryChange,
   onSave,
 }: {
   avatarDropzone: ReactNode
@@ -27,7 +25,6 @@ export function ProfilePage({
   displayName: string
   email: string
   isSaving: boolean
-  projectQuery: string
   projects: StoryProject[]
   selectedProjectId: number | null
   ui: PreviewText
@@ -37,14 +34,8 @@ export function ProfilePage({
   onEditProject: (project: StoryProject) => void
   onEmailChange: (value: string) => void
   onOpenProject: (project: StoryProject) => void
-  onProjectQueryChange: (value: string) => void
   onSave: () => void
 }) {
-  const normalizedQuery = projectQuery.trim().toLowerCase()
-  const visibleProjects = projects.filter((project) =>
-    normalizedQuery.length === 0 ? true : project.name.toLowerCase().includes(normalizedQuery),
-  )
-
   if (currentUser === null) {
     return (
       <section className="sp-profile-page">
@@ -104,16 +95,8 @@ export function ProfilePage({
               + {ui.newProject}
             </button>
           </div>
-          <label className="sp-profile-project-search">
-            <input
-              type="search"
-              value={projectQuery}
-              onChange={(event) => onProjectQueryChange(event.target.value)}
-              placeholder={ui.projectSearch}
-            />
-          </label>
           <div className="sp-profile-project-grid">
-            {visibleProjects.map((project) => (
+            {projects.map((project) => (
               <ProfileProjectCard
                 isSelected={project.id === selectedProjectId}
                 key={project.id}
@@ -124,7 +107,7 @@ export function ProfilePage({
                 onOpen={() => onOpenProject(project)}
               />
             ))}
-            {visibleProjects.length === 0 && (
+            {projects.length === 0 && (
               <div className="sp-empty">
                 <strong>{ui.projectNotSelected}</strong>
                 <span>{ui.projectSearch}</span>

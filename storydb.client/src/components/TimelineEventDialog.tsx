@@ -36,6 +36,14 @@ export function TimelineEventDialog({
   return (
     <PreviewDialog title={editingTimelineEventId === null ? ui.newEvent : ui.timelineEventEditor} onClose={onCancel}>
       <div className="sp-form">
+        <CoverDropzone
+          className="event-image event-landscape"
+          cropMode="landscape"
+          imagePath={draft.imagePath}
+          label={ui.eventCover}
+          ui={ui}
+          onFileSelected={onCoverFileSelected}
+        />
         <label>
           {ui.timelineEventType}
           <select value={draft.eventType} onChange={(event) => onEventTypeChange(event.target.value as TimelineEventDraft['eventType'])}>
@@ -113,13 +121,6 @@ export function TimelineEventDialog({
             onChange={(event) => onDraftChange((currentDraft) => ({ ...currentDraft, color: event.target.value }))}
           />
         </label>
-        <CoverDropzone
-          className="wide"
-          imagePath={draft.imagePath}
-          label={ui.eventCover}
-          ui={ui}
-          onFileSelected={onCoverFileSelected}
-        />
         <label className="wide">
           {ui.description}
           <textarea

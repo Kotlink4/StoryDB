@@ -30,7 +30,6 @@ type RelationCommandMessages = {
 type UseStylePreviewRelationCommandsOptions = {
   linkableObjects: StoryObject[]
   messages: RelationCommandMessages
-  relationGraph: RelationGraph
   relationGraphLayout: RelationGraphLayout | null
   relationLinkDraft: RelationLinkDraft
   selectedProjectId: number | null
@@ -46,7 +45,6 @@ type UseStylePreviewRelationCommandsOptions = {
 export function useStylePreviewRelationCommands({
   linkableObjects,
   messages,
-  relationGraph,
   relationGraphLayout,
   relationLinkDraft,
   selectedProjectId,
@@ -108,6 +106,7 @@ export function useStylePreviewRelationCommands({
         sourceObject.description ?? '',
         sourceObject.age ?? '',
         sourceObject.role ?? '',
+        sourceObject.currentStatus ?? '',
         sourceObject.imagePath,
         sourceObject.attributes.map((attribute) => ({
           name: attribute.name,
@@ -166,16 +165,17 @@ export function useStylePreviewRelationCommands({
     }
   }
 
-  const generateRelationGraphLayout = async () => {
-    if (selectedProjectId === null || relationGraph.nodes.length === 0) {
+  const generateRelationGraphLayout = async (graphKey: string, activeGraph: RelationGraph) => {
+    if (selectedProjectId === null || activeGraph.nodes.length === 0) {
       return
     }
 
     setIsRelationLayoutGenerating(true)
     try {
-      const positions = await calculateRelationLayout(relationGraph, linkableObjects)
+      const positions = await calculateRelationLayout(activeGraph, linkableObjects)
       const layout = await saveRelationGraphLayoutRequest(selectedProjectId, {
-        items: relationGraph.nodes.map((node) => {
+        graphKey,
+        items: activeGraph.nodes.map((node) => {
           const position = positions.get(node.id) ?? { x: 0, y: 0 }
 
           return {
@@ -197,6 +197,8 @@ export function useStylePreviewRelationCommands({
   }
 
   const saveRelationGraphNodePosition = async (
+    graphKey: string,
+    activeGraph: RelationGraph,
     storyObjectId: number,
     position: {
       x: number
@@ -207,7 +209,7 @@ export function useStylePreviewRelationCommands({
       return
     }
 
-    const graphNodeIds = new Set(relationGraph.nodes.map((node) => node.id))
+    const graphNodeIds = new Set(activeGraph.nodes.map((node) => node.id))
     const existingItems = new Map(
       (relationGraphLayout?.items ?? [])
         .filter((item) => graphNodeIds.has(item.storyObjectId))
@@ -228,6 +230,7 @@ export function useStylePreviewRelationCommands({
     const optimisticLayout: RelationGraphLayout = {
       id: relationGraphLayout?.id ?? 0,
       projectId: selectedProjectId,
+      graphKey,
       algorithmVersion: relationGraphLayout?.algorithmVersion ?? 'relation-elk-v1',
       isDefault: true,
       isStale: relationGraphLayout?.isStale ?? false,
@@ -238,6 +241,7 @@ export function useStylePreviewRelationCommands({
 
     try {
       const savedLayout = await saveRelationGraphLayoutRequest(selectedProjectId, {
+        graphKey,
         items: optimisticLayout.items.map((item) => ({
           storyObjectId: item.storyObjectId,
           x: item.x,

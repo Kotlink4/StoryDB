@@ -229,6 +229,10 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .Property(storyObject => storyObject.SurnameForm)
             .HasMaxLength(120);
 
+        modelBuilder.Entity<StoryObject>()
+            .Property(storyObject => storyObject.CurrentStatus)
+            .HasMaxLength(120);
+
         modelBuilder.Entity<ObjectAttribute>()
             .HasOne(attribute => attribute.StoryObject)
             .WithMany(storyObject => storyObject.Attributes)
@@ -935,11 +939,15 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<RelationGraphLayout>()
-            .HasIndex(layout => new { layout.ProjectId, layout.OwnerUserId, layout.IsDefault });
+            .HasIndex(layout => new { layout.ProjectId, layout.OwnerUserId, layout.GraphKey, layout.IsDefault });
 
         modelBuilder.Entity<RelationGraphLayout>()
             .Property(layout => layout.AlgorithmVersion)
             .HasMaxLength(40);
+
+        modelBuilder.Entity<RelationGraphLayout>()
+            .Property(layout => layout.GraphKey)
+            .HasMaxLength(80);
 
         modelBuilder.Entity<RelationGraphLayout>()
             .HasOne(layout => layout.Project)

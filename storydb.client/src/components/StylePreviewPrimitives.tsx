@@ -1,19 +1,58 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Activity,
+  Anchor,
   Atom,
+  Award,
+  Axe,
+  Backpack,
+  Badge,
+  Banknote,
+  Beaker,
+  BicepsFlexed,
+  Binoculars,
+  Bolt,
+  Bone,
   BookOpen,
+  BowArrow,
   Brain,
+  Castle,
+  ChartLine,
+  ChessKnight,
   Circle,
+  Coins,
+  Compass,
+  Crown,
+  Dna,
   Dumbbell,
   Eye,
+  Feather,
   Flame,
+  Gem,
+  Hand,
+  Handshake,
   Heart,
+  Key,
   Leaf,
+  Map,
+  Medal,
+  Mountain,
+  Scale,
+  Scroll,
   Shield,
+  Skull,
   Sparkles,
   Star,
+  Sun,
   Sword,
+  Target,
+  Telescope,
+  Trophy,
+  User,
+  Users,
+  WandSparkles,
+  Waves,
+  Wind,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
@@ -54,15 +93,54 @@ const attributeIconOptions: Array<{ key: keyof typeof attributeIconLabels.ru; Ic
   { key: 'brain', Icon: Brain },
   { key: 'activity', Icon: Activity },
   { key: 'dumbbell', Icon: Dumbbell },
+  { key: 'biceps', Icon: BicepsFlexed },
   { key: 'eye', Icon: Eye },
   { key: 'flame', Icon: Flame },
   { key: 'leaf', Icon: Leaf },
   { key: 'sparkles', Icon: Sparkles },
+  { key: 'wand', Icon: WandSparkles },
   { key: 'zap', Icon: Zap },
+  { key: 'bolt', Icon: Bolt },
+  { key: 'sun', Icon: Sun },
+  { key: 'waves', Icon: Waves },
+  { key: 'wind', Icon: Wind },
   { key: 'shield', Icon: Shield },
+  { key: 'skull', Icon: Skull },
   { key: 'sword', Icon: Sword },
+  { key: 'axe', Icon: Axe },
+  { key: 'bow', Icon: BowArrow },
+  { key: 'target', Icon: Target },
   { key: 'book', Icon: BookOpen },
+  { key: 'scroll', Icon: Scroll },
   { key: 'atom', Icon: Atom },
+  { key: 'beaker', Icon: Beaker },
+  { key: 'dna', Icon: Dna },
+  { key: 'telescope', Icon: Telescope },
+  { key: 'chart', Icon: ChartLine },
+  { key: 'crown', Icon: Crown },
+  { key: 'castle', Icon: Castle },
+  { key: 'chess', Icon: ChessKnight },
+  { key: 'scale', Icon: Scale },
+  { key: 'handshake', Icon: Handshake },
+  { key: 'users', Icon: Users },
+  { key: 'user', Icon: User },
+  { key: 'badge', Icon: Badge },
+  { key: 'award', Icon: Award },
+  { key: 'medal', Icon: Medal },
+  { key: 'trophy', Icon: Trophy },
+  { key: 'gem', Icon: Gem },
+  { key: 'coins', Icon: Coins },
+  { key: 'banknote', Icon: Banknote },
+  { key: 'key', Icon: Key },
+  { key: 'backpack', Icon: Backpack },
+  { key: 'hand', Icon: Hand },
+  { key: 'feather', Icon: Feather },
+  { key: 'bone', Icon: Bone },
+  { key: 'map', Icon: Map },
+  { key: 'compass', Icon: Compass },
+  { key: 'mountain', Icon: Mountain },
+  { key: 'anchor', Icon: Anchor },
+  { key: 'binoculars', Icon: Binoculars },
 ]
 
 export function ObjectPortrait({ storyObject }: { storyObject: StoryObject }) {
@@ -75,7 +153,7 @@ export function ObjectPortrait({ storyObject }: { storyObject: StoryObject }) {
   }, [imageUrl])
 
   return (
-    <div className="sp-portrait">
+    <div className={`sp-portrait type-${storyObject.typeKey}`}>
       {shouldShowImage ? (
         <img alt="" src={imageUrl} onError={() => setFailedImageUrl(imageUrl)} />
       ) : (
@@ -286,24 +364,86 @@ export function AttributeIconPicker({
   onChange: (iconKey: string) => void
 }) {
   const normalizedValue = value === null || value === undefined || value.length === 0 ? 'none' : value
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const selectedOption =
+    attributeIconOptions.find((item) => item.key === normalizedValue) ?? attributeIconOptions[0]
+  const SelectedIcon = selectedOption.Icon
+  const selectedLabel = attributeIconLabels[language][selectedOption.key]
+  const searchPlaceholder = language === 'ru' ? 'Найти иконку...' : 'Find icon...'
+  const filteredOptions = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase()
+    if (query.length === 0) {
+      return attributeIconOptions
+    }
+
+    return attributeIconOptions.filter(({ key }) => {
+      const label = attributeIconLabels[language][key].toLocaleLowerCase()
+      return label.includes(query) || key.includes(query)
+    })
+  }, [language, searchQuery])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const closePicker = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('.sp-icon-picker') === null) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', closePicker)
+    return () => document.removeEventListener('pointerdown', closePicker)
+  }, [isOpen])
 
   return (
     <div className="sp-icon-picker">
-      {attributeIconOptions.map(({ key, Icon }) => {
-        const label = attributeIconLabels[language][key]
-        return (
-          <button
-            aria-label={label}
-            className={normalizedValue === key ? 'active' : ''}
-            key={key}
-            title={label}
-            type="button"
-            onClick={() => onChange(key === 'none' ? '' : key)}
-          >
-            <Icon size={18} strokeWidth={2.4} />
-          </button>
-        )
-      })}
+      <button
+        aria-expanded={isOpen}
+        className="sp-icon-picker-trigger"
+        title={selectedLabel}
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+      >
+        <SelectedIcon size={18} strokeWidth={2.4} />
+        <span>{selectedLabel}</span>
+      </button>
+      {isOpen && (
+        <div className="sp-icon-picker-popover">
+          <input
+            autoFocus
+            placeholder={searchPlaceholder}
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+          <div className="sp-icon-picker-grid">
+            {filteredOptions.map(({ key, Icon }) => {
+              const label = attributeIconLabels[language][key]
+
+              return (
+                <button
+                  aria-label={label}
+                  className={normalizedValue === key ? 'active' : ''}
+                  key={key}
+                  title={label}
+                  type="button"
+                  onClick={() => {
+                    onChange(key === 'none' ? '' : key)
+                    setIsOpen(false)
+                    setSearchQuery('')
+                  }}
+                >
+                  <Icon size={22} strokeWidth={2.4} />
+                  <span>{label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

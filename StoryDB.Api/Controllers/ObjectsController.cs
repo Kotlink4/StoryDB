@@ -17,6 +17,14 @@ public class ObjectsController(IObjectService objectService) : ControllerBase
         return Ok(await objectService.GetObjectsAsync(projectId, typeKey));
     }
 
+    [HttpGet("summaries")]
+    public async Task<ActionResult<IReadOnlyList<StoryObjectSummaryDto>>> GetObjectSummaries(
+        int projectId,
+        [FromQuery] string? typeKey)
+    {
+        return Ok(await objectService.GetObjectSummariesAsync(projectId, typeKey));
+    }
+
     [HttpGet("{objectId:int}")]
     public async Task<ActionResult<StoryObjectDto>> GetObject(int projectId, int objectId)
     {

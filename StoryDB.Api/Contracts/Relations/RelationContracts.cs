@@ -26,6 +26,7 @@ public record RelationGraphEdgeDto(
 public record RelationGraphLayoutDto(
     int Id,
     int ProjectId,
+    string GraphKey,
     string AlgorithmVersion,
     bool IsDefault,
     bool IsStale,
@@ -42,6 +43,7 @@ public record RelationGraphLayoutItemDto(
     bool IsPinned);
 
 public record RelationGraphLayoutRequest(
+    string? GraphKey,
     IReadOnlyList<RelationGraphLayoutItemRequest> Items);
 
 public record RelationGraphLayoutItemRequest(

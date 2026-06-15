@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+import { lazy, Suspense, type ComponentProps } from 'react'
 
 import type { PreviewSection, PreviewTab } from '../style-preview/domain/stylePreviewRouting'
 import type { DetailMode } from '../style-preview/domain/stylePreviewUiTypes'
@@ -6,11 +6,12 @@ import type { AuthUser, StoryProject } from '../types'
 import { AttributesWorkspace } from './AttributesWorkspace'
 import { CatalogsWorkspace } from './CatalogsWorkspace'
 import { ObjectCardsWorkspace } from './ObjectCardsWorkspace'
-import { RelationsPage } from './RelationsPage'
+import type { RelationsPageProps } from './RelationsPage'
 import { StructuresWorkspace } from './StructuresWorkspace'
 import { ProfilePage } from './StylePreviewProfilePage'
+import { ProjectSearchResults, type ProjectSearchResultGroup } from './ProjectSearchResults'
 import { SettingsPage } from './StylePreviewSettingsPage'
-import { TimelinePage } from './TimelinePage'
+import type { TimelinePageProps } from './TimelinePage'
 import {
   StylePreviewCatalogEntryDetailPage,
   StylePreviewObjectDetailPage,
@@ -22,6 +23,9 @@ type CatalogEntryDetailPageProps = ComponentProps<typeof StylePreviewCatalogEntr
 type ObjectDetailPageProps = ComponentProps<typeof StylePreviewObjectDetailPage>
 type RelationDetailPageProps = ComponentProps<typeof StylePreviewRelationDetailPage>
 type TimelineEventDetailPageProps = ComponentProps<typeof StylePreviewTimelineEventDetailPage>
+
+const LazyRelationsPage = lazy(() => import('./RelationsPage').then((module) => ({ default: module.RelationsPage })))
+const LazyTimelinePage = lazy(() => import('./TimelinePage').then((module) => ({ default: module.TimelinePage })))
 
 export function StylePreviewContent({
   activeSection,
@@ -39,6 +43,8 @@ export function StylePreviewContent({
   objectCardsWorkspaceProps,
   objectDetailPageProps,
   profilePageProps,
+  projectSearchGroups,
+  projectSearchQuery,
   relationDetailPageProps,
   relationsPageProps,
   selectedCatalogEntry,
@@ -67,8 +73,10 @@ export function StylePreviewContent({
   objectCardsWorkspaceProps: ComponentProps<typeof ObjectCardsWorkspace>
   objectDetailPageProps: Omit<ObjectDetailPageProps, 'selectedObject'>
   profilePageProps: ComponentProps<typeof ProfilePage>
+  projectSearchGroups: ProjectSearchResultGroup[]
+  projectSearchQuery: string
   relationDetailPageProps: Omit<RelationDetailPageProps, 'selectedRelationEdge'>
-  relationsPageProps: ComponentProps<typeof RelationsPage>
+  relationsPageProps: RelationsPageProps
   selectedCatalogEntry: CatalogEntryDetailPageProps['selectedCatalogEntry'] | null
   selectedObject: ObjectDetailPageProps['selectedObject'] | null
   selectedProject: StoryProject | null
@@ -77,7 +85,7 @@ export function StylePreviewContent({
   settingsPageProps: ComponentProps<typeof SettingsPage>
   structuresWorkspaceProps: Omit<ComponentProps<typeof StructuresWorkspace>, 'selectedProject'>
   timelineEventDetailPageProps: Omit<TimelineEventDetailPageProps, 'selectedTimelineEvent'>
-  timelinePageProps: ComponentProps<typeof TimelinePage>
+  timelinePageProps: TimelinePageProps
   ui: ComponentProps<typeof ProfilePage>['ui']
 }) {
   if (isProfilePageOpen) {
@@ -101,6 +109,19 @@ export function StylePreviewContent({
     )
   }
 
+  const normalizedSearchQuery = projectSearchQuery.trim()
+
+  if (normalizedSearchQuery.length > 0) {
+    return (
+      <ProjectSearchResults
+        groups={projectSearchGroups}
+        query={normalizedSearchQuery}
+        totalCount={projectSearchGroups.reduce((count, group) => count + group.results.length, 0)}
+        ui={ui}
+      />
+    )
+  }
+
   if (activeTab === 'relations') {
     if (detailMode === 'page' && isRelationPageOpen && selectedRelationEdge !== null) {
       return (
@@ -111,7 +132,11 @@ export function StylePreviewContent({
       )
     }
 
-    return <RelationsPage {...relationsPageProps} />
+    return (
+      <Suspense fallback={<div className="sp-empty">{ui.loading}</div>}>
+        <LazyRelationsPage {...relationsPageProps} />
+      </Suspense>
+    )
   }
 
   if (activeTab === 'timeline') {
@@ -124,7 +149,11 @@ export function StylePreviewContent({
       )
     }
 
-    return <TimelinePage {...timelinePageProps} />
+    return (
+      <Suspense fallback={<div className="sp-empty">{ui.loading}</div>}>
+        <LazyTimelinePage {...timelinePageProps} />
+      </Suspense>
+    )
   }
 
   if (detailMode === 'page' && isObjectPageOpen && selectedObject !== null) {

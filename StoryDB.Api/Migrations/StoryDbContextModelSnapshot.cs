@@ -1055,6 +1055,11 @@ namespace StoryDB.Api.Migrations
                     b.Property<DateTime>("GeneratedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("GraphKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.Property<bool>("IsDefault")
                         .HasColumnType("boolean");
 
@@ -1074,7 +1079,7 @@ namespace StoryDB.Api.Migrations
 
                     b.HasIndex("OwnerUserId");
 
-                    b.HasIndex("ProjectId", "OwnerUserId", "IsDefault");
+                    b.HasIndex("ProjectId", "OwnerUserId", "GraphKey", "IsDefault");
 
                     b.ToTable("RelationGraphLayouts");
                 });
@@ -1137,6 +1142,10 @@ namespace StoryDB.Api.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrentStatus")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
 
                     b.Property<string>("DataJson")
                         .HasColumnType("text");

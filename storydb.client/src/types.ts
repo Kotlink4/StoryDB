@@ -56,6 +56,7 @@ export type StoryObject = {
   description: string | null
   age: string | null
   role: string | null
+  currentStatus: string | null
   imagePath: string | null
   typeKey: string
   attributes: ObjectAttribute[]
@@ -74,6 +75,21 @@ export type StoryObject = {
   outgoingCharacterRelationships: CharacterRelationship[]
   incomingCharacterRelationships: CharacterRelationship[]
 }
+
+export type StoryObjectSummary = Pick<
+  StoryObject,
+  | 'id'
+  | 'name'
+  | 'surname'
+  | 'surnameForm'
+  | 'description'
+  | 'age'
+  | 'role'
+  | 'currentStatus'
+  | 'imagePath'
+  | 'typeKey'
+  | 'attributes'
+>
 
 export type OrganizationStructureLevel = {
   id: number
@@ -286,6 +302,7 @@ export type RelationGraphEdge = {
 export type RelationGraphLayout = {
   id: number
   projectId: number
+  graphKey: string
   algorithmVersion: string
   isDefault: boolean
   isStale: boolean
@@ -304,6 +321,7 @@ export type RelationGraphLayoutItem = {
 }
 
 export type RelationGraphLayoutDraft = {
+  graphKey?: string | null
   items: RelationGraphLayoutItemDraft[]
 }
 
@@ -693,5 +711,6 @@ export type TimelineChangeType =
   | 'catalogSelection'
   | 'hierarchySelection'
   | 'location'
+  | 'structureAssignment'
   | 'status'
   | 'custom'

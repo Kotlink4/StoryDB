@@ -81,6 +81,7 @@ public static class RequestValidators
         string? description,
         string? age,
         string? role,
+        string? currentStatus,
         string? imagePath)
     {
         var nameError = ValidateName(name, "Object name");
@@ -95,6 +96,7 @@ public static class RequestValidators
             ValidateOptionalLength(description, "Description", 1000, trimBeforeCheck: false) ??
             ValidateOptionalLength(age, "Age", 120) ??
             ValidateOptionalLength(role, "Role", 120) ??
+            ValidateOptionalLength(currentStatus, "Current status", 120) ??
             ValidateOptionalUploadedImagePath(imagePath, "Object image path");
     }
 

@@ -5,6 +5,7 @@ public class RelationGraphLayout
     public int Id { get; set; }
     public int ProjectId { get; set; }
     public int? OwnerUserId { get; set; }
+    public required string GraphKey { get; set; }
     public required string AlgorithmVersion { get; set; }
     public bool IsDefault { get; set; }
     public bool IsStale { get; set; }

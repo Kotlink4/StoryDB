@@ -212,6 +212,7 @@ export const validateObjectDraft = (
   description: string,
   age: string,
   role: string,
+  currentStatus: string,
   imagePath: string | null,
 ) =>
   validateRequiredName(name, 'название объекта') ??
@@ -220,6 +221,7 @@ export const validateObjectDraft = (
   validateOptionalText(description, 'Описание', 1000) ??
   validateOptionalText(age.trim(), 'Возраст', 120) ??
   validateOptionalText(role.trim(), 'Роль', 120) ??
+  validateOptionalText(currentStatus.trim(), 'Текущий статус', 120) ??
   validateOptionalImagePath(imagePath, 'Обложка объекта')
 
 export const validateAttributeGroupDraft = (name: string, iconKey: string) =>

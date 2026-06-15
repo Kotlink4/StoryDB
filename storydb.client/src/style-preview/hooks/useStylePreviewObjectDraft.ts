@@ -16,6 +16,7 @@ export function useStylePreviewObjectDraft() {
   const [objectSurname, setObjectSurname] = useState('')
   const [objectSurnameForm, setObjectSurnameForm] = useState('')
   const [objectRole, setObjectRole] = useState('')
+  const [objectCurrentStatus, setObjectCurrentStatus] = useState('')
   const [objectAge, setObjectAge] = useState('')
   const [objectDescription, setObjectDescription] = useState('')
   const [objectImagePath, setObjectImagePath] = useState<string | null>(null)
@@ -39,6 +40,7 @@ export function useStylePreviewObjectDraft() {
     setObjectSurname('')
     setObjectSurnameForm('')
     setObjectRole('')
+    setObjectCurrentStatus('')
     setObjectAge('')
     setObjectDescription('')
     setObjectImagePath(null)
@@ -63,6 +65,7 @@ export function useStylePreviewObjectDraft() {
     setObjectSurname(objectToEdit.surname ?? '')
     setObjectSurnameForm(objectToEdit.surnameForm ?? '')
     setObjectRole(objectToEdit.role ?? '')
+    setObjectCurrentStatus(objectToEdit.currentStatus ?? '')
     setObjectAge(objectToEdit.age ?? '')
     setObjectDescription(objectToEdit.description ?? '')
     setObjectImagePath(objectToEdit.imagePath)
@@ -138,6 +141,7 @@ export function useStylePreviewObjectDraft() {
     editorTimelineEventId,
     fillObjectForm,
     objectAge,
+    objectCurrentStatus,
     objectDescription,
     objectEditorTab,
     objectImagePath,
@@ -158,6 +162,7 @@ export function useStylePreviewObjectDraft() {
     setDraftTimelineParticipations,
     setEditorTimelineEventId,
     setObjectAge,
+    setObjectCurrentStatus,
     setObjectDescription,
     setObjectEditorTab,
     setObjectImagePath,

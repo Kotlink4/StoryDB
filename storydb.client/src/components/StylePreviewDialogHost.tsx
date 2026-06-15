@@ -7,6 +7,15 @@ import { StylePreviewObjectDialogs } from './StylePreviewObjectDialogs'
 import { StylePreviewProjectDialogs } from './StylePreviewProjectDialogs'
 import { StylePreviewTimelineDialogs } from './StylePreviewTimelineDialogs'
 
+export type StylePreviewDialogHostProps = {
+  attributeDialogsProps: ComponentProps<typeof StylePreviewAttributeDialogs>
+  catalogDialogsProps: ComponentProps<typeof StylePreviewCatalogDialogs>
+  detailDialogsProps: ComponentProps<typeof StylePreviewDetailDialogs>
+  objectDialogsProps: ComponentProps<typeof StylePreviewObjectDialogs>
+  projectDialogsProps: ComponentProps<typeof StylePreviewProjectDialogs>
+  timelineDialogsProps: ComponentProps<typeof StylePreviewTimelineDialogs>
+}
+
 export function StylePreviewDialogHost({
   attributeDialogsProps,
   catalogDialogsProps,
@@ -14,14 +23,7 @@ export function StylePreviewDialogHost({
   objectDialogsProps,
   projectDialogsProps,
   timelineDialogsProps,
-}: {
-  attributeDialogsProps: ComponentProps<typeof StylePreviewAttributeDialogs>
-  catalogDialogsProps: ComponentProps<typeof StylePreviewCatalogDialogs>
-  detailDialogsProps: ComponentProps<typeof StylePreviewDetailDialogs>
-  objectDialogsProps: ComponentProps<typeof StylePreviewObjectDialogs>
-  projectDialogsProps: ComponentProps<typeof StylePreviewProjectDialogs>
-  timelineDialogsProps: ComponentProps<typeof StylePreviewTimelineDialogs>
-}) {
+}: StylePreviewDialogHostProps) {
   return (
     <>
       <StylePreviewProjectDialogs {...projectDialogsProps} />

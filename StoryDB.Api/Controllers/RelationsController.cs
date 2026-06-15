@@ -16,9 +16,11 @@ public class RelationsController(IRelationService relationService) : ControllerB
     }
 
     [HttpGet("layout")]
-    public async Task<ActionResult<RelationGraphLayoutDto?>> GetDefaultLayout(int projectId)
+    public async Task<ActionResult<RelationGraphLayoutDto?>> GetDefaultLayout(
+        int projectId,
+        [FromQuery] string? graphKey)
     {
-        var result = await relationService.GetDefaultLayoutAsync(projectId);
+        var result = await relationService.GetDefaultLayoutAsync(projectId, graphKey);
         return ToActionResult(result);
     }
 

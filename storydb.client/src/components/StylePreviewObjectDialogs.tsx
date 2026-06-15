@@ -16,6 +16,7 @@ export function StylePreviewObjectDialogs({
   dialog,
   editingObjectId,
   objectAge,
+  objectCurrentStatus,
   objectDescription,
   objectDetailProps,
   objectEditorProps,
@@ -32,6 +33,7 @@ export function StylePreviewObjectDialogs({
   dialog: PreviewDialogKind
   editingObjectId: number | null
   objectAge: string
+  objectCurrentStatus: string
   objectDescription: string
   objectDetailProps: ObjectDetailProps
   objectEditorProps: ObjectEditorProps
@@ -72,6 +74,13 @@ export function StylePreviewObjectDialogs({
             <label>
               {ui.role}
               <input value={objectRole} onChange={(event) => objectEditorProps.onObjectRoleChange(event.target.value)} />
+            </label>
+            <label>
+              {ui.currentStatus}
+              <input
+                value={objectCurrentStatus}
+                onChange={(event) => objectEditorProps.onObjectCurrentStatusChange(event.target.value)}
+              />
             </label>
             <label>
               {ui.yearAge}

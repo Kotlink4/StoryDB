@@ -30,6 +30,12 @@ export function StylePreviewDetailDialogs({
   onCloseRelationDetail: () => void
   onCloseTimelineEventDetail: () => void
 }) {
+  const dialogRelationDetailProps = { ...relationDetailProps }
+  const dialogTimelineEventDetailProps = { ...timelineEventDetailProps }
+
+  delete dialogRelationDetailProps.onClose
+  delete dialogTimelineEventDetailProps.onClose
+
   return (
     <>
       {dialog === 'relationDetail' && selectedRelationEdge !== null && (
@@ -37,7 +43,7 @@ export function StylePreviewDetailDialogs({
           title={`${ui.relations}: ${getRelationLabel(selectedRelationEdge.relationType, ui)}`}
           onClose={onCloseRelationDetail}
         >
-          <RelationDetail {...relationDetailProps} edge={selectedRelationEdge} onClose={onCloseRelationDetail} />
+          <RelationDetail {...dialogRelationDetailProps} edge={selectedRelationEdge} />
         </PreviewDialog>
       )}
 
@@ -47,9 +53,8 @@ export function StylePreviewDetailDialogs({
           onClose={onCloseTimelineEventDetail}
         >
           <TimelineEventDetail
-            {...timelineEventDetailProps}
+            {...dialogTimelineEventDetailProps}
             event={selectedTimelineEvent}
-            onClose={onCloseTimelineEventDetail}
           />
         </PreviewDialog>
       )}
