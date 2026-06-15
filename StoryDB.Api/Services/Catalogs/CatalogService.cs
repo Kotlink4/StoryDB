@@ -147,6 +147,12 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             return CatalogServiceResult.Invalid("System catalogs cannot be deleted.");
         }
 
+        var catalogUsageError = await ValidateCatalogCanBeDeleted(projectId, catalogId, cancellationToken);
+        if (catalogUsageError is not null)
+        {
+            return CatalogServiceResult.Invalid(catalogUsageError);
+        }
+
         var entryIds = await dbContext.CatalogEntries
             .Where(entry => entry.CatalogId == catalogId)
             .Select(entry => entry.Id)
@@ -360,6 +366,11 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             return CatalogServiceResult.NotFound();
         }
 
+        if (await CatalogEntryIsLinkedToStructure(projectId, entryId, cancellationToken))
+        {
+            return CatalogServiceResult.Invalid("Catalog entry is linked to a structure node and cannot be deleted.");
+        }
+
         dbContext.CatalogEntryHierarchyLinks.RemoveRange(
             dbContext.CatalogEntryHierarchyLinks.Where(link =>
                 link.ParentEntryId == entryId || link.ChildEntryId == entryId));
@@ -507,6 +518,11 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
         if (group is null)
         {
             return CatalogServiceResult.NotFound();
+        }
+
+        if (await CatalogEntryGroupIsLinkedToStructure(projectId, groupId, cancellationToken))
+        {
+            return CatalogServiceResult.Invalid("Catalog group is linked to a structure node and cannot be deleted.");
         }
 
         dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
@@ -1042,6 +1058,66 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             .AsNoTracking()
             .Include(field => field.FieldGroup)
             .FirstAsync(field => field.Id == fieldId, cancellationToken);
+
+    private async Task<string?> ValidateCatalogCanBeDeleted(
+        int projectId,
+        int catalogId,
+        CancellationToken cancellationToken)
+    {
+        if (await dbContext.Structures.AnyAsync(structure =>
+            structure.ProjectId == projectId &&
+            structure.LinkedCatalogId == catalogId,
+            cancellationToken))
+        {
+            return "Catalog is linked to one or more structures and cannot be deleted.";
+        }
+
+        if (await dbContext.Structures.AnyAsync(structure =>
+            structure.ProjectId == projectId &&
+            structure.OwnerKind == "catalog" &&
+            structure.OwnerId == catalogId,
+            cancellationToken))
+        {
+            return "Catalog owns one or more structures and cannot be deleted.";
+        }
+
+        if (await dbContext.StructureUsages.AnyAsync(usage =>
+            usage.ProjectId == projectId &&
+            usage.TargetKind == "catalog" &&
+            usage.TargetId == catalogId,
+            cancellationToken))
+        {
+            return "Catalog has connected structure usages and cannot be deleted.";
+        }
+
+        if (await dbContext.CatalogFieldDefinitions.AnyAsync(definition =>
+            definition.ReferenceCatalogId == catalogId &&
+            definition.Catalog!.ProjectId == projectId,
+            cancellationToken))
+        {
+            return "Catalog is used as a reference field source and cannot be deleted.";
+        }
+
+        return null;
+    }
+
+    private Task<bool> CatalogEntryIsLinkedToStructure(
+        int projectId,
+        int entryId,
+        CancellationToken cancellationToken) =>
+        dbContext.StructureNodes.AnyAsync(node =>
+            node.LinkedCatalogEntryId == entryId &&
+            node.Structure!.ProjectId == projectId,
+            cancellationToken);
+
+    private Task<bool> CatalogEntryGroupIsLinkedToStructure(
+        int projectId,
+        int groupId,
+        CancellationToken cancellationToken) =>
+        dbContext.StructureNodes.AnyAsync(node =>
+            node.LinkedCatalogEntryGroupId == groupId &&
+            node.Structure!.ProjectId == projectId,
+            cancellationToken);
 
     private static bool IsReferenceField(string dataType) =>
         dataType.Equals("entryReference", StringComparison.OrdinalIgnoreCase) ||

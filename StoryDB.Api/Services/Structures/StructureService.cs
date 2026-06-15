@@ -120,6 +120,12 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
             return StructureServiceResult<StructureDto>.Invalid(validationError);
         }
 
+        if (await StructureHasAssignments(projectId, structureId))
+        {
+            return StructureServiceResult<StructureDto>.Invalid(
+                "Structure has object assignments. Remove assignments before editing the structure.");
+        }
+
         var now = DateTime.UtcNow;
         structure.Name = request.Name.Trim();
         structure.Description = NormalizeOptionalText(request.Description);
@@ -147,6 +153,13 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         if (structure is null)
         {
             return StructureServiceResult.NotFound();
+        }
+
+        if (await dbContext.StructureUsages.AnyAsync(usage =>
+            usage.ProjectId == projectId &&
+            usage.StructureId == structureId))
+        {
+            return StructureServiceResult.Invalid("Structure is used by one or more targets and cannot be deleted.");
         }
 
         dbContext.Structures.Remove(structure);
@@ -416,6 +429,14 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         if (usage is null)
         {
             return StructureServiceResult.NotFound();
+        }
+
+        if (await dbContext.StructureAssignments.AnyAsync(assignment =>
+            assignment.ProjectId == projectId &&
+            assignment.StructureUsageId == usageId))
+        {
+            return StructureServiceResult.Invalid(
+                "Structure usage has object assignments. Remove assignments before disconnecting the structure.");
         }
 
         dbContext.StructureUsages.Remove(usage);
@@ -696,7 +717,8 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
             return "Unsupported structure layout kind.";
         }
 
-        if (!SupportedNodeBindingModes.Contains(request.NodeBindingMode.Trim()))
+        var nodeBindingMode = request.NodeBindingMode.Trim();
+        if (!SupportedNodeBindingModes.Contains(nodeBindingMode))
         {
             return "Unsupported structure node binding mode.";
         }
@@ -750,9 +772,26 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
 
         foreach (var node in request.Nodes)
         {
-            if (!string.IsNullOrWhiteSpace(node.ParentClientId) && !clientIds.Contains(node.ParentClientId.Trim()))
+            if (string.IsNullOrWhiteSpace(node.ParentClientId))
+            {
+                continue;
+            }
+
+            var parentClientId = node.ParentClientId.Trim();
+            if (!clientIds.Contains(parentClientId))
             {
                 return "Structure node parent was not found.";
+            }
+
+            if (parentClientId == node.ClientId.Trim())
+            {
+                return "Structure node cannot be its own parent.";
+            }
+
+            var parentNode = request.Nodes.First(currentNode => currentNode.ClientId.Trim() == parentClientId);
+            if (parentNode.LevelIndex >= node.LevelIndex)
+            {
+                return "Structure node parent must be placed on a higher level.";
             }
         }
 
@@ -770,6 +809,21 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         if ((linkedEntryIds.Count > 0 || linkedGroupIds.Count > 0) && request.LinkedCatalogId is null)
         {
             return "Linked catalog is required when structure nodes are linked to catalog data.";
+        }
+
+        if (nodeBindingMode == "none" && (linkedEntryIds.Count > 0 || linkedGroupIds.Count > 0))
+        {
+            return "Structure node binding mode does not allow catalog links.";
+        }
+
+        if (nodeBindingMode == "catalogEntry" && linkedGroupIds.Count > 0)
+        {
+            return "Structure node binding mode allows only catalog entries.";
+        }
+
+        if (nodeBindingMode == "catalogEntryGroup" && linkedEntryIds.Count > 0)
+        {
+            return "Structure node binding mode allows only catalog groups.";
         }
 
         if (linkedEntryIds.Count > 0 && !await CatalogEntriesExist(request.LinkedCatalogId!.Value, linkedEntryIds))
@@ -987,6 +1041,11 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         dbContext.Structures.AnyAsync(structure =>
             structure.ProjectId == projectId &&
             structure.Id == structureId);
+
+    private Task<bool> StructureHasAssignments(int projectId, int structureId) =>
+        dbContext.StructureAssignments.AnyAsync(assignment =>
+            assignment.ProjectId == projectId &&
+            assignment.StructureUsage!.StructureId == structureId);
 
     private Task<bool> CatalogExists(int projectId, int catalogId) =>
         dbContext.Catalogs.AnyAsync(catalog =>

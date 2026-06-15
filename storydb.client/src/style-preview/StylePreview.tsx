@@ -294,6 +294,7 @@ export function StylePreview() {
     setCatalogEntriesByCatalogId,
     setCatalogFieldsByCatalogId,
     setCatalogGroups,
+    setCatalogGroupsByCatalogId,
     setCatalogs,
     setObjects,
     setRelationGraph,
@@ -414,6 +415,8 @@ export function StylePreview() {
     routeState.objectId,
     routeState.projectId,
     routeState.utilityPage,
+    setSelectedCatalogId,
+    setSelectedProjectId,
   ])
 
   const navigateToWorkspace = (
@@ -659,7 +662,7 @@ export function StylePreview() {
   })
 
   useEffect(() => {
-    if (isLoading || currentUser !== null) {
+    if (isLoadingProjects || currentUser !== null) {
       return
     }
 
@@ -671,11 +674,11 @@ export function StylePreview() {
     if (routeState.utilityPage !== 'profile') {
       navigate(`${previewRouteBase}/profile`, { replace: true })
     }
-  }, [currentUser, isLoading, navigate, routeState.utilityPage, setSelectedProjectId])
+  }, [currentUser, isLoadingProjects, navigate, routeState.utilityPage, setSelectedProjectId])
 
   useEffect(() => {
     if (
-      !isLoading &&
+      !isLoadingProjects &&
       routeState.utilityPage === null &&
       routeState.projectId === null
     ) {
@@ -684,7 +687,7 @@ export function StylePreview() {
       navigate(`${previewRouteBase}/profile`, { replace: true })
     }
   }, [
-    isLoading,
+    isLoadingProjects,
     navigate,
     routeState.projectId,
     routeState.utilityPage,
@@ -883,6 +886,7 @@ export function StylePreview() {
     activeTab: dossierTab,
     attributeDefinitions,
     attributeGroups,
+    catalogs: visibleCatalogs,
     dossierTimelineEventId,
     galleryImageCaption,
     galleryImagePath,
@@ -1151,9 +1155,35 @@ export function StylePreview() {
   }
 
   const structuresWorkspaceProps = {
+    catalogEntriesByCatalogId,
+    catalogGroupsByCatalogId,
     catalogs: visibleCatalogs,
     errorMessage: messages.apiUnavailable,
     ui,
+    onCatalogCreated: (catalog: typeof catalogs[number]) =>
+      setCatalogs((currentCatalogs) =>
+        currentCatalogs.some((currentCatalog) => currentCatalog.id === catalog.id)
+          ? currentCatalogs
+          : [...currentCatalogs, catalog],
+      ),
+    onCatalogEntriesCreated: (catalogId: number, entries: typeof catalogEntries) => {
+      setCatalogEntriesByCatalogId((currentEntries) => ({
+        ...currentEntries,
+        [catalogId]: [...(currentEntries[catalogId] ?? []), ...entries],
+      }))
+      if (selectedCatalogId === catalogId) {
+        setCatalogEntries((currentEntries) => [...currentEntries, ...entries])
+      }
+    },
+    onCatalogGroupsCreated: (catalogId: number, groups: typeof catalogGroups) => {
+      setCatalogGroupsByCatalogId((currentGroups) => ({
+        ...currentGroups,
+        [catalogId]: [...(currentGroups[catalogId] ?? []), ...groups],
+      }))
+      if (selectedCatalogId === catalogId) {
+        setCatalogGroups((currentGroups) => [...currentGroups, ...groups])
+      }
+    },
     onError: showErrorMessage,
     onMessage: showMessage,
   }

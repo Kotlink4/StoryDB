@@ -1,11 +1,16 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { X } from 'lucide-react'
 
 import {
+  assignObjectToStructureRequest,
   assignStructureRequest,
   createStructureRequest,
+  deleteStructureAssignmentRequest,
   fetchStructure,
+  fetchStructureAssignments,
   fetchStructures,
   fetchStructureUsages,
+  getApiErrorMessage,
   makeStructureUsageIndividualRequest,
 } from '../api'
 import { groupAttributesByDefinition } from '../style-preview/domain/attributeDisplay'
@@ -21,9 +26,12 @@ import { getObjectFullName } from '../style-preview/domain/objectDisplay'
 import type {
   AttributeDefinition,
   AttributeGroup,
+  Catalog,
   ObjectTypeKey,
   StoryObject,
   Structure,
+  StructureAssignment,
+  StructureNodeDraft,
   StructureSummary,
   StructureUsage,
   TimelineEvent,
@@ -32,10 +40,27 @@ import { LinkedText, type TextLinkTarget } from './LinkedText'
 import { GalleryPanel } from './GalleryPanel'
 import { AttributeIcon, DetailActionsMenu, ObjectPortrait } from './StylePreviewPrimitives'
 
+const emptyStructureNodes: Structure['nodes'] = []
+
+const createEmptyOrganizationStructureNodeDraft = (sortOrder: number): StructureNodeDraft => ({
+  clientId: `organization-node-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  parentClientId: null,
+  linkedCatalogEntryId: null,
+  linkedCatalogEntryGroupId: null,
+  name: '',
+  description: '',
+  nodeType: '',
+  color: '',
+  iconKey: '',
+  levelIndex: 0,
+  sortOrder,
+})
+
 export function ObjectDetail({
   activeTab = 'main',
   attributeDefinitions,
   attributeGroups: attributeGroupDefinitions,
+  catalogs = [],
   dossierTimelineEventId = '',
   galleryImageCaption = '',
   galleryImagePath = null,
@@ -59,6 +84,7 @@ export function ObjectDetail({
   activeTab?: ObjectDossierTab
   attributeDefinitions: AttributeDefinition[]
   attributeGroups: AttributeGroup[]
+  catalogs?: Catalog[]
   dossierTimelineEventId?: string
   galleryImageCaption?: string
   galleryImagePath?: string | null
@@ -274,6 +300,11 @@ export function ObjectDetail({
       )}
       {effectiveActiveTab === 'relations' && (
         <>
+          <StructureMembershipView
+            selectedProjectId={selectedProjectId}
+            storyObject={storyObject}
+            ui={ui}
+          />
           {isOrganization ? (
             <>
               <CollapsibleDetailSection count={organizationMembers.length} title={ui.organizationMembers}>
@@ -374,6 +405,8 @@ export function ObjectDetail({
       )}
       {effectiveActiveTab === 'structure' && isOrganization && (
         <OrganizationStructureView
+          catalogs={catalogs}
+          objectsByType={objectsByType}
           selectedProjectId={selectedProjectId}
           storyObject={storyObject}
           ui={ui}
@@ -420,7 +453,7 @@ export function ObjectDetail({
   )
 }
 
-function OrganizationStructureView({
+function StructureMembershipView({
   selectedProjectId,
   storyObject,
   ui,
@@ -429,15 +462,254 @@ function OrganizationStructureView({
   storyObject: StoryObject
   ui: PreviewText
 }) {
+  const [assignments, setAssignments] = useState<StructureAssignment[]>([])
+  const [structureDetails, setStructureDetails] = useState<Record<number, Structure>>({})
+  const [structureUsages, setStructureUsages] = useState<StructureUsage[]>([])
+  const [selectedUsageId, setSelectedUsageId] = useState('')
+  const [selectedNodeId, setSelectedNodeId] = useState('')
+  const [roleLabel, setRoleLabel] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const selectedUsage = structureUsages.find((usage) => String(usage.id) === selectedUsageId) ?? null
+  const selectedStructure = selectedUsage === null ? null : structureDetails[selectedUsage.structureId] ?? null
+  const selectedStructureNodes = selectedStructure?.nodes ?? emptyStructureNodes
+
+  const loadMembershipData = useCallback(async () => {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+    try {
+      const [loadedAssignments, loadedUsages] = await Promise.all([
+        fetchStructureAssignments(selectedProjectId, { storyObjectId: storyObject.id }),
+        fetchStructureUsages(selectedProjectId),
+      ])
+      const uniqueStructureIds = Array.from(new Set(loadedUsages.map((usage) => usage.structureId)))
+      const detailEntries = await Promise.all(
+        uniqueStructureIds.map(async (structureId) => {
+          const structure = await fetchStructure(selectedProjectId, structureId)
+          return [structureId, structure] as const
+        }),
+      )
+      const details = Object.fromEntries(detailEntries)
+      const usableUsages = loadedUsages.filter((usage) => (details[usage.structureId]?.nodes.length ?? 0) > 0)
+
+      setAssignments(loadedAssignments)
+      setStructureUsages(usableUsages)
+      setStructureDetails(details)
+      setSelectedUsageId((currentUsageId) =>
+        usableUsages.some((usage) => String(usage.id) === currentUsageId)
+          ? currentUsageId
+          : String(usableUsages[0]?.id ?? ''),
+      )
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignmentLoadFailed))
+    } finally {
+      setIsLoading(false)
+    }
+  }, [selectedProjectId, storyObject.id, ui.structureAssignmentLoadFailed])
+
+  useEffect(() => {
+    void loadMembershipData()
+  }, [loadMembershipData])
+
+  useEffect(() => {
+    setSelectedNodeId((currentNodeId) =>
+      selectedStructureNodes.some((node) => String(node.id) === currentNodeId)
+        ? currentNodeId
+        : String(selectedStructureNodes[0]?.id ?? ''),
+    )
+  }, [selectedStructureNodes])
+
+  const createAssignment = async () => {
+    if (
+      selectedProjectId === null ||
+      selectedUsage === null ||
+      selectedNodeId.trim().length === 0 ||
+      isSaving
+    ) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      await assignObjectToStructureRequest(selectedProjectId, selectedUsage.id, {
+        structureNodeId: Number(selectedNodeId),
+        storyObjectId: storyObject.id,
+        roleLabel,
+        notes: '',
+        sortOrder: assignments.length,
+      })
+      setRoleLabel('')
+      await loadMembershipData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const deleteAssignment = async (assignment: StructureAssignment) => {
+    if (selectedProjectId === null || isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      await deleteStructureAssignmentRequest(selectedProjectId, assignment.id)
+      await loadMembershipData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignmentDeleteFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (selectedProjectId === null) {
+    return null
+  }
+
+  return (
+    <CollapsibleDetailSection count={assignments.length} title={ui.structureMembership}>
+      <div className="sp-structure-membership">
+        <p className="sp-editor-hint">{ui.structureMembershipHint}</p>
+        {error !== null && <p className="sp-editor-error">{error}</p>}
+        {isLoading && <p className="sp-editor-hint">{ui.loading}</p>}
+
+        {assignments.length === 0 ? (
+          <p>{ui.noStructureAssignments}</p>
+        ) : (
+          <div className="sp-structure-assignment-list">
+            {assignments.map((assignment) => (
+              <div className="sp-row" key={assignment.id}>
+                <span>{assignment.structureName}</span>
+                <strong>
+                  {assignment.structureNodeName}
+                  {assignment.roleLabel !== null && assignment.roleLabel.trim().length > 0 && (
+                    <> · {assignment.roleLabel}</>
+                  )}
+                </strong>
+                <button
+                  className="sp-icon-button"
+                  disabled={isSaving}
+                  type="button"
+                  onClick={() => void deleteAssignment(assignment)}
+                  title={ui.delete}
+                >
+                  x
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="sp-structure-membership-controls">
+          <label>
+            {ui.structure}
+            <select
+              disabled={structureUsages.length === 0 || isSaving}
+              value={selectedUsageId}
+              onChange={(event) => setSelectedUsageId(event.target.value)}
+            >
+              {structureUsages.length === 0 ? (
+                <option value="">{ui.noStructures}</option>
+              ) : (
+                structureUsages.map((usage) => (
+                  <option key={usage.id} value={usage.id}>
+                    {usage.displayName ?? usage.structureName}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <label>
+            {ui.structureNode}
+            <select
+              disabled={selectedStructureNodes.length === 0 || isSaving}
+              value={selectedNodeId}
+              onChange={(event) => setSelectedNodeId(event.target.value)}
+            >
+              {selectedStructureNodes.length === 0 ? (
+                <option value="">{ui.noStructureNodes}</option>
+              ) : (
+                selectedStructureNodes.map((node) => (
+                  <option key={node.id} value={node.id}>
+                    {node.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <label>
+            {ui.role}
+            <input value={roleLabel} onChange={(event) => setRoleLabel(event.target.value)} />
+          </label>
+          <button
+            className="sp-button primary"
+            disabled={selectedUsage === null || selectedNodeId.trim().length === 0 || isSaving}
+            type="button"
+            onClick={() => void createAssignment()}
+          >
+            {isSaving ? ui.saving : ui.structureAssignObject}
+          </button>
+        </div>
+      </div>
+    </CollapsibleDetailSection>
+  )
+}
+
+function OrganizationStructureView({
+  catalogs,
+  objectsByType,
+  selectedProjectId,
+  storyObject,
+  ui,
+}: {
+  catalogs: Catalog[]
+  objectsByType: Record<ObjectTypeKey, StoryObject[]>
+  selectedProjectId: number | null
+  storyObject: StoryObject
+  ui: PreviewText
+}) {
   const [availableStructures, setAvailableStructures] = useState<StructureSummary[]>([])
+  const [assignmentObjectId, setAssignmentObjectId] = useState('')
+  const [assignmentRoleLabel, setAssignmentRoleLabel] = useState('')
+  const [assignmentStructureNodeId, setAssignmentStructureNodeId] = useState('')
+  const [assignmentUsageId, setAssignmentUsageId] = useState('')
+  const [individualStructureNodes, setIndividualStructureNodes] = useState<StructureNodeDraft[]>(() =>
+    createStarterOrganizationNodes(ui),
+  )
   const [selectedStructureId, setSelectedStructureId] = useState('')
+  const [structureAssignments, setStructureAssignments] = useState<Record<number, StructureAssignment[]>>({})
   const [structureDetails, setStructureDetails] = useState<Record<number, Structure>>({})
   const [structureUsages, setStructureUsages] = useState<StructureUsage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const unassignedStructures = availableStructures.filter(
+    (structure) => !structureUsages.some((usage) => usage.structureId === structure.id),
+  )
+  const assignableObjects = useMemo(
+    () =>
+      Object.values(objectsByType)
+        .flat()
+        .filter((object) => object.id !== storyObject.id)
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    [objectsByType, storyObject.id],
+  )
+  const assignmentUsage = structureUsages.find((usage) => String(usage.id) === assignmentUsageId) ?? null
+  const assignmentStructure = assignmentUsage === null ? null : structureDetails[assignmentUsage.structureId] ?? null
+  const assignmentNodes = assignmentStructure?.nodes ?? emptyStructureNodes
+  const canCreateIndividualStructure =
+    !isSaving && individualStructureNodes.some((node) => node.name.trim().length > 0)
 
-  const loadStructureData = async () => {
+  const loadStructureData = useCallback(async () => {
     if (selectedProjectId === null) {
       return
     }
@@ -458,24 +730,60 @@ function OrganizationStructureView({
           return [usage.structureId, structure] as const
         }),
       )
+      const assignmentEntries = await Promise.all(
+        usages.map(async (usage) => {
+          const assignments = await fetchStructureAssignments(selectedProjectId, {
+            structureUsageId: usage.id,
+          })
+          return [usage.id, assignments] as const
+        }),
+      )
       setAvailableStructures(structures)
       setStructureUsages(usages)
       setStructureDetails(Object.fromEntries(detailEntries))
+      setStructureAssignments(Object.fromEntries(assignmentEntries))
       setSelectedStructureId((currentId) =>
-        currentId.trim().length > 0 && structures.some((structure) => String(structure.id) === currentId)
+        currentId.trim().length > 0 &&
+        structures.some((structure) => String(structure.id) === currentId) &&
+        !usages.some((usage) => String(usage.structureId) === currentId)
           ? currentId
-          : String(structures[0]?.id ?? ''),
+          : String(structures.find((structure) => !usages.some((usage) => usage.structureId === structure.id))?.id ?? ''),
       )
-    } catch {
-      setError(ui.structureAssignFailed)
+      setAssignmentUsageId((currentUsageId) =>
+        usages.some((usage) => String(usage.id) === currentUsageId)
+          ? currentUsageId
+          : String(usages[0]?.id ?? ''),
+      )
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignFailed))
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [selectedProjectId, storyObject.id, ui.structureAssignFailed])
 
   useEffect(() => {
     void loadStructureData()
-  }, [selectedProjectId, storyObject.id])
+  }, [loadStructureData])
+
+  useEffect(() => {
+    setIndividualStructureNodes(createStarterOrganizationNodes(ui))
+  }, [storyObject.id, ui])
+
+  useEffect(() => {
+    setAssignmentObjectId((currentObjectId) =>
+      assignableObjects.some((object) => String(object.id) === currentObjectId)
+        ? currentObjectId
+        : String(assignableObjects[0]?.id ?? ''),
+    )
+  }, [assignableObjects])
+
+  useEffect(() => {
+    setAssignmentStructureNodeId((currentNodeId) =>
+      assignmentNodes.some((node) => String(node.id) === currentNodeId)
+        ? currentNodeId
+        : String(assignmentNodes[0]?.id ?? ''),
+    )
+  }, [assignmentNodes])
 
   const assignExistingStructure = async () => {
     if (selectedProjectId === null || selectedStructureId.trim().length === 0 || isSaving) {
@@ -493,21 +801,36 @@ function OrganizationStructureView({
         isPrimary: structureUsages.length === 0,
       })
       await loadStructureData()
-    } catch {
-      setError(ui.structureAssignFailed)
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignFailed))
     } finally {
       setIsSaving(false)
     }
   }
 
   const createIndividualStructure = async () => {
-    if (selectedProjectId === null || isSaving) {
+    if (selectedProjectId === null || !canCreateIndividualStructure) {
       return
     }
 
     setIsSaving(true)
     setError(null)
     try {
+      const validClientIds = new Set(
+        individualStructureNodes
+          .filter((node) => node.name.trim().length > 0)
+          .map((node) => node.clientId),
+      )
+      const nodes = individualStructureNodes
+        .filter((node) => node.name.trim().length > 0)
+        .map((node, index) => ({
+          ...node,
+          parentClientId:
+            node.parentClientId !== null && validClientIds.has(node.parentClientId)
+              ? node.parentClientId
+              : null,
+          sortOrder: node.sortOrder >= 0 ? node.sortOrder : index,
+        }))
       const structure = await createStructureRequest(selectedProjectId, {
         name: `${storyObject.name} - ${ui.structure}`,
         description: '',
@@ -516,7 +839,7 @@ function OrganizationStructureView({
         layoutKind: 'levels',
         nodeBindingMode: 'mixed',
         linkedCatalogId: null,
-        nodes: [],
+        nodes,
         edges: [],
       })
       await assignStructureRequest(selectedProjectId, structure.id, {
@@ -526,13 +849,37 @@ function OrganizationStructureView({
         notes: '',
         isPrimary: structureUsages.length === 0,
       })
+      setIndividualStructureNodes(createStarterOrganizationNodes(ui))
       await loadStructureData()
-    } catch {
-      setError(ui.structureCreateFailed)
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureCreateFailed))
     } finally {
       setIsSaving(false)
     }
   }
+
+  const updateIndividualStructureNode = (clientId: string, patch: Partial<StructureNodeDraft>) =>
+    setIndividualStructureNodes((currentNodes) =>
+      currentNodes.map((node) => (node.clientId === clientId ? { ...node, ...patch } : node)),
+    )
+
+  const addIndividualStructureNode = () =>
+    setIndividualStructureNodes((currentNodes) => [
+      ...currentNodes,
+      createEmptyOrganizationStructureNodeDraft(currentNodes.length),
+    ])
+
+  const removeIndividualStructureNode = (clientId: string) =>
+    setIndividualStructureNodes((currentNodes) =>
+      currentNodes
+        .filter((node) => node.clientId !== clientId)
+        .map((node) => ({
+          ...node,
+          parentClientId: node.parentClientId === clientId ? null : node.parentClientId,
+        })),
+    )
+
+  const resetIndividualStructureNodes = () => setIndividualStructureNodes(createStarterOrganizationNodes(ui))
 
   const makeUsageIndividual = async (usage: StructureUsage) => {
     if (selectedProjectId === null || isSaving) {
@@ -544,8 +891,56 @@ function OrganizationStructureView({
     try {
       await makeStructureUsageIndividualRequest(selectedProjectId, usage.id)
       await loadStructureData()
-    } catch {
-      setError(ui.structureMakeIndividualFailed)
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureMakeIndividualFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const createAssignment = async () => {
+    if (
+      selectedProjectId === null ||
+      assignmentUsage === null ||
+      assignmentObjectId.trim().length === 0 ||
+      assignmentStructureNodeId.trim().length === 0 ||
+      isSaving
+    ) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      const assignments = structureAssignments[assignmentUsage.id] ?? []
+      await assignObjectToStructureRequest(selectedProjectId, assignmentUsage.id, {
+        structureNodeId: Number(assignmentStructureNodeId),
+        storyObjectId: Number(assignmentObjectId),
+        roleLabel: assignmentRoleLabel,
+        notes: '',
+        sortOrder: assignments.length,
+      })
+      setAssignmentRoleLabel('')
+      await loadStructureData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const deleteAssignment = async (assignment: StructureAssignment) => {
+    if (selectedProjectId === null || isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      await deleteStructureAssignmentRequest(selectedProjectId, assignment.id)
+      await loadStructureData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureAssignmentDeleteFailed))
     } finally {
       setIsSaving(false)
     }
@@ -574,14 +969,14 @@ function OrganizationStructureView({
         <label>
           {ui.structureTemplate}
           <select
-            disabled={availableStructures.length === 0 || isSaving}
+            disabled={unassignedStructures.length === 0 || isSaving}
             value={selectedStructureId}
             onChange={(event) => setSelectedStructureId(event.target.value)}
           >
-            {availableStructures.length === 0 ? (
+            {unassignedStructures.length === 0 ? (
               <option value="">{ui.noStructures}</option>
             ) : (
-              availableStructures.map((structure) => (
+              unassignedStructures.map((structure) => (
                 <option key={structure.id} value={structure.id}>
                   {structure.name}
                 </option>
@@ -589,10 +984,32 @@ function OrganizationStructureView({
             )}
           </select>
         </label>
+        <div className="sp-organization-structure-builder">
+          <div className="sp-structure-nodes-head">
+            <div>
+              <h3>{ui.structureQuickBuilder}</h3>
+              <p>{ui.structureQuickBuilderHint}</p>
+            </div>
+            <div className="sp-detail-actions">
+              <button className="sp-button" disabled={isSaving} type="button" onClick={addIndividualStructureNode}>
+                {ui.structureAddNode}
+              </button>
+              <button className="sp-button" disabled={isSaving} type="button" onClick={resetIndividualStructureNodes}>
+                {ui.structureResetStarterNodes}
+              </button>
+            </div>
+          </div>
+          <OrganizationStructureNodeDraftList
+            nodes={individualStructureNodes}
+            ui={ui}
+            onNodeChange={updateIndividualStructureNode}
+            onNodeRemove={removeIndividualStructureNode}
+          />
+        </div>
         <div className="sp-detail-actions">
           <button
             className="sp-button"
-            disabled={availableStructures.length === 0 || isSaving}
+            disabled={unassignedStructures.length === 0 || isSaving}
             type="button"
             onClick={() => void assignExistingStructure()}
           >
@@ -600,7 +1017,7 @@ function OrganizationStructureView({
           </button>
           <button
             className="sp-button primary"
-            disabled={isSaving}
+            disabled={!canCreateIndividualStructure}
             type="button"
             onClick={() => void createIndividualStructure()}
           >
@@ -608,6 +1025,84 @@ function OrganizationStructureView({
           </button>
         </div>
       </div>
+
+      {structureUsages.length > 0 && (
+        <div className="sp-structure-assignment-editor">
+          <div>
+            <strong>{ui.structureAssignmentEditor}</strong>
+            <p className="sp-editor-hint">{ui.structureAssignmentEditorHint}</p>
+          </div>
+          <div className="sp-structure-membership-controls">
+            <label>
+              {ui.structure}
+              <select
+                disabled={structureUsages.length === 0 || isSaving}
+                value={assignmentUsageId}
+                onChange={(event) => setAssignmentUsageId(event.target.value)}
+              >
+                {structureUsages.map((usage) => (
+                  <option key={usage.id} value={usage.id}>
+                    {usage.displayName ?? usage.structureName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {ui.structureNode}
+              <select
+                disabled={assignmentNodes.length === 0 || isSaving}
+                value={assignmentStructureNodeId}
+                onChange={(event) => setAssignmentStructureNodeId(event.target.value)}
+              >
+                {assignmentNodes.length === 0 ? (
+                  <option value="">{ui.noStructureNodes}</option>
+                ) : (
+                  assignmentNodes.map((node) => (
+                    <option key={node.id} value={node.id}>
+                      {node.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+            <label>
+              {ui.structureAssignmentTarget}
+              <select
+                disabled={assignableObjects.length === 0 || isSaving}
+                value={assignmentObjectId}
+                onChange={(event) => setAssignmentObjectId(event.target.value)}
+              >
+                {assignableObjects.length === 0 ? (
+                  <option value="">{ui.noAvailableObjects}</option>
+                ) : (
+                  assignableObjects.map((object) => (
+                    <option key={object.id} value={object.id}>
+                      {object.name} · {object.typeKey}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+            <label>
+              {ui.role}
+              <input value={assignmentRoleLabel} onChange={(event) => setAssignmentRoleLabel(event.target.value)} />
+            </label>
+            <button
+              className="sp-button primary"
+              disabled={
+                assignmentUsage === null ||
+                assignmentStructureNodeId.trim().length === 0 ||
+                assignmentObjectId.trim().length === 0 ||
+                isSaving
+              }
+              type="button"
+              onClick={() => void createAssignment()}
+            >
+              {isSaving ? ui.saving : ui.structureAssignObject}
+            </button>
+          </div>
+        </div>
+      )}
 
       {structureUsages.length === 0 ? (
         <div className="sp-empty compact">
@@ -618,6 +1113,11 @@ function OrganizationStructureView({
         <div className="sp-organization-structure-levels">
           {structureUsages.map((usage) => {
             const structure = structureDetails[usage.structureId]
+            const linkedCatalog =
+              structure?.linkedCatalogId === null || structure?.linkedCatalogId === undefined
+                ? null
+                : catalogs.find((catalog) => catalog.id === structure.linkedCatalogId) ?? null
+            const assignments = structureAssignments[usage.id] ?? []
             const levelIndexes =
               structure === undefined
                 ? []
@@ -626,9 +1126,22 @@ function OrganizationStructureView({
                   )
 
             return (
-              <article className="sp-organization-structure-slot" key={usage.id}>
-                <strong>{usage.displayName ?? usage.structureName}</strong>
-                <span>{usage.isPrimary ? ui.primary : ui.structureTemplate}</span>
+              <details className="sp-collapsible-section sp-organization-structure-usage" key={usage.id} open>
+                <summary>
+                  <span>{usage.displayName ?? usage.structureName}</span>
+                  <strong>{usage.isPrimary ? ui.primary : ui.structureTemplate}</strong>
+                </summary>
+                {(structure?.ownerKind === 'object' || linkedCatalog !== null) && (
+                  <div className="sp-tags sp-structure-usage-meta">
+                    {structure?.ownerKind === 'object' && <span>{ui.structureIndividual}</span>}
+                    {linkedCatalog !== null && (
+                      <>
+                        <span>{ui.structureLinkedCatalog}: {linkedCatalog.name}</span>
+                        <span>{ui.structureSharedCatalog}</span>
+                      </>
+                    )}
+                  </div>
+                )}
                 {usage.notes !== null && usage.notes.trim().length > 0 && <p>{usage.notes}</p>}
                 {structure !== undefined && (
                   levelIndexes.length === 0 ? (
@@ -636,16 +1149,51 @@ function OrganizationStructureView({
                   ) : (
                     <div className="sp-organization-structure-node-preview">
                       {levelIndexes.map((levelIndex) => (
-                        <div className="sp-organization-structure-node-level" key={levelIndex}>
-                          <span>{ui.structureLevelIndex} {levelIndex + 1}</span>
+                        <details className="sp-collapsible-section sp-organization-structure-node-level" key={levelIndex} open>
+                          <summary>
+                            <span>{ui.structureLevelIndex} {levelIndex + 1}</span>
+                            <strong>
+                              {structure.nodes.filter((node) => node.levelIndex === levelIndex).length}
+                            </strong>
+                          </summary>
                           <div>
                             {structure.nodes
                               .filter((node) => node.levelIndex === levelIndex)
+                              .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name))
                               .map((node) => (
-                                <strong key={node.id}>{node.name}</strong>
+                                <article className="sp-structure-node-member-card" key={node.id}>
+                                  <strong>{node.name}</strong>
+                                  {assignments.filter((assignment) => assignment.structureNodeId === node.id).length === 0 ? (
+                                    <span>{ui.noStructureNodeMembers}</span>
+                                  ) : (
+                                    <div>
+                                      {assignments
+                                        .filter((assignment) => assignment.structureNodeId === node.id)
+                                        .map((assignment) => (
+                                          <span className="sp-structure-node-member" key={assignment.id}>
+                                            <span>
+                                              {assignment.storyObjectName}
+                                              {assignment.roleLabel !== null && assignment.roleLabel.trim().length > 0 && (
+                                                <> · {assignment.roleLabel}</>
+                                              )}
+                                            </span>
+                                            <button
+                                              className="sp-icon-button"
+                                              disabled={isSaving}
+                                              type="button"
+                                              onClick={() => void deleteAssignment(assignment)}
+                                              title={ui.delete}
+                                            >
+                                              <X aria-hidden="true" size={14} />
+                                            </button>
+                                          </span>
+                                        ))}
+                                    </div>
+                                  )}
+                                </article>
                               ))}
                           </div>
-                        </div>
+                        </details>
                       ))}
                     </div>
                   )
@@ -660,7 +1208,7 @@ function OrganizationStructureView({
                     {ui.structureMakeIndividual}
                   </button>
                 </div>
-              </article>
+              </details>
             )
           })}
         </div>
@@ -676,6 +1224,133 @@ function OrganizationStructureView({
         </details>
       )}
     </section>
+  )
+}
+
+function createStarterOrganizationNodes(ui: PreviewText): StructureNodeDraft[] {
+  return [
+    {
+      clientId: 'starter-leadership',
+      parentClientId: null,
+      linkedCatalogEntryId: null,
+      linkedCatalogEntryGroupId: null,
+      name: ui.structureStarterLeadership,
+      description: '',
+      nodeType: ui.structureStarterStatus,
+      color: '',
+      iconKey: '',
+      levelIndex: 0,
+      sortOrder: 0,
+    },
+    {
+      clientId: 'starter-core',
+      parentClientId: null,
+      linkedCatalogEntryId: null,
+      linkedCatalogEntryGroupId: null,
+      name: ui.structureStarterCore,
+      description: '',
+      nodeType: ui.structureStarterStatus,
+      color: '',
+      iconKey: '',
+      levelIndex: 1,
+      sortOrder: 0,
+    },
+    {
+      clientId: 'starter-outer',
+      parentClientId: null,
+      linkedCatalogEntryId: null,
+      linkedCatalogEntryGroupId: null,
+      name: ui.structureStarterOuter,
+      description: '',
+      nodeType: ui.structureStarterStatus,
+      color: '',
+      iconKey: '',
+      levelIndex: 2,
+      sortOrder: 0,
+    },
+  ]
+}
+
+function OrganizationStructureNodeDraftList({
+  nodes,
+  ui,
+  onNodeChange,
+  onNodeRemove,
+}: {
+  nodes: StructureNodeDraft[]
+  ui: PreviewText
+  onNodeChange: (clientId: string, patch: Partial<StructureNodeDraft>) => void
+  onNodeRemove: (clientId: string) => void
+}) {
+  return (
+    <div className="sp-structure-node-list compact">
+      {nodes.map((node) => (
+        <article className="sp-structure-node-row compact" key={node.clientId}>
+          <label>
+            {ui.name}
+            <input
+              value={node.name}
+              onChange={(event) => onNodeChange(node.clientId, { name: event.target.value })}
+            />
+          </label>
+          <label>
+            {ui.structureParentNode}
+            <select
+              value={node.parentClientId ?? ''}
+              onChange={(event) =>
+                onNodeChange(node.clientId, {
+                  parentClientId: event.target.value === '' ? null : event.target.value,
+                })
+              }
+            >
+              <option value="">{ui.noGroup}</option>
+              {nodes
+                .filter((parentNode) => parentNode.clientId !== node.clientId && parentNode.name.trim().length > 0)
+                .map((parentNode) => (
+                  <option key={parentNode.clientId} value={parentNode.clientId}>
+                    {parentNode.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            {ui.structureLevelIndex}
+            <input
+              min="0"
+              type="number"
+              value={node.levelIndex}
+              onChange={(event) =>
+                onNodeChange(node.clientId, {
+                  levelIndex: Math.max(0, Number(event.target.value) || 0),
+                })
+              }
+            />
+          </label>
+          <label>
+            {ui.structureSortOrder}
+            <input
+              min="0"
+              type="number"
+              value={node.sortOrder}
+              onChange={(event) =>
+                onNodeChange(node.clientId, {
+                  sortOrder: Math.max(0, Number(event.target.value) || 0),
+                })
+              }
+            />
+          </label>
+          <div className="sp-structure-node-actions">
+            <button
+              className="sp-button danger"
+              type="button"
+              onClick={() => onNodeRemove(node.clientId)}
+            >
+              {ui.delete}
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
   )
 }
 

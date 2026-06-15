@@ -1,47 +1,13 @@
 import { resolveAssetUrl } from '../api'
 import { getInitials } from '../style-preview/domain/previewDisplay'
 import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../style-preview/domain/stylePreviewI18n'
-import type { Catalog, CatalogEntry, CatalogFieldDataType, CatalogFieldDefinition } from '../types'
+import type { Catalog, CatalogEntry, CatalogFieldDefinition } from '../types'
 import { LinkedText, type TextLinkTarget } from './LinkedText'
 import { DetailActionsMenu } from './StylePreviewPrimitives'
 
 export type CatalogEntryLinkTarget = {
   catalogId: number
   entry: CatalogEntry
-}
-
-export const catalogFieldDataTypeLabels: Record<CatalogFieldDataType, { ru: string; en: string }> = {
-  text: { ru: 'Текст', en: 'Text' },
-  longText: { ru: 'Длинный текст', en: 'Long text' },
-  number: { ru: 'Число', en: 'Number' },
-  select: { ru: 'Список', en: 'List' },
-  entryReference: { ru: 'Ссылка на запись', en: 'Entry link' },
-  multipleEntryReference: { ru: 'Несколько ссылок', en: 'Multiple links' },
-}
-
-export const formatCatalogFieldDefinition = (
-  field: CatalogFieldDefinition,
-  catalogs: Catalog[],
-  language: PreviewLanguage,
-) => {
-  const parts = [catalogFieldDataTypeLabels[field.dataType][language]]
-
-  if (field.dataType === 'number') {
-    const bounds = [field.minValue ?? '', field.maxValue ?? ''].join(' - ').trim()
-    if (bounds.length > 0) {
-      parts.push(bounds)
-    }
-  }
-
-  if (field.dataType === 'select' && field.options.length > 0) {
-    parts.push(field.options.join(', '))
-  }
-
-  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
-    parts.push(catalogs.find((catalog) => catalog.id === field.referenceCatalogId)?.name ?? '-')
-  }
-
-  return parts.join(' · ')
 }
 
 export function CatalogEntryFieldInput({

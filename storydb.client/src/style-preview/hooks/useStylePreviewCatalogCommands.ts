@@ -10,6 +10,7 @@ import {
   deleteCatalogFieldDefinitionRequest,
   deleteCatalogRequest,
   fetchCatalogFieldDefinitions,
+  getApiErrorMessage,
   updateCatalogEntryGroupRequest,
   updateCatalogEntryRequest,
   updateCatalogFieldDefinitionRequest,
@@ -193,8 +194,8 @@ export function useStylePreviewCatalogCommands({
       resetCatalogDraft()
       setDialog(null)
       navigateToPreview(selectedProjectId, 'database', 'catalogs', null, saved.id)
-    } catch {
-      showErrorMessage(messages.catalogCreateFailed)
+    } catch (error) {
+      showErrorMessage(getApiErrorMessage(error, messages.catalogCreateFailed))
     }
   }
 
@@ -218,8 +219,8 @@ export function useStylePreviewCatalogCommands({
       setPendingDeleteCatalogId(null)
       navigateToPreview(selectedProjectId, 'database', 'catalogs')
       setDialog(null)
-    } catch {
-      showErrorMessage(messages.catalogDeleteFailed)
+    } catch (error) {
+      showErrorMessage(getApiErrorMessage(error, messages.catalogDeleteFailed))
     }
   }
 
@@ -255,8 +256,8 @@ export function useStylePreviewCatalogCommands({
       setSelectedCatalogGroupId(saved.id)
       resetCatalogGroupDraft()
       setDialog(null)
-    } catch {
-      showErrorMessage(messages.catalogGroupCreateFailed)
+    } catch (error) {
+      showErrorMessage(getApiErrorMessage(error, messages.catalogGroupCreateFailed))
     }
   }
 
@@ -293,8 +294,8 @@ export function useStylePreviewCatalogCommands({
               ),
       }))
       resetCatalogFieldDraft()
-    } catch {
-      showErrorMessage(messages.templateFieldSaveFailed)
+    } catch (error) {
+      showErrorMessage(getApiErrorMessage(error, messages.templateFieldSaveFailed))
     }
   }
 
@@ -335,8 +336,8 @@ export function useStylePreviewCatalogCommands({
       if (editingCatalogFieldId === fieldId) {
         resetCatalogFieldDraft()
       }
-    } catch {
-      showErrorMessage(messages.templateFieldDeleteFailed)
+    } catch (error) {
+      showErrorMessage(getApiErrorMessage(error, messages.templateFieldDeleteFailed))
     }
   }
 
@@ -387,8 +388,8 @@ export function useStylePreviewCatalogCommands({
       }))
       resetCatalogEntryDraft()
       setDialog(null)
-    } catch {
-      showErrorMessage(messages.catalogEntryCreateFailed)
+    } catch (error) {
+      showErrorMessage(getApiErrorMessage(error, messages.catalogEntryCreateFailed))
     }
   }
 
@@ -402,8 +403,8 @@ export function useStylePreviewCatalogCommands({
       setCatalogGroups((currentGroups) => currentGroups.filter((group) => group.id !== selectedCatalogGroupId))
       setSelectedCatalogGroupId(null)
       setDialog(null)
-    } catch {
-      showErrorMessage(messages.catalogGroupDeleteFailed)
+    } catch (error) {
+      showErrorMessage(getApiErrorMessage(error, messages.catalogGroupDeleteFailed))
     }
   }
 
@@ -478,8 +479,8 @@ export function useStylePreviewCatalogCommands({
       setSelectedCatalogEntryId((currentId) => (currentId === pendingDeleteCatalogEntryId ? null : currentId))
       setPendingDeleteCatalogEntryId(null)
       setDialog(null)
-    } catch {
-      showErrorMessage(messages.catalogEntryDeleteFailed)
+    } catch (error) {
+      showErrorMessage(getApiErrorMessage(error, messages.catalogEntryDeleteFailed))
     }
   }
 

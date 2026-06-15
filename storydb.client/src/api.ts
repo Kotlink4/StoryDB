@@ -62,6 +62,9 @@ export class ApiRequestError extends Error {
   }
 }
 
+export const getApiErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof ApiRequestError && error.message.trim().length > 0 ? error.message : fallback
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 

@@ -222,7 +222,7 @@ export function useStylePreviewLayoutProps({
     toastTone,
     topbarProps: {
       ...topbar,
-      showWorkspaceTabs: !isProfilePageOpen,
+      showWorkspaceTabs: !isUtilityPage,
       onCreateObject: topbarHandlers.openCreateObjectDialog,
       onLogin: () => setDialog('auth'),
       onLogout: () => void topbarHandlers.logout(),

@@ -8,7 +8,7 @@ import type {
   CatalogFieldDraft,
   CatalogHierarchyMode,
 } from '../types'
-import { catalogFieldDataTypeLabels, formatCatalogFieldDefinition } from './CatalogEntryDetail'
+import { catalogFieldDataTypeLabels, formatCatalogFieldDefinition } from './catalogFieldDefinitionDisplay'
 import { KebabMenu, PreviewDialog } from './StylePreviewPrimitives'
 
 export type CatalogDialogTab = 'main' | 'template'
