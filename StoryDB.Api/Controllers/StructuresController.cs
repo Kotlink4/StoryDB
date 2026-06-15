@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using StoryDB.Api.Contracts.Structures;
 using StoryDB.Api.Services.Structures;
 
 namespace StoryDB.Api.Controllers;
 
 [ApiController]
+[EnableRateLimiting("expensive")]
 [Route("api/projects/{projectId:int}/structures")]
 public class StructuresController(IStructureService structureService) : ControllerBase
 {

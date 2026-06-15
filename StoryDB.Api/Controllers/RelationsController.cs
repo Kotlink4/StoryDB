@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using StoryDB.Api.Contracts.Relations;
 using StoryDB.Api.Services.Relations;
 
 namespace StoryDB.Api.Controllers;
 
 [ApiController]
+[EnableRateLimiting("expensive")]
 [Route("api/projects/{projectId:int}/relations")]
 public class RelationsController(IRelationService relationService) : ControllerBase
 {

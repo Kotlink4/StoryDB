@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using StoryDB.Api.Contracts.Timelines;
 using StoryDB.Api.Services.Timelines;
 using System.Text.Json.Serialization;
@@ -6,6 +7,7 @@ using System.Text.Json.Serialization;
 namespace StoryDB.Api.Controllers;
 
 [ApiController]
+[EnableRateLimiting("expensive")]
 [Route("api/projects/{projectId:int}/timeline/events")]
 public class TimelineController(ITimelineService timelineService) : ControllerBase
 {

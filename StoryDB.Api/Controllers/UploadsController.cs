@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using StoryDB.Api.Contracts.Uploads;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
@@ -9,16 +10,25 @@ using StoryDB.Api.Validation;
 namespace StoryDB.Api.Controllers;
 
 [ApiController]
+[EnableRateLimiting("upload")]
 [Route("api/uploads")]
 public class UploadsController(
     IFileStorageService fileStorageService,
     StoryDbContext dbContext,
-    ICurrentUserService currentUserService) : ControllerBase
+    ICurrentUserService currentUserService,
+    IProjectAccessService projectAccessService) : ControllerBase
 {
     [HttpPost("images")]
     [RequestSizeLimit(8 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 8 * 1024 * 1024)]
     public async Task<ActionResult<UploadImageDto>> UploadImage([FromForm] IFormFile file, [FromQuery] int? projectId)
     {
+        if (projectId is not null &&
+            !await projectAccessService.HasProjectAccessAsync(projectId.Value, HttpContext.RequestAborted))
+        {
+            return NotFound();
+        }
+
         var validationError = RequestValidators.ValidateUploadImage(
             file,
             fileStorageService.AllowedImageContentTypes,

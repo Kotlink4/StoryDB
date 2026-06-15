@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.RateLimiting;
 using StoryDB.Api.Data;
 using StoryDB.Api.Errors;
 using StoryDB.Api.Files;
@@ -20,6 +22,7 @@ using StoryDB.Api.Validation;
 using Serilog;
 using Serilog.Events;
 using StoryDB.Api.Observability;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,11 +72,20 @@ builder.Services.AddScoped<IRelationService, RelationService>();
 builder.Services.AddScoped<IStructureService, StructureService>();
 builder.Services.AddScoped<ITimelineService, TimelineService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = builder.Configuration.GetValue<long>("Security:MaxUploadBytes", 8 * 1024 * 1024);
+    options.ValueLengthLimit = builder.Configuration.GetValue<int>("Security:MaxFormValueLength", 16 * 1024);
+});
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add(new AuthorizeFilter());
     options.Filters.Add(new ApiErrorResultFilter());
     options.Filters.Add<ProjectAccessFilter>();
+})
+.AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.MaxDepth = builder.Configuration.GetValue("Security:JsonMaxDepth", 32);
 });
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -83,6 +95,9 @@ builder.Services
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        var sessionLifetimeHours = builder.Configuration.GetValue("Authentication:SessionLifetimeHours", 12);
+        options.ExpireTimeSpan = TimeSpan.FromHours(sessionLifetimeHours <= 0 ? 12 : sessionLifetimeHours);
+        options.SlidingExpiration = true;
         options.Events.OnRedirectToLogin = context =>
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -114,6 +129,42 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod()
             .AllowCredentials();
     });
+});
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        return ValueTask.CompletedTask;
+    };
+
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(GetRateLimitPartitionKey(httpContext), _ => new FixedWindowRateLimiterOptions
+        {
+            AutoReplenishment = true,
+            PermitLimit = builder.Configuration.GetValue("Security:RateLimits:Auth:PermitLimit", 12),
+            QueueLimit = 0,
+            Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("Security:RateLimits:Auth:WindowMinutes", 1)),
+        }));
+
+    options.AddPolicy("upload", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(GetRateLimitPartitionKey(httpContext), _ => new FixedWindowRateLimiterOptions
+        {
+            AutoReplenishment = true,
+            PermitLimit = builder.Configuration.GetValue("Security:RateLimits:Upload:PermitLimit", 20),
+            QueueLimit = 0,
+            Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("Security:RateLimits:Upload:WindowMinutes", 1)),
+        }));
+
+    options.AddPolicy("expensive", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(GetRateLimitPartitionKey(httpContext), _ => new FixedWindowRateLimiterOptions
+        {
+            AutoReplenishment = true,
+            PermitLimit = builder.Configuration.GetValue("Security:RateLimits:Expensive:PermitLimit", 90),
+            QueueLimit = 0,
+            Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("Security:RateLimits:Expensive:WindowMinutes", 1)),
+        }));
 });
 builder.Services.AddDbContext<StoryDbContext>(options =>
 {
@@ -151,6 +202,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<RequestLogContextMiddleware>();
 app.UseMiddleware<ApiExceptionMiddleware>();
+app.UseMiddleware<RequestBodySizeLimitMiddleware>();
 
 if (builder.Configuration.GetValue("UseHttpsRedirection", false))
 {
@@ -158,10 +210,13 @@ if (builder.Configuration.GetValue("UseHttpsRedirection", false))
 }
 
 app.UseCors("StoryDbClient");
+app.UseMiddleware<UnsafeRequestOriginMiddleware>();
 app.UseAuthentication();
+app.UseRateLimiter();
 
 var fileStorageService = app.Services.GetRequiredService<IFileStorageService>();
 fileStorageService.EnsureUploadsRoot();
+app.UseMiddleware<UploadAccessMiddleware>();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(fileStorageService.UploadsRootPath),
@@ -181,6 +236,22 @@ try
 finally
 {
     Log.CloseAndFlush();
+}
+
+static string GetRateLimitPartitionKey(HttpContext context)
+{
+    var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    if (!string.IsNullOrWhiteSpace(userId))
+    {
+        return $"user:{userId}";
+    }
+
+    var forwardedFor = context.Request.Headers["X-Forwarded-For"].ToString();
+    var forwardedAddress = forwardedFor
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .FirstOrDefault();
+
+    return $"ip:{forwardedAddress ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
 }
 
 public partial class Program;

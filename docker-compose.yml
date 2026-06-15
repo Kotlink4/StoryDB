@@ -21,12 +21,15 @@
       context: .
       dockerfile: StoryDB.Api/Dockerfile
     container_name: storydb-api
+    mem_limit: ${API_MEMORY_LIMIT:-512m}
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: 5282
+      DOTNET_GCHeapHardLimitPercent: ${DOTNET_GC_HEAP_HARD_LIMIT_PERCENT:-55}
+      DOTNET_GCConserveMemory: ${DOTNET_GC_CONSERVE_MEMORY:-5}
       ConnectionStrings__StoryDb: Host=postgres;Port=5432;Database=storydb;Username=postgres;Password=postgres
       Logging__FileDirectory: /app/logs
     ports:

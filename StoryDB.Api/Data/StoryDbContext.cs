@@ -845,6 +845,9 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasIndex(participant => new { participant.TimelineEventId, participant.TargetType, participant.TargetId });
 
         modelBuilder.Entity<TimelineParticipant>()
+            .HasIndex(participant => new { participant.TargetType, participant.TargetId, participant.TimelineEventId });
+
+        modelBuilder.Entity<TimelineParticipant>()
             .Property(participant => participant.TargetType)
             .HasMaxLength(40);
 
@@ -860,6 +863,9 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
 
         modelBuilder.Entity<TimelineChange>()
             .HasIndex(change => new { change.TimelineEventId, change.TargetType, change.TargetId });
+
+        modelBuilder.Entity<TimelineChange>()
+            .HasIndex(change => new { change.TargetType, change.TargetId, change.TimelineEventId });
 
         modelBuilder.Entity<TimelineChange>()
             .Property(change => change.ChangeType)

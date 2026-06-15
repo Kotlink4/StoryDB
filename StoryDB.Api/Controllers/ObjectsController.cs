@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using StoryDB.Api.Contracts.Objects;
 using StoryDB.Api.Data.Entities;
 using StoryDB.Api.Services.Objects;
@@ -6,6 +7,7 @@ using StoryDB.Api.Services.Objects;
 namespace StoryDB.Api.Controllers;
 
 [ApiController]
+[EnableRateLimiting("expensive")]
 [Route("api/projects/{projectId:int}/objects")]
 public class ObjectsController(IObjectService objectService) : ControllerBase
 {
