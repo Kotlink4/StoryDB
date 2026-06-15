@@ -6,7 +6,10 @@ namespace StoryDB.Api.Observability;
 
 public static class PrometheusMetricsFormatter
 {
-    public static string Format(ApiMetricsSnapshot apiMetrics, ProjectExportQueueStatsDto exportJobs)
+    public static string Format(
+        ApiMetricsSnapshot apiMetrics,
+        ProjectExportQueueStatsDto exportJobs,
+        AuditLogQueueStatsDto auditLogs)
     {
         var builder = new StringBuilder();
         var emittedMetadata = new HashSet<string>(StringComparer.Ordinal);
@@ -27,6 +30,13 @@ public static class PrometheusMetricsFormatter
         AppendGauge(builder, emittedMetadata, "storydb_export_jobs", "Export jobs by status.", exportJobs.Running, ("status", "running"));
         AppendGauge(builder, emittedMetadata, "storydb_export_jobs", "Export jobs by status.", exportJobs.Succeeded, ("status", "succeeded"));
         AppendGauge(builder, emittedMetadata, "storydb_export_jobs", "Export jobs by status.", exportJobs.Failed, ("status", "failed"));
+
+        AppendGauge(builder, emittedMetadata, "storydb_audit_log_queue_capacity", "Configured audit log queue capacity.", auditLogs.Capacity);
+        AppendGauge(builder, emittedMetadata, "storydb_audit_log_queue_queued", "Audit log entries currently waiting in the background queue.", auditLogs.Queued);
+        AppendCounter(builder, emittedMetadata, "storydb_audit_log_queue_enqueued_total", "Total audit log entries accepted by the background queue.", auditLogs.Enqueued);
+        AppendCounter(builder, emittedMetadata, "storydb_audit_log_queue_processed_total", "Total audit log entries written by the background worker.", auditLogs.Processed);
+        AppendCounter(builder, emittedMetadata, "storydb_audit_log_queue_failed_total", "Total audit log entries that failed in the background worker.", auditLogs.Failed);
+        AppendCounter(builder, emittedMetadata, "storydb_audit_log_queue_dropped_total", "Total audit log entries dropped because the background queue was full.", auditLogs.Dropped);
 
         foreach (var endpoint in apiMetrics.Endpoints)
         {

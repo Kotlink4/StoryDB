@@ -270,6 +270,7 @@ app.MapGet("/health", async (IServiceProvider services, CancellationToken cancel
     await using var scope = services.CreateAsyncScope();
     var scopedDbContext = scope.ServiceProvider.GetRequiredService<StoryDbContext>();
     var exportJobs = services.GetRequiredService<IProjectExportJobService>().GetStats();
+    var auditLogs = services.GetRequiredService<IAuditLogQueue>().GetStats();
     var databaseAvailable = await scopedDbContext.Database.CanConnectAsync(cancellationToken);
     var gcInfo = GC.GetGCMemoryInfo();
     var payload = new
@@ -282,6 +283,7 @@ app.MapGet("/health", async (IServiceProvider services, CancellationToken cancel
         memoryLoadBytes = gcInfo.MemoryLoadBytes,
         highMemoryLoadThresholdBytes = gcInfo.HighMemoryLoadThresholdBytes,
         exportJobs,
+        auditLogs,
         environment = app.Environment.EnvironmentName,
     };
 
@@ -295,9 +297,13 @@ app.MapGet("/metrics", (IApiMetricsService metricsService) =>
 
 app.MapGet("/metrics/prometheus", (
     IApiMetricsService metricsService,
-    IProjectExportJobService exportJobService) =>
+    IProjectExportJobService exportJobService,
+    IAuditLogQueue auditLogQueue) =>
 {
-    var body = PrometheusMetricsFormatter.Format(metricsService.GetSnapshot(), exportJobService.GetStats());
+    var body = PrometheusMetricsFormatter.Format(
+        metricsService.GetSnapshot(),
+        exportJobService.GetStats(),
+        auditLogQueue.GetStats());
     return Results.Text(body, "text/plain; version=0.0.4; charset=utf-8");
 }).AllowAnonymous();
 

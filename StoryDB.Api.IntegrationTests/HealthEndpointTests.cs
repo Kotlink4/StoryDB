@@ -17,6 +17,8 @@ public class HealthEndpointTests(StoryDbApiFactory factory) : IClassFixture<Stor
         Assert.NotNull(payload);
         Assert.Equal("healthy", payload.Status);
         Assert.Equal("available", payload.Database);
+        Assert.NotNull(payload.AuditLogs);
+        Assert.True(payload.AuditLogs.Capacity >= 100);
     }
 
     [Fact]
@@ -49,9 +51,14 @@ public class HealthEndpointTests(StoryDbApiFactory factory) : IClassFixture<Stor
         Assert.Contains("storydb_api_requests_total", body);
         Assert.Contains("storydb_api_endpoint_requests_total{method=\"GET\",path=\"/health\"}", body);
         Assert.Contains("storydb_export_jobs{status=\"queued\"}", body);
+        Assert.Contains("storydb_audit_log_queue_capacity", body);
+        Assert.Contains("storydb_audit_log_queue_enqueued_total", body);
+        Assert.Contains("storydb_audit_log_queue_dropped_total", body);
     }
 
-    private sealed record HealthResponse(string Status, string Database);
+    private sealed record HealthResponse(string Status, string Database, AuditLogQueueStatsResponse AuditLogs);
+
+    private sealed record AuditLogQueueStatsResponse(int Capacity);
 
     private sealed record MetricsResponse(long TotalRequests, IReadOnlyList<EndpointMetricsResponse> Endpoints);
 
