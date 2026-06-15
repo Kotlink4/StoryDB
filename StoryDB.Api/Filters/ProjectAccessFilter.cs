@@ -31,9 +31,14 @@ public class ProjectAccessFilter(IProjectAccessService projectAccessService) : I
             return;
         }
 
-        var hasAccess = await projectAccessService.HasProjectAccessAsync(
-            projectId,
-            context.HttpContext.RequestAborted);
+        var requestMethod = context.HttpContext.Request.Method;
+        var isReadOnlyRequest =
+            HttpMethods.IsGet(requestMethod) ||
+            HttpMethods.IsHead(requestMethod) ||
+            HttpMethods.IsOptions(requestMethod);
+        var hasAccess = isReadOnlyRequest
+            ? await projectAccessService.HasProjectAccessAsync(projectId, context.HttpContext.RequestAborted)
+            : await projectAccessService.HasProjectWriteAccessAsync(projectId, context.HttpContext.RequestAborted);
         if (!hasAccess)
         {
             context.Result = new NotFoundResult();

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using StoryDB.Api.Contracts.Projects;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Security;
 using StoryDB.Api.Services.Projects;
 using StoryDB.Api.Validation;
 
@@ -10,7 +11,9 @@ namespace StoryDB.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/projects")]
-public class ProjectsController(IProjectService projectService) : ControllerBase
+public class ProjectsController(
+    IProjectService projectService,
+    IProjectAccessService projectAccessService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ProjectListItemDto>>> GetProjects(CancellationToken cancellationToken)
@@ -74,23 +77,51 @@ public class ProjectsController(IProjectService projectService) : ControllerBase
             request.Name,
             request.CoverImagePath,
             request.EnabledObjectTypeKeys,
-            request.PresetKeys);
+            request.PresetKeys,
+            request.TemplatePackIds,
+            request.Visibility);
 
     private static ProjectDraft ToProjectDraft(UpdateProjectRequest request) =>
         new(
             request.Name,
             request.CoverImagePath,
             request.EnabledObjectTypeKeys,
-            request.PresetKeys);
+            request.PresetKeys,
+            request.TemplatePackIds,
+            request.Visibility);
 
-    private static ProjectListItemDto ToProjectListItemDto(Project project)
+    private ProjectListItemDto ToProjectListItemDto(ProjectListItem project)
     {
+        var isOwner = project.OwnerUserId == projectAccessService.CurrentUserId;
+        var canEdit = isOwner || project.Visibility == ProjectVisibility.PublicEdit;
+        return new ProjectListItemDto(
+            project.Id,
+            project.Name,
+            project.CoverImagePath,
+            project.ObjectCount,
+            project.UpdatedAt,
+            project.Visibility,
+            canEdit,
+            isOwner,
+            project.ObjectTypes
+                .OrderBy(type => type.SortOrder)
+                .Select(type => new ObjectTypeDto(type.Key, type.Name, type.IsEnabled))
+                .ToList());
+    }
+
+    private ProjectListItemDto ToProjectListItemDto(Project project)
+    {
+        var isOwner = project.OwnerUserId == projectAccessService.CurrentUserId;
+        var canEdit = isOwner || project.Visibility == ProjectVisibility.PublicEdit;
         return new ProjectListItemDto(
             project.Id,
             project.Name,
             project.CoverImagePath,
             project.Objects.Count,
             project.UpdatedAt,
+            project.Visibility,
+            canEdit,
+            isOwner,
             project.ObjectTypes
                 .OrderBy(type => type.SortOrder)
                 .Select(type => new ObjectTypeDto(type.Key, type.Name, type.IsEnabled))

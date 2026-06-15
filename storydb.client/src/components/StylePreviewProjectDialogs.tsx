@@ -1,6 +1,6 @@
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { PreviewDialogKind } from '../style-preview/domain/stylePreviewConfig'
-import type { AuthUser, StoryProject } from '../types'
+import type { AuthUser, StoryProject, TemplatePack } from '../types'
 import { AuthDialog } from './AuthDialog'
 import { DeletePreviewDialog } from './DeletePreviewDialog'
 import { ProfileSummaryDialog } from './ProfileSummaryDialog'
@@ -15,10 +15,13 @@ export function StylePreviewProjectDialogs({
   dialog,
   editingProjectId,
   pendingDeleteProjectId,
+  favoriteTemplatePacks,
   projectCoverImagePath,
   projectDialogTab,
   projectName,
   projectPresetKeys,
+  projectTemplatePackIds,
+  projectVisibility,
   projects,
   ui,
   onAuthDisplayNameChange,
@@ -32,6 +35,8 @@ export function StylePreviewProjectDialogs({
   onProjectDialogTabChange,
   onProjectNameChange,
   onProjectPresetKeysChange,
+  onProjectTemplatePackIdsChange,
+  onProjectVisibilityChange,
   onSaveProject,
   onSubmitAuth,
 }: {
@@ -43,10 +48,13 @@ export function StylePreviewProjectDialogs({
   dialog: PreviewDialogKind
   editingProjectId: number | null
   pendingDeleteProjectId: number | null
+  favoriteTemplatePacks: TemplatePack[]
   projectCoverImagePath: string | null
   projectDialogTab: ProjectDialogTab
   projectName: string
   projectPresetKeys: string[]
+  projectTemplatePackIds: number[]
+  projectVisibility: StoryProject['visibility']
   projects: StoryProject[]
   ui: PreviewText
   onAuthDisplayNameChange: (displayName: string) => void
@@ -60,6 +68,8 @@ export function StylePreviewProjectDialogs({
   onProjectDialogTabChange: (tab: ProjectDialogTab) => void
   onProjectNameChange: (name: string) => void
   onProjectPresetKeysChange: (presetKeys: string[]) => void
+  onProjectTemplatePackIdsChange: (templatePackIds: number[]) => void
+  onProjectVisibilityChange: (visibility: StoryProject['visibility']) => void
   onSaveProject: () => void
   onSubmitAuth: () => void
 }) {
@@ -93,16 +103,21 @@ export function StylePreviewProjectDialogs({
       {dialog === 'project' && (
         <ProjectDialog
           editingProjectId={editingProjectId}
+          favoriteTemplatePacks={favoriteTemplatePacks}
           projectCoverImagePath={projectCoverImagePath}
           projectDialogTab={projectDialogTab}
           projectName={projectName}
           projectPresetKeys={projectPresetKeys}
+          projectTemplatePackIds={projectTemplatePackIds}
+          projectVisibility={projectVisibility}
           ui={ui}
           onCancel={onClose}
           onCoverFileSelected={onProjectCoverFileSelected}
           onProjectDialogTabChange={onProjectDialogTabChange}
           onProjectNameChange={onProjectNameChange}
           onProjectPresetKeysChange={onProjectPresetKeysChange}
+          onProjectTemplatePackIdsChange={onProjectTemplatePackIdsChange}
+          onProjectVisibilityChange={onProjectVisibilityChange}
           onSave={onSaveProject}
         />
       )}

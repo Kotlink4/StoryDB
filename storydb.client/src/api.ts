@@ -33,6 +33,8 @@
   StoryObject,
   StoryObjectSummary,
   StoryProject,
+  TemplatePack,
+  TemplatePackScope,
   TimelineEvent,
   TimelineEventDraft,
   TimelineEventLink,
@@ -392,6 +394,15 @@ export const updateCurrentUserRequest = async (
 export const resolveAssetUrl = (path: string | null) =>
   path === null ? null : `${assetBaseUrl}${path}`
 
+export const resolveAssetVariantUrl = (path: string | null, variantKey: 'card' | 'gallery' | 'portrait' | 'thumb') => {
+  if (path === null) {
+    return null
+  }
+
+  const variantPath = path.replace(/\/(card|gallery|portrait|thumb)\.webp$/i, `/${variantKey}.webp`)
+  return resolveAssetUrl(variantPath)
+}
+
 export const uploadImageRequest = async (file: File, projectId: number | null = null) => {
   const preparedImage = await prepareImageForUpload(file)
   const validationError = validatePreparedImageUpload(preparedImage.file)
@@ -417,11 +428,13 @@ export const createProjectRequest = async (
   coverImagePath: string | null,
   enabledObjectTypeKeys: ObjectTypeKey[],
   presetKeys: string[],
+  templatePackIds: number[] = [],
+  visibility: StoryProject['visibility'] = 'private',
 ) => {
   const response = await apiFetch(`${apiBaseUrl}/projects`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys, presetKeys }),
+    body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys, presetKeys, templatePackIds, visibility }),
   })
   await ensureOk(response, 'Failed to create project.')
 
@@ -434,11 +447,13 @@ export const updateProjectRequest = async (
   coverImagePath: string | null,
   enabledObjectTypeKeys: ObjectTypeKey[],
   presetKeys: string[],
+  templatePackIds: number[] = [],
+  visibility: StoryProject['visibility'] = 'private',
 ) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${project.id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys, presetKeys }),
+    body: JSON.stringify({ name, coverImagePath, enabledObjectTypeKeys, presetKeys, templatePackIds, visibility }),
   })
   await ensureOk(response, 'Failed to update project.')
 
@@ -450,6 +465,84 @@ export const deleteProjectRequest = async (projectId: number) => {
     method: 'DELETE',
   })
   await ensureOk(response, 'Failed to delete project.')
+}
+
+export const fetchTemplatePacks = async (scope: TemplatePackScope) => {
+  const response = await apiFetch(`${apiBaseUrl}/template-packs?scope=${scope}`)
+  await ensureOk(response, 'Failed to load template packs.')
+
+  return (await response.json()) as TemplatePack[]
+}
+
+export const createTemplatePackFromProjectRequest = async (
+  projectId: number,
+  name: string,
+  description: string,
+  isPublic: boolean,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/template-packs/from-project`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId,
+      name: name.trim(),
+      description: description.trim() || null,
+      isPublic,
+      options: {
+        includeAttributes: true,
+        includeCatalogs: true,
+        includeStructures: true,
+      },
+    }),
+  })
+  await ensureOk(response, 'Failed to create template pack.')
+
+  return (await response.json()) as TemplatePack
+}
+
+export const updateTemplatePackRequest = async (
+  templatePackId: number,
+  name: string,
+  description: string,
+  isPublic: boolean,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/template-packs/${templatePackId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: name.trim(),
+      description: description.trim() || null,
+      isPublic,
+    }),
+  })
+  await ensureOk(response, 'Failed to update template pack.')
+
+  return (await response.json()) as TemplatePack
+}
+
+export const deleteTemplatePackRequest = async (templatePackId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/template-packs/${templatePackId}`, {
+    method: 'DELETE',
+  })
+  await ensureOk(response, 'Failed to delete template pack.')
+}
+
+export const setTemplatePackFavoriteRequest = async (templatePackId: number, isFavorite: boolean) => {
+  const response = await apiFetch(`${apiBaseUrl}/template-packs/${templatePackId}/favorite`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isFavorite }),
+  })
+  await ensureOk(response, 'Failed to update template pack favorite.')
+
+  return (await response.json()) as TemplatePack
+}
+
+export const applyTemplatePackRequest = async (projectId: number, templatePackId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/template-packs/${templatePackId}/apply`, {
+    method: 'POST',
+  })
+  await ensureOk(response, 'Failed to apply template pack.')
 }
 
 export const fetchCatalogs = async (projectId: number) => {
@@ -784,6 +877,107 @@ export const fetchObject = async (projectId: number, objectId: number) => {
   await ensureOk(response, 'Failed to load object.')
 
   return (await response.json()) as StoryObject
+}
+
+export type ProjectDossierExportOptions = {
+  includeAttributes: boolean
+  includeCatalogs: boolean
+  includeRelations: boolean
+  includeStructureAssignments: boolean
+}
+
+export type ProjectExportJobStatus = 'queued' | 'running' | 'succeeded' | 'invalid' | 'failed'
+
+export type ProjectExportJob = {
+  id: string
+  projectId: number
+  kind: string
+  status: ProjectExportJobStatus
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  fileName: string | null
+  error: string | null
+}
+
+const getDownloadFileName = (contentDisposition: string | null, fallback: string) => {
+  if (contentDisposition === null) {
+    return fallback
+  }
+
+  const encodedMatch = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition)
+  if (encodedMatch?.[1] !== undefined) {
+    try {
+      return decodeURIComponent(encodedMatch[1])
+    } catch {
+      return fallback
+    }
+  }
+
+  const plainMatch = /filename="?([^";]+)"?/i.exec(contentDisposition)
+  return plainMatch?.[1]?.trim() || fallback
+}
+
+export const exportProjectDossiersRequest = async (
+  projectId: number,
+  objectIds: number[],
+  options: ProjectDossierExportOptions,
+) => {
+  const searchParams = new URLSearchParams()
+
+  objectIds.forEach((objectId) => {
+    searchParams.append('objectIds', String(objectId))
+  })
+  searchParams.set('includeAttributes', String(options.includeAttributes))
+  searchParams.set('includeCatalogs', String(options.includeCatalogs))
+  searchParams.set('includeRelations', String(options.includeRelations))
+  searchParams.set('includeStructureAssignments', String(options.includeStructureAssignments))
+
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/exports/dossiers.docx?${searchParams.toString()}`)
+  await ensureOk(response, 'Failed to export dossiers.')
+
+  return {
+    blob: await response.blob(),
+    fileName: getDownloadFileName(response.headers.get('Content-Disposition'), 'storydb-dossiers.docx'),
+  }
+}
+
+export const enqueueProjectDossierExportJobRequest = async (
+  projectId: number,
+  objectIds: number[],
+  options: ProjectDossierExportOptions,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/exports/dossiers/jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      objectIds,
+      includeAttributes: options.includeAttributes,
+      includeCatalogs: options.includeCatalogs,
+      includeRelations: options.includeRelations,
+      includeStructureAssignments: options.includeStructureAssignments,
+    }),
+  })
+  await ensureOk(response, 'Failed to enqueue dossier export.')
+
+  return (await response.json()) as ProjectExportJob
+}
+
+export const fetchProjectDossierExportJobRequest = async (projectId: number, jobId: string) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/exports/dossiers/jobs/${jobId}`)
+  await ensureOk(response, 'Failed to load export job.')
+
+  return (await response.json()) as ProjectExportJob
+}
+
+export const downloadProjectDossierExportJobRequest = async (projectId: number, jobId: string) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/exports/dossiers/jobs/${jobId}/download`)
+  await ensureOk(response, 'Failed to download dossier export.')
+
+  return {
+    blob: await response.blob(),
+    fileName: getDownloadFileName(response.headers.get('Content-Disposition'), 'storydb-dossiers.docx'),
+  }
 }
 
 export const fetchCharacters = (projectId: number) => fetchObjects(projectId, 'characters')

@@ -30,6 +30,7 @@ type ProjectbarHandlerKeys =
   | 'onCreateObject'
   | 'onNavigateProject'
   | 'onNavigateTab'
+  | 'showWorkspaceTabs'
 
 type SidebarHandlerKeys =
   | 'onCreateCatalog'
@@ -148,7 +149,8 @@ export function useStylePreviewLayoutProps({
   setIsSettingsOpen: Dispatch<SetStateAction<boolean>>
   setIsSettingsPageOpen: Dispatch<SetStateAction<boolean>>
 }): LayoutChromeProps {
-  const isUtilityPage = isSettingsPageOpen || isProfilePageOpen
+  const isProjectExportPage = activeSection === 'exports'
+  const isUtilityPage = isSettingsPageOpen || isProfilePageOpen || isProjectExportPage
   const hasDetailPanel = !isUtilityPage &&
     detailMode === 'panel' &&
     ((activeTab === 'database' &&
@@ -183,11 +185,12 @@ export function useStylePreviewLayoutProps({
     previewTheme,
     projectbarProps: {
       ...projectbar,
+      showWorkspaceTabs: !isUtilityPage,
       onCreateObject: topbarHandlers.openCreateObjectDialog,
       onNavigateProject: (projectId) => navigateToPreview(projectId, 'database', 'characters', null, null),
       onNavigateTab: (tab) => navigateToWorkspace(tab, activeSection, null, selectedCatalogId),
     },
-    showSidebar: activeTab !== 'timeline',
+    showSidebar: !isUtilityPage && activeTab !== 'timeline',
     sidebarProps: {
       ...sidebar,
       onCreateCatalog: () => {

@@ -34,7 +34,9 @@ public sealed class StoryDbApiFactory : WebApplicationFactory<Program>, IAsyncLi
         {
             services.RemoveAll<DbContextOptions<StoryDbContext>>();
             services.AddDbContext<StoryDbContext>(options =>
-                options.UseNpgsql(postgres.GetConnectionString()));
+                options.UseNpgsql(
+                    postgres.GetConnectionString(),
+                    npgsqlOptions => npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
         });
     }
 }

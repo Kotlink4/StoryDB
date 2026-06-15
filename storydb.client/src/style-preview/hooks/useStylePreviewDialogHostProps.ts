@@ -30,6 +30,8 @@ type ProjectHandlerKeys =
   | 'onProjectDialogTabChange'
   | 'onProjectNameChange'
   | 'onProjectPresetKeysChange'
+  | 'onProjectTemplatePackIdsChange'
+  | 'onProjectVisibilityChange'
   | 'onSaveProject'
   | 'onSubmitAuth'
 
@@ -150,6 +152,8 @@ export function useStylePreviewDialogHostProps({
     | 'onProjectDialogTabChange'
     | 'onProjectNameChange'
     | 'onProjectPresetKeysChange'
+    | 'onProjectTemplatePackIdsChange'
+    | 'onProjectVisibilityChange'
   > & {
     deletePendingProject: () => MaybePromise
     logout: () => MaybePromise
@@ -177,6 +181,8 @@ export function useStylePreviewDialogHostProps({
       onProjectDialogTabChange: projectHandlers.onProjectDialogTabChange,
       onProjectNameChange: projectHandlers.onProjectNameChange,
       onProjectPresetKeysChange: projectHandlers.onProjectPresetKeysChange,
+      onProjectTemplatePackIdsChange: projectHandlers.onProjectTemplatePackIdsChange,
+      onProjectVisibilityChange: projectHandlers.onProjectVisibilityChange,
       onSaveProject: () => void projectHandlers.saveProject(),
       onSubmitAuth: () => void projectHandlers.submitAuth(),
     },

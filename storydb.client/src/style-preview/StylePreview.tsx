@@ -7,7 +7,14 @@ import {
   useState,
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { resolveAssetUrl } from '../api'
+import {
+  createTemplatePackFromProjectRequest,
+  deleteTemplatePackRequest,
+  fetchTemplatePacks,
+  resolveAssetVariantUrl,
+  setTemplatePackFavoriteRequest,
+  updateTemplatePackRequest,
+} from '../api'
 import { CoverDropzone } from '../components/ImageInputs'
 import { StylePreviewContent } from '../components/StylePreviewContent'
 import { StylePreviewLayout } from '../components/StylePreviewLayout'
@@ -65,6 +72,8 @@ import type {
   AttributeDefinitionDraft,
   ObjectTypeKey,
   RelationLinkDraft,
+  TemplatePack,
+  TemplatePackScope,
   TimelineEventDraft,
   TimelineEventLinkDraft,
 } from '../types'
@@ -89,12 +98,16 @@ export function StylePreview() {
     projectDialogTab,
     projectName,
     projectPresetKeys,
+    projectTemplatePackIds,
+    projectVisibility,
     resetProjectForm,
     setPendingDeleteProjectId,
     setProjectCoverImagePath,
     setProjectDialogTab,
     setProjectName,
     setProjectPresetKeys,
+    setProjectTemplatePackIds,
+    setProjectVisibility,
   } = useStylePreviewProjectDialog()
   const [activeTab, setActiveTab] = useState<PreviewTab>(routeState.activeTab ?? initialPreviewState.activeTab ?? 'database')
   const [activeSection, setActiveSection] = useState<PreviewSection>(
@@ -121,6 +134,14 @@ export function StylePreview() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSettingsPageOpen, setIsSettingsPageOpen] = useState(routeState.utilityPage === 'settings')
   const [isProfilePageOpen, setIsProfilePageOpen] = useState(routeState.utilityPage === 'profile')
+  const [templatePackScope, setTemplatePackScope] = useState<TemplatePackScope>('mine')
+  const [templatePacks, setTemplatePacks] = useState<TemplatePack[]>([])
+  const [favoriteTemplatePacks, setFavoriteTemplatePacks] = useState<TemplatePack[]>([])
+  const [templatePackProjectId, setTemplatePackProjectId] = useState<number | null>(null)
+  const [templatePackName, setTemplatePackName] = useState('')
+  const [templatePackDescription, setTemplatePackDescription] = useState('')
+  const [templatePackIsPublic, setTemplatePackIsPublic] = useState(false)
+  const [isTemplatePackSaving, setIsTemplatePackSaving] = useState(false)
   const [isObjectPageOpen, setIsObjectPageOpen] = useState(
     routeState.objectId !== null || initialPreviewState.isObjectPageOpen === true,
   )
@@ -193,6 +214,122 @@ export function StylePreview() {
     setProfileDisplayName,
     setProfileEmail,
   } = useStylePreviewProfileDraft(currentUser)
+  const loadTemplatePacks = useCallback(
+    async (scope: TemplatePackScope = templatePackScope) => {
+      if (currentUser === null) {
+        setTemplatePacks([])
+        setFavoriteTemplatePacks([])
+        return
+      }
+
+      try {
+        const [scopedPacks, favoritePacks] = await Promise.all([
+          fetchTemplatePacks(scope),
+          fetchTemplatePacks('favorites'),
+        ])
+        setTemplatePacks(scopedPacks)
+        setFavoriteTemplatePacks(favoritePacks)
+      } catch {
+        showErrorMessage(messages.apiUnavailable)
+      }
+    },
+    [currentUser, messages.apiUnavailable, showErrorMessage, templatePackScope],
+  )
+
+  useEffect(() => {
+    void loadTemplatePacks(templatePackScope)
+  }, [loadTemplatePacks, templatePackScope])
+
+  useEffect(() => {
+    if (templatePackProjectId === null && projects.length > 0) {
+      setTemplatePackProjectId(selectedProjectId ?? projects[0].id)
+    }
+  }, [projects, selectedProjectId, templatePackProjectId])
+
+  const upsertTemplatePack = useCallback((pack: TemplatePack) => {
+    setTemplatePacks((currentPacks) =>
+      currentPacks.some((currentPack) => currentPack.id === pack.id)
+        ? currentPacks.map((currentPack) => (currentPack.id === pack.id ? pack : currentPack))
+        : [pack, ...currentPacks],
+    )
+    setFavoriteTemplatePacks((currentPacks) => {
+      if (!pack.isFavorite) {
+        return currentPacks.filter((currentPack) => currentPack.id !== pack.id)
+      }
+
+      return currentPacks.some((currentPack) => currentPack.id === pack.id)
+        ? currentPacks.map((currentPack) => (currentPack.id === pack.id ? pack : currentPack))
+        : [pack, ...currentPacks]
+    })
+  }, [])
+
+  const createTemplatePack = useCallback(async () => {
+    if (templatePackProjectId === null || templatePackName.trim().length === 0) {
+      return
+    }
+
+    setIsTemplatePackSaving(true)
+    try {
+      const pack = await createTemplatePackFromProjectRequest(
+        templatePackProjectId,
+        templatePackName,
+        templatePackDescription,
+        templatePackIsPublic,
+      )
+      upsertTemplatePack(pack)
+      setTemplatePackName('')
+      setTemplatePackDescription('')
+      setTemplatePackIsPublic(false)
+    } catch {
+      showErrorMessage(messages.projectSaveFailed)
+    } finally {
+      setIsTemplatePackSaving(false)
+    }
+  }, [
+    messages.projectSaveFailed,
+    showErrorMessage,
+    templatePackDescription,
+    templatePackIsPublic,
+    templatePackName,
+    templatePackProjectId,
+    upsertTemplatePack,
+  ])
+
+  const toggleTemplatePackPublic = useCallback(
+    async (pack: TemplatePack, isPublic: boolean) => {
+      try {
+        upsertTemplatePack(await updateTemplatePackRequest(pack.id, pack.name, pack.description ?? '', isPublic))
+      } catch {
+        showErrorMessage(messages.projectSaveFailed)
+      }
+    },
+    [messages.projectSaveFailed, showErrorMessage, upsertTemplatePack],
+  )
+
+  const toggleTemplatePackFavorite = useCallback(
+    async (pack: TemplatePack, isFavorite: boolean) => {
+      try {
+        upsertTemplatePack(await setTemplatePackFavoriteRequest(pack.id, isFavorite))
+      } catch {
+        showErrorMessage(messages.projectSaveFailed)
+      }
+    },
+    [messages.projectSaveFailed, showErrorMessage, upsertTemplatePack],
+  )
+
+  const deleteTemplatePack = useCallback(
+    async (pack: TemplatePack) => {
+      try {
+        await deleteTemplatePackRequest(pack.id)
+        setTemplatePacks((currentPacks) => currentPacks.filter((currentPack) => currentPack.id !== pack.id))
+        setFavoriteTemplatePacks((currentPacks) => currentPacks.filter((currentPack) => currentPack.id !== pack.id))
+      } catch {
+        showErrorMessage(messages.projectDeleteFailed)
+      }
+    },
+    [messages.projectDeleteFailed, showErrorMessage],
+  )
+
   const {
     draftAttributes,
     draftCatalogSelections,
@@ -300,6 +437,7 @@ export function StylePreview() {
     selectedAttributeGroupId,
     selectedCatalogId,
     structureAssignments,
+    structures,
     structureUsages,
     setAttributeDefinitions,
     setAttributeGroups,
@@ -333,7 +471,7 @@ export function StylePreview() {
     showMessage,
   })
   const isLoading = !isProfilePageOpen && !isSettingsPageOpen && isLoadingProjects
-  const currentUserAvatarUrl = resolveAssetUrl(currentUser?.avatarImagePath ?? null)
+  const currentUserAvatarUrl = resolveAssetVariantUrl(currentUser?.avatarImagePath ?? null, 'thumb')
   const {
     catalogDialogFields,
     enabledObjectTypes,
@@ -392,6 +530,10 @@ export function StylePreview() {
   const temporalVisibleObjects = useMemo(
     () => Object.values(temporalObjectsByType).flat(),
     [temporalObjectsByType],
+  )
+  const temporalSectionObjects = useMemo(
+    () => (isObjectSection(activeSection) ? temporalObjectsByType[activeSection] ?? [] : temporalVisibleObjects),
+    [activeSection, temporalObjectsByType, temporalVisibleObjects],
   )
   const selectedTemporalObject = useMemo(
     () =>
@@ -486,10 +628,10 @@ export function StylePreview() {
   ])
 
   useEffect(() => {
-    if (isProfilePageOpen || isSettingsPageOpen) {
+    if (isProfilePageOpen || isSettingsPageOpen || activeSection === 'exports') {
       setProjectSearchQuery('')
     }
-  }, [isProfilePageOpen, isSettingsPageOpen])
+  }, [activeSection, isProfilePageOpen, isSettingsPageOpen])
 
   const navigateToWorkspace = useCallback(
     (
@@ -572,6 +714,8 @@ export function StylePreview() {
     projectCoverImagePath,
     projectName,
     projectPresetKeys,
+    projectTemplatePackIds,
+    projectVisibility,
     projects,
     resetProjectForm,
     selectedProjectId,
@@ -1081,9 +1225,17 @@ export function StylePreview() {
     displayName: profileDisplayName,
     email: profileEmail,
     isSaving: isProfileSaving,
+    isTemplatePackSaving,
     projects,
     selectedProjectId,
+    templatePackDescription,
+    templatePackIsPublic,
+    templatePackName,
+    templatePackProjectId,
+    templatePackScope,
+    templatePacks,
     ui,
+    onCreateTemplatePack: () => void createTemplatePack(),
     onCreateProject: () => {
       openCreateProjectDialog()
       setDialog('project')
@@ -1098,6 +1250,21 @@ export function StylePreview() {
       setDialog('project')
     },
     onEmailChange: setProfileEmail,
+    onExportProject: (project: typeof projects[number]) => {
+      setIsProfilePageOpen(false)
+      setIsSettingsPageOpen(false)
+      navigateToPreview(project.id, 'database', 'exports')
+    },
+    onDeleteTemplatePack: deleteTemplatePack,
+    onTemplatePackDescriptionChange: setTemplatePackDescription,
+    onTemplatePackFavoriteChange: (pack: TemplatePack, isFavorite: boolean) =>
+      void toggleTemplatePackFavorite(pack, isFavorite),
+    onTemplatePackNameChange: setTemplatePackName,
+    onTemplatePackProjectChange: setTemplatePackProjectId,
+    onTemplatePackPublicChange: (pack: TemplatePack, isPublic: boolean) =>
+      void toggleTemplatePackPublic(pack, isPublic),
+    onTemplatePackScopeChange: setTemplatePackScope,
+    onTemplatePackVisibilityDraftChange: setTemplatePackIsPublic,
     onOpenProject: (project: typeof projects[number]) => {
       setIsProfilePageOpen(false)
       navigateToPreview(project.id, 'database', 'characters')
@@ -1125,9 +1292,13 @@ export function StylePreview() {
 
   const relationsPageProps = {
     graph: temporalRelationGraph,
+    catalogEntriesByCatalogId,
+    catalogGroupsByCatalogId,
+    catalogs: visibleCatalogs,
     isLayoutGenerating: isRelationLayoutGenerating,
     layout: relationGraphLayout,
     objects: linkableObjects,
+    structures,
     selectedEdgeId: selectedRelationEdgeId,
     ui,
     onCreateRelation: () => setDialog('relationLink'),
@@ -1349,7 +1520,22 @@ export function StylePreview() {
     onMessage: showMessage,
   }
 
-  const objectSectionLabel = isObjectSection(activeSection) ? getObjectSectionLabel(activeSection) : ui.catalogs
+  const projectExportWorkspaceProps = {
+    enabledObjectTypes,
+    errorMessage: messages.apiUnavailable,
+    objectsByType: temporalObjectsByType,
+    selectedProjectId: selectedProject?.id ?? selectedProjectId ?? 0,
+    ui,
+    onBackToProject: () => navigateToPreview(selectedProject?.id ?? selectedProjectId, 'database', 'characters'),
+    onError: showErrorMessage,
+    onMessage: showMessage,
+  }
+
+  const objectSectionLabel = isObjectSection(activeSection)
+    ? getObjectSectionLabel(activeSection)
+    : activeSection === 'exports'
+      ? ui.export
+      : ui.catalogs
 
   const objectCardsWorkspaceProps = {
     activeObjectMenuId,
@@ -1359,9 +1545,9 @@ export function StylePreview() {
     selectedObjectId: selectedTemporalObject?.id ?? null,
     ui,
     viewSectionLabel: objectSectionLabel,
-    visibleObjects: temporalVisibleObjects,
+    visibleObjects: temporalSectionObjects,
     onCreateObject: openCreateObjectDialog,
-    onDeleteObject: (storyObject: typeof temporalVisibleObjects[number]) => {
+    onDeleteObject: (storyObject: typeof temporalSectionObjects[number]) => {
       setSelectedObjectId(storyObject.id)
       setDialog('confirmDeleteObject')
     },
@@ -1387,6 +1573,7 @@ export function StylePreview() {
       isTimelineEventPageOpen={isTimelineEventPageOpen}
       objectCardsWorkspaceProps={objectCardsWorkspaceProps}
       objectDetailPageProps={objectDetailPageProps}
+      projectExportWorkspaceProps={projectExportWorkspaceProps}
       profilePageProps={profilePageProps}
       projectSearchGroups={projectSearchGroups}
       projectSearchQuery={projectSearchQuery}
@@ -1524,6 +1711,9 @@ export function StylePreview() {
       projectDialogTab,
       projectName,
       projectPresetKeys,
+      projectTemplatePackIds,
+      projectVisibility,
+      favoriteTemplatePacks,
       projects,
       ui,
     },
@@ -1535,6 +1725,8 @@ export function StylePreview() {
       onProjectDialogTabChange: setProjectDialogTab,
       onProjectNameChange: setProjectName,
       onProjectPresetKeysChange: setProjectPresetKeys,
+      onProjectTemplatePackIdsChange: setProjectTemplatePackIds,
+      onProjectVisibilityChange: setProjectVisibility,
       deletePendingProject,
       logout,
       saveProject,

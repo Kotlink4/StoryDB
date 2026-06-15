@@ -40,6 +40,8 @@ type UseStylePreviewProjectCommandsOptions = {
   projectCoverImagePath: string | null
   projectName: string
   projectPresetKeys: string[]
+  projectTemplatePackIds: number[]
+  projectVisibility: StoryProject['visibility']
   projects: StoryProject[]
   resetProjectForm: () => void
   selectedProjectId: number | null
@@ -59,6 +61,8 @@ export function useStylePreviewProjectCommands({
   projectCoverImagePath,
   projectName,
   projectPresetKeys,
+  projectTemplatePackIds,
+  projectVisibility,
   projects,
   resetProjectForm,
   selectedProjectId,
@@ -91,8 +95,23 @@ export function useStylePreviewProjectCommands({
     try {
       const saved =
         projectToEdit === null
-          ? await createProjectRequest(projectName.trim(), projectCoverImagePath, enabledObjectTypeKeys, projectPresetKeys)
-          : await updateProjectRequest(projectToEdit, projectName.trim(), projectCoverImagePath, enabledObjectTypeKeys, projectPresetKeys)
+          ? await createProjectRequest(
+              projectName.trim(),
+              projectCoverImagePath,
+              enabledObjectTypeKeys,
+              projectPresetKeys,
+              projectTemplatePackIds,
+              projectVisibility,
+            )
+          : await updateProjectRequest(
+              projectToEdit,
+              projectName.trim(),
+              projectCoverImagePath,
+              enabledObjectTypeKeys,
+              projectPresetKeys,
+              projectTemplatePackIds,
+              projectVisibility,
+            )
 
       setProjects((currentProjects) =>
         projectToEdit === null

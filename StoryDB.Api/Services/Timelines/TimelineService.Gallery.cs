@@ -46,6 +46,7 @@ public partial class TimelineService
             });
 
             await dbContext.SaveChangesAsync();
+            InvalidateTimelineReadCaches(projectId);
         }
 
         return TimelineServiceResult<TimelineEventDto>.Success((await GetTimelineEventDto(projectId, eventId))!);
@@ -78,6 +79,7 @@ public partial class TimelineService
         image.Caption = NormalizeOptionalText(request.Caption);
         image.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
+        InvalidateTimelineReadCaches(projectId);
 
         return TimelineServiceResult<TimelineEventDto>.Success((await GetTimelineEventDto(projectId, eventId))!);
     }
@@ -100,6 +102,7 @@ public partial class TimelineService
 
         dbContext.TimelineEventGalleryImages.Remove(image);
         await dbContext.SaveChangesAsync();
+        InvalidateTimelineReadCaches(projectId);
 
         return TimelineServiceResult<TimelineEventDto>.Success((await GetTimelineEventDto(projectId, eventId))!);
     }

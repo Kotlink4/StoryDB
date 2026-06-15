@@ -10,6 +10,8 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
     public DbSet<MediaAssetVariant> MediaAssetVariants => Set<MediaAssetVariant>();
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectTemplatePack> ProjectTemplatePacks => Set<ProjectTemplatePack>();
+    public DbSet<ProjectTemplatePackFavorite> ProjectTemplatePackFavorites => Set<ProjectTemplatePackFavorite>();
     public DbSet<ObjectType> ObjectTypes => Set<ObjectType>();
     public DbSet<StoryObject> Objects => Set<StoryObject>();
     public DbSet<ObjectAttribute> ObjectAttributes => Set<ObjectAttribute>();
@@ -195,10 +197,65 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasMaxLength(512);
 
         modelBuilder.Entity<Project>()
+            .HasIndex(project => project.Visibility);
+
+        modelBuilder.Entity<Project>()
+            .Property(project => project.Visibility)
+            .HasMaxLength(40)
+            .HasDefaultValue(ProjectVisibility.Private);
+
+        modelBuilder.Entity<Project>()
             .HasOne(project => project.OwnerUser)
             .WithMany(user => user.Projects)
             .HasForeignKey(project => project.OwnerUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ProjectTemplatePack>()
+            .HasIndex(pack => new { pack.OwnerUserId, pack.UpdatedAt });
+
+        modelBuilder.Entity<ProjectTemplatePack>()
+            .HasIndex(pack => new { pack.IsPublic, pack.UpdatedAt });
+
+        modelBuilder.Entity<ProjectTemplatePack>()
+            .Property(pack => pack.Name)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<ProjectTemplatePack>()
+            .Property(pack => pack.Description)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<ProjectTemplatePack>()
+            .HasOne(pack => pack.OwnerUser)
+            .WithMany()
+            .HasForeignKey(pack => pack.OwnerUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProjectTemplatePack>()
+            .HasOne(pack => pack.SourceProject)
+            .WithMany(project => project.TemplatePacks)
+            .HasForeignKey(pack => pack.SourceProjectId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<ProjectTemplatePackFavorite>()
+            .HasKey(favorite => new { favorite.UserId, favorite.TemplatePackId });
+
+        modelBuilder.Entity<ProjectTemplatePackFavorite>()
+            .HasIndex(favorite => new { favorite.UserId, favorite.CreatedAt });
+
+        modelBuilder.Entity<ProjectTemplatePackFavorite>()
+            .HasIndex(favorite => new { favorite.TemplatePackId, favorite.UserId });
+
+        modelBuilder.Entity<ProjectTemplatePackFavorite>()
+            .HasOne(favorite => favorite.User)
+            .WithMany()
+            .HasForeignKey(favorite => favorite.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProjectTemplatePackFavorite>()
+            .HasOne(favorite => favorite.TemplatePack)
+            .WithMany(pack => pack.Favorites)
+            .HasForeignKey(favorite => favorite.TemplatePackId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<ObjectType>()
             .HasIndex(type => new { type.ProjectId, type.Key })
@@ -975,12 +1032,6 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasOne(item => item.RelationGraphLayout)
             .WithMany(layout => layout.Items)
             .HasForeignKey(item => item.RelationGraphLayoutId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<RelationGraphLayoutItem>()
-            .HasOne(item => item.StoryObject)
-            .WithMany()
-            .HasForeignKey(item => item.StoryObjectId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Catalog>()

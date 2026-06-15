@@ -8,6 +8,7 @@ import type {
   ObjectTypeKey,
   RelationGraph,
   RelationGraphLayout,
+  Structure,
   StructureAssignment,
   StructureUsage,
   StoryObject,
@@ -36,6 +37,7 @@ export type ProjectClientCacheSnapshot = {
   attributeGroupsByType?: Partial<Record<ObjectTypeKey, AttributeGroup[]>>
   relationGraph?: RelationGraph
   relationGraphLayout?: RelationGraphLayout | null
+  structures?: Structure[]
   structureAssignments?: StructureAssignment[]
   structureUsages?: StructureUsage[]
   timelineEvents?: TimelineEvent[]

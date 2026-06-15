@@ -100,6 +100,49 @@ public class ObjectEndpointTests(StoryDbApiFactory factory) : IClassFixture<Stor
         Assert.True(detailDocument.RootElement.TryGetProperty("outgoingCharacterRelationships", out _));
     }
 
+    [Fact]
+    public async Task ObjectSummaries_AfterObjectUpdate_ReturnFreshData()
+    {
+        using var client = factory.CreateClient();
+        await TestUserSession.RegisterAsync(client);
+        var project = await CreateProjectAsync(client);
+        var createdObject = await CreateObjectAsync(client, project.Id);
+
+        var firstSummaries = await client.GetFromJsonAsync<IReadOnlyList<StoryObjectSummaryDto>>(
+            $"/api/projects/{project.Id}/objects/summaries?typeKey=characters");
+        Assert.NotNull(firstSummaries);
+        Assert.Equal("Summary Test Character", Assert.Single(firstSummaries).Name);
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/projects/{project.Id}/objects/{createdObject.Id}", new
+        {
+            name = "Updated Summary Character",
+            surname = createdObject.Surname,
+            surnameForm = createdObject.SurnameForm,
+            description = createdObject.Description,
+            age = createdObject.Age,
+            role = createdObject.Role,
+            currentStatus = "Resting",
+            imagePath = createdObject.ImagePath,
+            attributes = Array.Empty<object>(),
+            hierarchySelections = Array.Empty<object>(),
+            catalogSelections = Array.Empty<object>(),
+            ownedItemIds = Array.Empty<int>(),
+            ownerCharacterIds = Array.Empty<int>(),
+            territoryPlaceIds = Array.Empty<int>(),
+            ownerOrganizationIds = Array.Empty<int>(),
+            parentObjectIds = Array.Empty<int>(),
+            characterRelationships = Array.Empty<object>(),
+        });
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+
+        var updatedSummaries = await client.GetFromJsonAsync<IReadOnlyList<StoryObjectSummaryDto>>(
+            $"/api/projects/{project.Id}/objects/summaries?typeKey=characters");
+        Assert.NotNull(updatedSummaries);
+        var updatedSummary = Assert.Single(updatedSummaries);
+        Assert.Equal("Updated Summary Character", updatedSummary.Name);
+        Assert.Equal("Resting", updatedSummary.CurrentStatus);
+    }
+
     private static async Task<ProjectListItemDto> CreateProjectAsync(HttpClient client)
     {
         var response = await client.PostAsJsonAsync("/api/projects", new

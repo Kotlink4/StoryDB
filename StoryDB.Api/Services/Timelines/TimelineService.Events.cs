@@ -17,19 +17,26 @@ public partial class TimelineService
             return TimelineServiceResult<IReadOnlyList<TimelineEventDto>>.NotFound();
         }
 
-        var events = await dbContext.TimelineEvents
-            .AsNoTracking()
-            .Include(timelineEvent => timelineEvent.Participants)
-            .Include(timelineEvent => timelineEvent.Changes)
-            .Include(timelineEvent => timelineEvent.GalleryImages)
-            .Where(timelineEvent => timelineEvent.ProjectId == projectId && timelineEvent.TimelineId == timeline.Id)
-            .OrderBy(timelineEvent => timelineEvent.StartValue ?? decimal.MaxValue)
-            .ThenBy(timelineEvent => timelineEvent.SortOrder)
-            .ThenBy(timelineEvent => timelineEvent.Title)
-            .Select(timelineEvent => ToDto(timelineEvent))
-            .ToListAsync();
+        var events = await cacheSingleFlight.GetOrCreateAsync(
+            global::StoryDB.Api.Services.ProjectCacheKeys.TimelineEvents(projectId),
+            async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimelineReadCacheDuration;
 
-        return TimelineServiceResult<IReadOnlyList<TimelineEventDto>>.Success(events);
+                return await dbContext.TimelineEvents
+                    .AsNoTracking()
+                    .Include(timelineEvent => timelineEvent.Participants)
+                    .Include(timelineEvent => timelineEvent.Changes)
+                    .Include(timelineEvent => timelineEvent.GalleryImages)
+                    .Where(timelineEvent => timelineEvent.ProjectId == projectId && timelineEvent.TimelineId == timeline.Id)
+                    .OrderBy(timelineEvent => timelineEvent.StartValue ?? decimal.MaxValue)
+                    .ThenBy(timelineEvent => timelineEvent.SortOrder)
+                    .ThenBy(timelineEvent => timelineEvent.Title)
+                    .Select(timelineEvent => ToDto(timelineEvent))
+                    .ToListAsync();
+            });
+
+        return TimelineServiceResult<IReadOnlyList<TimelineEventDto>>.Success(events!);
     }
     public async Task<TimelineServiceResult<TimelineEventDto>> GetEventAsync(int projectId, int eventId)
     {
@@ -94,6 +101,7 @@ public partial class TimelineService
         dbContext.TimelineEvents.Add(timelineEvent);
         await MarkTimelineLayoutStateStale(projectId);
         await dbContext.SaveChangesAsync();
+        InvalidateTimelineReadCaches(projectId);
 
         return TimelineServiceResult<TimelineEventDto>.Success(ToDto(timelineEvent));
     }
@@ -148,6 +156,7 @@ public partial class TimelineService
 
         await MarkTimelineLayoutStateStale(projectId);
         await dbContext.SaveChangesAsync();
+        InvalidateTimelineReadCaches(projectId);
 
         return TimelineServiceResult<TimelineEventDto>.Success(ToDto(timelineEvent));
     }
@@ -167,6 +176,7 @@ public partial class TimelineService
         dbContext.TimelineEvents.Remove(timelineEvent);
         await MarkTimelineLayoutStateStale(projectId);
         await dbContext.SaveChangesAsync();
+        InvalidateTimelineReadCaches(projectId);
 
         return TimelineServiceResult.Success();
     }

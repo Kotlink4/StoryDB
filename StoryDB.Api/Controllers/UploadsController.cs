@@ -24,7 +24,7 @@ public class UploadsController(
     public async Task<ActionResult<UploadImageDto>> UploadImage([FromForm] IFormFile file, [FromQuery] int? projectId)
     {
         if (projectId is not null &&
-            !await projectAccessService.HasProjectAccessAsync(projectId.Value, HttpContext.RequestAborted))
+            !await projectAccessService.HasProjectWriteAccessAsync(projectId.Value, HttpContext.RequestAborted))
         {
             return NotFound();
         }

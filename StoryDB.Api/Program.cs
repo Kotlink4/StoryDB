@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 using StoryDB.Api.Data;
 using StoryDB.Api.Errors;
 using StoryDB.Api.Files;
@@ -11,17 +12,21 @@ using StoryDB.Api.Filters;
 using StoryDB.Api.Security;
 using StoryDB.Api.Services.Auth;
 using StoryDB.Api.Services.Attributes;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Services.Catalogs;
+using StoryDB.Api.Services.Exports;
 using StoryDB.Api.Services.Hierarchy;
 using StoryDB.Api.Services.Objects;
 using StoryDB.Api.Services.Projects;
 using StoryDB.Api.Services.Relations;
 using StoryDB.Api.Services.Structures;
+using StoryDB.Api.Services.TemplatePacks;
 using StoryDB.Api.Services.Timelines;
 using StoryDB.Api.Validation;
 using Serilog;
 using Serilog.Events;
 using StoryDB.Api.Observability;
+using System.IO.Compression;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -58,15 +63,26 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 builder.Services.AddScoped<ProjectAccessFilter>();
 builder.Services.AddScoped<TimelineEventValidator>();
 builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddSingleton<IApiMetricsService, ApiMetricsService>();
 builder.Services.AddScoped<MediaMigrationService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ICacheSingleFlight, CacheSingleFlight>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IProjectAccessService, ProjectAccessService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAttributeDefinitionService, AttributeDefinitionService>();
 builder.Services.AddScoped<ICatalogService, CatalogService>();
+builder.Services.AddScoped<IProjectExportService, ProjectExportService>();
+builder.Services.AddSingleton<ProjectExportJobService>();
+builder.Services.AddSingleton<IProjectExportJobService>(services => services.GetRequiredService<ProjectExportJobService>());
+builder.Services.AddHostedService<ProjectExportJobWorker>();
+builder.Services.AddSingleton<AuditLogQueue>();
+builder.Services.AddSingleton<IAuditLogQueue>(services => services.GetRequiredService<AuditLogQueue>());
+builder.Services.AddHostedService(services => services.GetRequiredService<AuditLogQueue>());
 builder.Services.AddScoped<IObjectService, ObjectService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<ITemplatePackService, TemplatePackService>();
 builder.Services.AddScoped<IHierarchyService, HierarchyService>();
 builder.Services.AddScoped<IRelationService, RelationService>();
 builder.Services.AddScoped<IStructureService, StructureService>();
@@ -86,6 +102,25 @@ builder.Services.AddControllers(options =>
 .AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.MaxDepth = builder.Configuration.GetValue("Security:JsonMaxDepth", 32);
+});
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+    [
+        "application/json",
+        "application/problem+json",
+    ]);
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
 });
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -161,7 +196,7 @@ builder.Services.AddRateLimiter(options =>
         RateLimitPartition.GetFixedWindowLimiter(GetRateLimitPartitionKey(httpContext), _ => new FixedWindowRateLimiterOptions
         {
             AutoReplenishment = true,
-            PermitLimit = builder.Configuration.GetValue("Security:RateLimits:Expensive:PermitLimit", 90),
+            PermitLimit = builder.Configuration.GetValue("Security:RateLimits:Expensive:PermitLimit", 600),
             QueueLimit = 0,
             Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("Security:RateLimits:Expensive:WindowMinutes", 1)),
         }));
@@ -170,7 +205,9 @@ builder.Services.AddDbContext<StoryDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("StoryDb")
         ?? throw new InvalidOperationException("Connection string 'StoryDb' was not found.");
-    options.UseNpgsql(connectionString);
+    options.UseNpgsql(
+        connectionString,
+        npgsqlOptions => npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));
     options.EnableDetailedErrors(builder.Environment.IsDevelopment());
     if (builder.Environment.IsDevelopment())
     {
@@ -203,6 +240,7 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<RequestLogContextMiddleware>();
 app.UseMiddleware<ApiExceptionMiddleware>();
 app.UseMiddleware<RequestBodySizeLimitMiddleware>();
+app.UseResponseCompression();
 
 if (builder.Configuration.GetValue("UseHttpsRedirection", false))
 {
@@ -225,6 +263,43 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseMiddleware<AuditLogMiddleware>();
 app.UseAuthorization();
+
+app.MapGet("/health", async (IServiceProvider services, CancellationToken cancellationToken) =>
+{
+    var startedAt = DateTimeOffset.UtcNow;
+    await using var scope = services.CreateAsyncScope();
+    var scopedDbContext = scope.ServiceProvider.GetRequiredService<StoryDbContext>();
+    var exportJobs = services.GetRequiredService<IProjectExportJobService>().GetStats();
+    var databaseAvailable = await scopedDbContext.Database.CanConnectAsync(cancellationToken);
+    var gcInfo = GC.GetGCMemoryInfo();
+    var payload = new
+    {
+        status = databaseAvailable ? "healthy" : "degraded",
+        checkedAt = startedAt,
+        database = databaseAvailable ? "available" : "unavailable",
+        managedMemoryBytes = GC.GetTotalMemory(forceFullCollection: false),
+        heapSizeBytes = gcInfo.HeapSizeBytes,
+        memoryLoadBytes = gcInfo.MemoryLoadBytes,
+        highMemoryLoadThresholdBytes = gcInfo.HighMemoryLoadThresholdBytes,
+        exportJobs,
+        environment = app.Environment.EnvironmentName,
+    };
+
+    return databaseAvailable ? Results.Ok(payload) : Results.Json(payload, statusCode: StatusCodes.Status503ServiceUnavailable);
+}).AllowAnonymous();
+
+app.MapGet("/metrics", (IApiMetricsService metricsService) =>
+{
+    return Results.Ok(metricsService.GetSnapshot());
+}).AllowAnonymous();
+
+app.MapGet("/metrics/prometheus", (
+    IApiMetricsService metricsService,
+    IProjectExportJobService exportJobService) =>
+{
+    var body = PrometheusMetricsFormatter.Format(metricsService.GetSnapshot(), exportJobService.GetStats());
+    return Results.Text(body, "text/plain; version=0.0.4; charset=utf-8");
+}).AllowAnonymous();
 
 app.MapControllers();
 

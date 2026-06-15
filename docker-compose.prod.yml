@@ -2,6 +2,7 @@
   postgres:
     image: postgres:17-alpine
     container_name: storydb-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-storydb}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -19,6 +20,7 @@
   api:
     image: ${STORYDB_API_IMAGE}
     container_name: storydb-api
+    restart: unless-stopped
     mem_limit: ${API_MEMORY_LIMIT:-512m}
     depends_on:
       postgres:
@@ -34,14 +36,26 @@
       - ${STORYDB_UPLOADS_PATH:-./data/uploads}:/app/uploads
       - ${STORYDB_DATAPROTECTION_PATH:-./data/dataprotection}:/root/.aspnet/DataProtection-Keys
       - ${STORYDB_LOGS_PATH:-./data/logs}:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5282/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
   client:
     image: ${STORYDB_CLIENT_IMAGE}
     container_name: storydb-client
+    restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "${CLIENT_HOST_PORT:-50201}:50201"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:50201/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
 volumes:
   storydb_postgres_data:

@@ -171,6 +171,7 @@ export type SectionIconName =
   | 'attributes'
   | 'catalogs'
   | 'structures'
+  | 'exports'
 
 export function SectionIcon({ name }: { name: SectionIconName }) {
   const commonProps = {
@@ -245,6 +246,16 @@ export function SectionIcon({ name }: { name: SectionIconName }) {
     )
   }
 
+  if (name === 'exports') {
+    return (
+      <svg {...commonProps}>
+        <path d="M12 3v10" />
+        <path d="m8 9 4 4 4-4" />
+        <path d="M5 15v4h14v-4" />
+      </svg>
+    )
+  }
+
   return (
     <svg {...commonProps}>
       <path d="M4 5h16v14H4z" />
@@ -258,10 +269,12 @@ export function KebabMenu({
   ui,
   onDelete,
   onEdit,
+  onExport,
 }: {
   ui: PreviewText
   onDelete?: () => void
   onEdit?: () => void
+  onExport?: () => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -281,7 +294,7 @@ export function KebabMenu({
     return () => document.removeEventListener('pointerdown', closeMenu)
   }, [isOpen])
 
-  if (onDelete === undefined && onEdit === undefined) {
+  if (onDelete === undefined && onEdit === undefined && onExport === undefined) {
     return null
   }
 
@@ -301,6 +314,17 @@ export function KebabMenu({
               }}
             >
               {ui.edit}
+            </button>
+          )}
+          {onExport !== undefined && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false)
+                onExport()
+              }}
+            >
+              {ui.export}
             </button>
           )}
           {onDelete !== undefined && (

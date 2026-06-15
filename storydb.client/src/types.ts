@@ -14,6 +14,7 @@ export type NewProjectTab = 'details' | 'presets'
 export type Theme = 'light' | 'dark'
 export type Accent = 'forest' | 'ember' | 'indigo'
 export type ProjectStatus = 'Active' | 'Draft' | 'Archived'
+export type ProjectVisibility = 'private' | 'publicRead' | 'publicEdit'
 export type ObjectTypeKey = 'characters' | 'items' | 'places' | 'organizations' | 'hierarchy'
 export type WorkspaceSection = ObjectTypeKey | 'attributes' | 'catalogs'
 export type WorkspaceTab = 'database' | 'relations' | 'timeline'
@@ -39,7 +40,32 @@ export type StoryProject = {
   coverImagePath: string | null
   objectCount: number
   updatedAt: string
+  visibility: ProjectVisibility
+  canEdit: boolean
+  canManage: boolean
   objectTypes: ProjectObjectType[]
+}
+
+export type TemplatePackScope = 'mine' | 'public' | 'favorites'
+
+export type TemplatePackSummary = {
+  attributeCount: number
+  catalogCount: number
+  structureCount: number
+}
+
+export type TemplatePack = {
+  id: number
+  name: string
+  description: string | null
+  isPublic: boolean
+  isFavorite: boolean
+  ownerUserId: number
+  ownerDisplayName: string
+  sourceProjectId: number | null
+  sourceProjectName: string | null
+  updatedAt: string
+  summary: TemplatePackSummary
 }
 
 export type ProjectObjectType = {

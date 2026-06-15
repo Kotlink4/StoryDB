@@ -9,15 +9,18 @@ public sealed class RequestLogContextMiddleware
     private readonly RequestDelegate next;
     private readonly ILogger<RequestLogContextMiddleware> logger;
     private readonly IConfiguration configuration;
+    private readonly IApiMetricsService metricsService;
 
     public RequestLogContextMiddleware(
         RequestDelegate next,
         ILogger<RequestLogContextMiddleware> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IApiMetricsService metricsService)
     {
         this.next = next;
         this.logger = logger;
         this.configuration = configuration;
+        this.metricsService = metricsService;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -42,27 +45,21 @@ public sealed class RequestLogContextMiddleware
                 var userId = RequestObservation.GetUserId(context);
                 var projectId = RequestObservation.GetProjectId(context);
                 var statusCode = context.Response.StatusCode;
-                var levelIsWarning = statusCode >= 500 || elapsedMs >= configuration.GetValue("Logging:SlowRequestThresholdMs", 750L);
+                var slowRequestThresholdMs = configuration.GetValue("Logging:SlowRequestThresholdMs", 750L);
+                var logLevel = RequestLogLevelPolicy.GetLogLevel(statusCode, elapsedMs, slowRequestThresholdMs);
+                var shouldAlwaysLog = logLevel >= LogLevel.Information;
+                var isRoutineDiagnosticRequest = IsRoutineDiagnosticRequest(context.Request);
+                metricsService.Record(context, elapsedMs, slowRequestThresholdMs);
 
-                using (LogContext.PushProperty("UserId", userId))
-                using (LogContext.PushProperty("ProjectId", projectId))
-                using (LogContext.PushProperty("StatusCode", statusCode))
-                using (LogContext.PushProperty("ElapsedMs", elapsedMs))
+                if ((!isRoutineDiagnosticRequest || shouldAlwaysLog) && logger.IsEnabled(logLevel))
                 {
-                    if (levelIsWarning)
+                    using (LogContext.PushProperty("UserId", userId))
+                    using (LogContext.PushProperty("ProjectId", projectId))
+                    using (LogContext.PushProperty("StatusCode", statusCode))
+                    using (LogContext.PushProperty("ElapsedMs", elapsedMs))
                     {
-                        logger.LogWarning(
-                            "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs} ms for user {UserId} project {ProjectId}.",
-                            context.Request.Method,
-                            context.Request.Path.Value,
-                            statusCode,
-                            elapsedMs,
-                            userId,
-                            projectId);
-                    }
-                    else
-                    {
-                        logger.LogInformation(
+                        logger.Log(
+                            logLevel,
                             "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs} ms for user {UserId} project {ProjectId}.",
                             context.Request.Method,
                             context.Request.Path.Value,
@@ -74,6 +71,37 @@ public sealed class RequestLogContextMiddleware
                 }
             }
         }
+    }
+
+    private static bool IsRoutineDiagnosticRequest(HttpRequest request)
+    {
+        if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method))
+        {
+            return false;
+        }
+
+        var path = request.Path.Value;
+        return string.Equals(path, "/health", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(path, "/metrics", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(path, "/metrics/prometheus", StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+public static class RequestLogLevelPolicy
+{
+    public static LogLevel GetLogLevel(int statusCode, long elapsedMs, long slowRequestThresholdMs)
+    {
+        if (statusCode >= StatusCodes.Status500InternalServerError || elapsedMs >= slowRequestThresholdMs)
+        {
+            return LogLevel.Warning;
+        }
+
+        if (statusCode >= StatusCodes.Status400BadRequest)
+        {
+            return LogLevel.Information;
+        }
+
+        return LogLevel.Debug;
     }
 }
 

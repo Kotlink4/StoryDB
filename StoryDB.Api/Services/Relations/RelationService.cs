@@ -2,18 +2,35 @@
 using StoryDB.Api.Contracts.Relations;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Services;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Services.Relations;
 
-public sealed class RelationService(StoryDbContext dbContext) : IRelationService
+public sealed class RelationService(
+    StoryDbContext dbContext,
+    ICacheSingleFlight cacheSingleFlight) : IRelationService
 {
     private const string DefaultGraphKey = "relations:all";
     private const string LayoutAlgorithmVersion = "relation-elk-v1";
+    private const int StructureNodeLayoutIdBase = 1_000_000_000;
+    private const int CatalogGroupLayoutIdBase = 1_100_000_000;
+    private const int CatalogEntryLayoutIdBase = 1_200_000_000;
+    private static readonly TimeSpan RelationGraphCacheDuration = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan RelationGraphCacheSlidingDuration = TimeSpan.FromSeconds(5);
 
     public async Task<RelationServiceResult<RelationGraphDto>> GetRelationGraphAsync(int projectId)
     {
-        var nodes = await dbContext.Objects
+        var cacheKey = ProjectCacheKeys.RelationGraph(projectId);
+        var graph = await cacheSingleFlight.GetOrCreateAsync(
+            cacheKey,
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = RelationGraphCacheDuration;
+                cacheEntry.SlidingExpiration = RelationGraphCacheSlidingDuration;
+
+                var nodes = await dbContext.Objects
             .AsNoTracking()
             .Where(storyObject =>
                 storyObject.ProjectId == projectId &&
@@ -29,19 +46,29 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
                 storyObject.ObjectType!.Key))
             .ToListAsync();
 
-        var nodeIds = nodes.Select(node => node.Id).ToHashSet();
-        var edges = new List<RelationGraphEdgeDto>();
-        var automaticMemberships = nodes
-            .Where(node => node.TypeKey == "characters" && !string.IsNullOrWhiteSpace(node.Surname))
-            .SelectMany(character => nodes
-                .Where(node =>
-                    node.TypeKey == "organizations" &&
-                    !string.IsNullOrWhiteSpace(node.SurnameForm) &&
-                    string.Equals(
-                        character.Surname!.Trim(),
-                        node.SurnameForm!.Trim(),
-                        StringComparison.OrdinalIgnoreCase))
-                .Select(organization => new RelationGraphEdgeDto(
+                var nodeIds = nodes.Select(node => node.Id).ToHashSet();
+                var edges = new List<RelationGraphEdgeDto>();
+                var organizationsBySurnameForm = nodes
+            .Where(node => node.TypeKey == "organizations")
+            .Select(node => new { Node = node, Key = NormalizeMembershipKey(node.SurnameForm) })
+            .Where(item => item.Key is not null)
+            .GroupBy(item => item.Key!, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Node).ToList(),
+                StringComparer.Ordinal);
+
+                var automaticMemberships = new List<RelationGraphEdgeDto>();
+                foreach (var character in nodes.Where(node => node.TypeKey == "characters"))
+                {
+                    var characterSurnameKey = NormalizeMembershipKey(character.Surname);
+                    if (characterSurnameKey is null ||
+                        !organizationsBySurnameForm.TryGetValue(characterSurnameKey, out var organizations))
+                    {
+                        continue;
+                    }
+
+                    automaticMemberships.AddRange(organizations.Select(organization => new RelationGraphEdgeDto(
                     $"membership:{character.Id}:{organization.Id}",
                     character.Id,
                     organization.Id,
@@ -50,11 +77,12 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
                     null,
                     null,
                     false,
-                    null)))
-            .ToList();
-        edges.AddRange(automaticMemberships);
+                    null)));
+                }
 
-        var characterRelationships = await dbContext.CharacterRelationships
+                edges.AddRange(automaticMemberships);
+
+                var characterRelationships = await dbContext.CharacterRelationships
             .AsNoTracking()
             .Where(relationship =>
                 relationship.SourceCharacter != null &&
@@ -73,9 +101,9 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
                 relationship.IsBidirectional,
                 relationship.Description))
             .ToListAsync();
-        edges.AddRange(characterRelationships);
+                edges.AddRange(characterRelationships);
 
-        var ownerships = await dbContext.ObjectOwnerships
+                var ownerships = await dbContext.ObjectOwnerships
             .AsNoTracking()
             .Where(ownership =>
                 ownership.OwnerCharacter != null &&
@@ -94,9 +122,9 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
                 false,
                 null))
             .ToListAsync();
-        edges.AddRange(ownerships);
+                edges.AddRange(ownerships);
 
-        var objectRelations = await dbContext.ObjectRelations
+                var objectRelations = await dbContext.ObjectRelations
             .AsNoTracking()
             .Where(relation =>
                 relation.SourceObject != null &&
@@ -115,9 +143,9 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
                 false,
                 null))
             .ToListAsync();
-        edges.AddRange(objectRelations);
+                edges.AddRange(objectRelations);
 
-        var structureAssignments = await dbContext.StructureAssignments
+                var structureAssignments = await dbContext.StructureAssignments
             .AsNoTracking()
             .Where(assignment =>
                 assignment.ProjectId == projectId &&
@@ -144,9 +172,12 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
                 false,
                 assignment.StructureUsage.Structure!.Name + " · " + assignment.StructureNode!.Name))
             .ToListAsync();
-        edges.AddRange(structureAssignments);
+                edges.AddRange(structureAssignments);
 
-        return RelationServiceResult<RelationGraphDto>.Success(new RelationGraphDto(nodes, edges));
+                return new RelationGraphDto(nodes, edges);
+            });
+
+        return RelationServiceResult<RelationGraphDto>.Success(graph);
     }
 
     public async Task<RelationServiceResult<RelationGraphLayoutDto?>> GetDefaultLayoutAsync(int projectId, string? graphKey)
@@ -195,15 +226,12 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
             return RelationServiceResult<RelationGraphLayoutDto>.Invalid(invalidLayoutItemError);
         }
 
-        var requestedObjectIds = requestedItems
+        var requestedNodeIds = requestedItems
             .Select(item => item.StoryObjectId)
             .ToHashSet();
-        var validObjectIds = await dbContext.Objects
-            .Where(storyObject => storyObject.ProjectId == projectId && requestedObjectIds.Contains(storyObject.Id))
-            .Select(storyObject => storyObject.Id)
-            .ToListAsync();
+        var validNodeIds = await GetValidLayoutNodeIdsAsync(projectId, normalizedGraphKey, requestedNodeIds);
 
-        if (validObjectIds.Count != requestedObjectIds.Count)
+        if (validNodeIds.Count != requestedNodeIds.Count)
         {
             return RelationServiceResult<RelationGraphLayoutDto>.Invalid("Layout contains objects from another project or missing objects.");
         }
@@ -258,6 +286,7 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
             .ToList();
 
         await dbContext.SaveChangesAsync();
+        cacheSingleFlight.Remove(ProjectCacheKeys.RelationGraph(projectId));
 
         return RelationServiceResult<RelationGraphLayoutDto>.Success(ToLayoutDto(layout));
     }
@@ -273,6 +302,94 @@ public sealed class RelationService(StoryDbContext dbContext) : IRelationService
         return trimmedGraphKey.Length > 80
             ? trimmedGraphKey[..80]
             : trimmedGraphKey;
+    }
+
+    private async Task<IReadOnlySet<int>> GetValidLayoutNodeIdsAsync(
+        int projectId,
+        string graphKey,
+        IReadOnlySet<int> requestedNodeIds)
+    {
+        var structureId = TryGetStructureGraphId(graphKey);
+        if (structureId is null)
+        {
+            return (await dbContext.Objects
+                .Where(storyObject => storyObject.ProjectId == projectId && requestedNodeIds.Contains(storyObject.Id))
+                .Select(storyObject => storyObject.Id)
+                .ToListAsync()).ToHashSet();
+        }
+
+        var structure = await dbContext.Structures
+            .AsNoTracking()
+            .Where(currentStructure => currentStructure.ProjectId == projectId && currentStructure.Id == structureId.Value)
+            .Select(currentStructure => new
+            {
+                currentStructure.LinkedCatalogId,
+                NodeIds = currentStructure.Nodes.Select(node => node.Id).ToList(),
+            })
+            .FirstOrDefaultAsync();
+        if (structure is null)
+        {
+            return new HashSet<int>();
+        }
+
+        var validIds = structure.NodeIds
+            .Select(ToStructureNodeLayoutId)
+            .Where(requestedNodeIds.Contains)
+            .ToHashSet();
+
+        if (structure.LinkedCatalogId is null)
+        {
+            return validIds;
+        }
+
+        var catalogGroupIds = await dbContext.CatalogEntryGroups
+            .Where(group => group.CatalogId == structure.LinkedCatalogId.Value)
+            .Select(group => group.Id)
+            .ToListAsync();
+        foreach (var groupId in catalogGroupIds)
+        {
+            var layoutId = ToCatalogGroupLayoutId(groupId);
+            if (requestedNodeIds.Contains(layoutId))
+            {
+                validIds.Add(layoutId);
+            }
+        }
+
+        var catalogEntryIds = await dbContext.CatalogEntries
+            .Where(entry => entry.CatalogId == structure.LinkedCatalogId.Value)
+            .Select(entry => entry.Id)
+            .ToListAsync();
+        foreach (var entryId in catalogEntryIds)
+        {
+            var layoutId = ToCatalogEntryLayoutId(entryId);
+            if (requestedNodeIds.Contains(layoutId))
+            {
+                validIds.Add(layoutId);
+            }
+        }
+
+        return validIds;
+    }
+
+    private static int? TryGetStructureGraphId(string graphKey)
+    {
+        const string prefix = "structure:";
+        return graphKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(graphKey[prefix.Length..], out var structureId) &&
+            structureId > 0
+                ? structureId
+                : null;
+    }
+
+    private static int ToStructureNodeLayoutId(int id) => StructureNodeLayoutIdBase + id;
+
+    private static int ToCatalogGroupLayoutId(int id) => CatalogGroupLayoutIdBase + id;
+
+    private static int ToCatalogEntryLayoutId(int id) => CatalogEntryLayoutIdBase + id;
+
+    private static string? NormalizeMembershipKey(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
     }
 
     private static RelationGraphLayoutDto ToLayoutDto(RelationGraphLayout layout) =>

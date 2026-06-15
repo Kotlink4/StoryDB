@@ -3,12 +3,19 @@ using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Contracts.Objects;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Services;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Services.Objects;
 
-public class ObjectService(StoryDbContext dbContext) : IObjectService
+public class ObjectService(
+    StoryDbContext dbContext,
+    ICacheSingleFlight cacheSingleFlight) : IObjectService
 {
+    private static readonly TimeSpan ObjectSummariesCacheDuration = TimeSpan.FromSeconds(15);
+    private static readonly string?[] ObjectSummaryCacheTypeKeys = [null, "characters", "items", "places", "organizations"];
+
     public async Task<IReadOnlyList<StoryObjectDto>> GetObjectsAsync(
         int projectId,
         string? typeKey)
@@ -21,43 +28,51 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
         int projectId,
         string? typeKey)
     {
-        var query = dbContext.Objects
-            .AsNoTracking()
-            .Where(storyObject =>
-                storyObject.ProjectId == projectId &&
-                storyObject.ObjectType != null &&
-                storyObject.ObjectType.IsEnabled);
+        var normalizedTypeKey = string.IsNullOrWhiteSpace(typeKey) ? null : typeKey.Trim();
+        var cacheKey = ProjectCacheKeys.ObjectSummaries(projectId, normalizedTypeKey);
 
-        if (!string.IsNullOrWhiteSpace(typeKey))
-        {
-            query = query.Where(storyObject => storyObject.ObjectType != null && storyObject.ObjectType.Key == typeKey);
-        }
+        return await cacheSingleFlight.GetOrCreateAsync(
+            cacheKey,
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = ObjectSummariesCacheDuration;
 
-        var objects = await query
-            .OrderBy(storyObject => storyObject.Name)
-            .Select(storyObject => new StoryObjectSummaryDto(
-                storyObject.Id,
-                storyObject.Name,
-                storyObject.Surname,
-                storyObject.SurnameForm,
-                storyObject.Description,
-                storyObject.Age,
-                storyObject.Role,
-                storyObject.CurrentStatus,
-                storyObject.ImagePath,
-                storyObject.ObjectType!.Key,
-                storyObject.Attributes
-                    .OrderBy(attribute => attribute.SortOrder)
-                    .Take(3)
-                    .Select(attribute => new ObjectAttributeDto(
-                        attribute.Id,
-                        attribute.AttributeDefinitionId,
-                        attribute.AttributeDefinition!.Name,
-                        attribute.Value))
-                    .ToList()))
-            .ToListAsync();
+                var query = dbContext.Objects
+                    .AsNoTracking()
+                    .Where(storyObject =>
+                        storyObject.ProjectId == projectId &&
+                        storyObject.ObjectType != null &&
+                        storyObject.ObjectType.IsEnabled);
 
-        return objects;
+                if (normalizedTypeKey is not null)
+                {
+                    query = query.Where(storyObject => storyObject.ObjectType != null && storyObject.ObjectType.Key == normalizedTypeKey);
+                }
+
+                return await query
+                    .OrderBy(storyObject => storyObject.Name)
+                    .Select(storyObject => new StoryObjectSummaryDto(
+                        storyObject.Id,
+                        storyObject.Name,
+                        storyObject.Surname,
+                        storyObject.SurnameForm,
+                        storyObject.Description,
+                        storyObject.Age,
+                        storyObject.Role,
+                        storyObject.CurrentStatus,
+                        storyObject.ImagePath,
+                        storyObject.ObjectType!.Key,
+                        storyObject.Attributes
+                            .OrderBy(attribute => attribute.SortOrder)
+                            .Take(3)
+                            .Select(attribute => new ObjectAttributeDto(
+                                attribute.Id,
+                                attribute.AttributeDefinitionId,
+                                attribute.AttributeDefinition!.Name,
+                                attribute.Value))
+                            .ToList()))
+                    .ToListAsync();
+            });
     }
 
     private static StoryObjectDto ToStoryObjectListDto(StoryObjectSummaryDto summary) => new(
@@ -536,12 +551,22 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
     private Task MarkRelationGraphLayoutsStale(int projectId)
     {
         var now = DateTime.UtcNow;
+        cacheSingleFlight.Remove(ProjectCacheKeys.RelationGraph(projectId));
+        InvalidateObjectSummariesCache(projectId);
 
         return dbContext.RelationGraphLayouts
             .Where(layout => layout.ProjectId == projectId && !layout.IsStale)
             .ExecuteUpdateAsync(updates => updates
                 .SetProperty(layout => layout.IsStale, true)
                 .SetProperty(layout => layout.UpdatedAt, now));
+    }
+
+    private void InvalidateObjectSummariesCache(int projectId)
+    {
+        foreach (var typeKey in ObjectSummaryCacheTypeKeys)
+        {
+            cacheSingleFlight.Remove(ProjectCacheKeys.ObjectSummaries(projectId, typeKey));
+        }
     }
 
     private static string? NormalizeOptionalText(string? value)
@@ -1770,4 +1795,3 @@ public class ObjectService(StoryDbContext dbContext) : IObjectService
             SortOrder = index,
         });
 }
-

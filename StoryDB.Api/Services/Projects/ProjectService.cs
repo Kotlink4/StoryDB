@@ -3,13 +3,15 @@ using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
 using StoryDB.Api.Security;
+using StoryDB.Api.Services.TemplatePacks;
 using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Services.Projects;
 
 public sealed class ProjectService(
     StoryDbContext dbContext,
-    IProjectAccessService projectAccessService) : IProjectService
+    IProjectAccessService projectAccessService,
+    ITemplatePackService templatePackService) : IProjectService
 {
     private static readonly ObjectTypeTemplate[] ObjectTypeTemplates =
     [
@@ -22,26 +24,24 @@ public sealed class ProjectService(
 
     private static readonly string[] DefaultEnabledObjectTypeKeys = ["characters", "items", "places", "organizations"];
 
-    public async Task<IReadOnlyList<Project>> GetProjectsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ProjectListItem>> GetProjectsAsync(CancellationToken cancellationToken = default)
     {
         var projects = await projectAccessService.GetAccessibleProjects()
-            .Include(project => project.Objects)
-            .Include(project => project.ObjectTypes)
+            .AsNoTracking()
             .OrderByDescending(project => project.UpdatedAt)
+            .Select(project => new ProjectListItem(
+                project.Id,
+                project.OwnerUserId,
+                project.Name,
+                project.CoverImagePath,
+                project.Objects.Count,
+                project.UpdatedAt,
+                project.Visibility,
+                project.ObjectTypes
+                    .OrderBy(type => type.SortOrder)
+                    .Select(type => new ProjectObjectTypeListItem(type.Key, type.Name, type.IsEnabled, type.SortOrder))
+                    .ToList()))
             .ToListAsync(cancellationToken);
-
-        var hasMissingObjectTypes = false;
-        foreach (var project in projects)
-        {
-            var objectTypeCount = project.ObjectTypes.Count;
-            EnsureProjectObjectTypes(project);
-            hasMissingObjectTypes = hasMissingObjectTypes || project.ObjectTypes.Count != objectTypeCount;
-        }
-
-        if (hasMissingObjectTypes)
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
 
         return projects;
     }
@@ -61,6 +61,7 @@ public sealed class ProjectService(
             OwnerUserId = userId.Value,
             Name = draft.Name.Trim(),
             CoverImagePath = ValidationRules.NormalizeOptionalText(draft.CoverImagePath),
+            Visibility = ProjectVisibility.Normalize(draft.Visibility),
             CreatedAt = now,
             UpdatedAt = now,
             ObjectTypes = ObjectTypeTemplates
@@ -79,6 +80,7 @@ public sealed class ProjectService(
         dbContext.Projects.Add(project);
         await dbContext.SaveChangesAsync(cancellationToken);
         await ApplyPresetSolutions(project.Id, draft.PresetKeys, cancellationToken);
+        await templatePackService.ApplyTemplatePacksAsync(project.Id, draft.TemplatePackIds, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return project;
@@ -89,7 +91,7 @@ public sealed class ProjectService(
         ProjectDraft draft,
         CancellationToken cancellationToken = default)
     {
-        var project = await projectAccessService.GetAccessibleProjects()
+        var project = await projectAccessService.GetEditableProjects()
             .Include(currentProject => currentProject.Objects)
             .Include(currentProject => currentProject.ObjectTypes)
             .FirstOrDefaultAsync(currentProject => currentProject.Id == projectId, cancellationToken);
@@ -101,6 +103,10 @@ public sealed class ProjectService(
 
         project.Name = draft.Name.Trim();
         project.CoverImagePath = ValidationRules.NormalizeOptionalText(draft.CoverImagePath);
+        if (project.OwnerUserId == projectAccessService.CurrentUserId)
+        {
+            project.Visibility = ProjectVisibility.Normalize(draft.Visibility);
+        }
         project.UpdatedAt = DateTime.UtcNow;
 
         if (draft.EnabledObjectTypeKeys is not null)
@@ -115,6 +121,7 @@ public sealed class ProjectService(
         }
 
         await ApplyPresetSolutions(project.Id, draft.PresetKeys, cancellationToken);
+        await templatePackService.ApplyTemplatePacksAsync(project.Id, draft.TemplatePackIds, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return project;
@@ -122,7 +129,7 @@ public sealed class ProjectService(
 
     public async Task<bool> DeleteProjectAsync(int projectId, CancellationToken cancellationToken = default)
     {
-        var project = await projectAccessService.FindAccessibleProjectAsync(projectId, cancellationToken);
+        var project = await projectAccessService.FindOwnedProjectAsync(projectId, cancellationToken);
         if (project is null)
         {
             return false;

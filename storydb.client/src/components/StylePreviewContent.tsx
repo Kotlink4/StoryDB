@@ -6,6 +6,7 @@ import type { AuthUser, StoryProject } from '../types'
 import { AttributesWorkspace } from './AttributesWorkspace'
 import { CatalogsWorkspace } from './CatalogsWorkspace'
 import { ObjectCardsWorkspace } from './ObjectCardsWorkspace'
+import { ProjectExportWorkspace } from './ProjectExportWorkspace'
 import type { RelationsPageProps } from './RelationsPage'
 import { StructuresWorkspace } from './StructuresWorkspace'
 import { ProfilePage } from './StylePreviewProfilePage'
@@ -42,6 +43,7 @@ export function StylePreviewContent({
   isTimelineEventPageOpen,
   objectCardsWorkspaceProps,
   objectDetailPageProps,
+  projectExportWorkspaceProps,
   profilePageProps,
   projectSearchGroups,
   projectSearchQuery,
@@ -72,6 +74,7 @@ export function StylePreviewContent({
   isTimelineEventPageOpen: boolean
   objectCardsWorkspaceProps: ComponentProps<typeof ObjectCardsWorkspace>
   objectDetailPageProps: Omit<ObjectDetailPageProps, 'selectedObject'>
+  projectExportWorkspaceProps: ComponentProps<typeof ProjectExportWorkspace>
   profilePageProps: ComponentProps<typeof ProfilePage>
   projectSearchGroups: ProjectSearchResultGroup[]
   projectSearchQuery: string
@@ -184,6 +187,10 @@ export function StylePreviewContent({
 
   if (activeSection === 'structures') {
     return <StructuresWorkspace {...structuresWorkspaceProps} selectedProject={selectedProject} />
+  }
+
+  if (activeSection === 'exports') {
+    return <ProjectExportWorkspace {...projectExportWorkspaceProps} />
   }
 
   return <ObjectCardsWorkspace {...objectCardsWorkspaceProps} />

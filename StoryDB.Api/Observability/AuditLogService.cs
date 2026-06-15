@@ -1,5 +1,3 @@
-﻿using System.Diagnostics;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Contracts.Audit;
 using StoryDB.Api.Data;
@@ -9,27 +7,9 @@ namespace StoryDB.Api.Observability;
 
 public sealed class AuditLogService(StoryDbContext dbContext) : IAuditLogService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
-    public async Task WriteRequestAuditAsync(
-        HttpContext context,
-        long durationMs,
-        CancellationToken cancellationToken = default)
+    public async Task WriteRequestAuditAsync(AuditLogWriteRequest request, CancellationToken cancellationToken = default)
     {
-        var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
-        var routeValues = context.Request.RouteValues
-            .Where(item => item.Value is not null)
-            .ToDictionary(item => item.Key, item => Convert.ToString(item.Value));
-        var metadata = new Dictionary<string, object?>
-        {
-            ["scheme"] = context.Request.Scheme,
-            ["host"] = context.Request.Host.Value,
-            ["protocol"] = context.Request.Protocol,
-            ["referer"] = context.Request.Headers.Referer.ToString(),
-            ["origin"] = context.Request.Headers.Origin.ToString(),
-        };
-
-        var projectId = RequestObservation.GetProjectId(context);
+        var projectId = request.ProjectId;
         if (projectId.HasValue &&
             !await dbContext.Projects
                 .AsNoTracking()
@@ -40,23 +20,23 @@ public sealed class AuditLogService(StoryDbContext dbContext) : IAuditLogService
 
         var auditLog = new AuditLog
         {
-            CreatedAt = DateTime.UtcNow,
-            UserId = RequestObservation.GetUserId(context),
+            CreatedAt = request.CreatedAt,
+            UserId = request.UserId,
             ProjectId = projectId,
-            TraceId = traceId,
-            Action = ResolveAction(context),
-            HttpMethod = context.Request.Method,
-            Path = context.Request.Path.Value ?? string.Empty,
-            QueryString = NormalizeQueryString(context.Request.QueryString.Value),
-            StatusCode = context.Response.StatusCode,
-            DurationMs = durationMs,
-            IpAddress = context.Connection.RemoteIpAddress?.ToString(),
-            UserAgent = Truncate(context.Request.Headers.UserAgent.ToString(), 512),
-            RequestContentType = Truncate(context.Request.ContentType, 160),
-            RequestContentLength = context.Request.ContentLength,
-            EndpointName = Truncate(context.GetEndpoint()?.DisplayName, 300),
-            RouteValuesJson = routeValues.Count == 0 ? null : JsonSerializer.Serialize(routeValues, JsonOptions),
-            MetadataJson = JsonSerializer.Serialize(metadata, JsonOptions),
+            TraceId = request.TraceId,
+            Action = request.Action,
+            HttpMethod = request.HttpMethod,
+            Path = request.Path,
+            QueryString = request.QueryString,
+            StatusCode = request.StatusCode,
+            DurationMs = request.DurationMs,
+            IpAddress = request.IpAddress,
+            UserAgent = request.UserAgent,
+            RequestContentType = request.RequestContentType,
+            RequestContentLength = request.RequestContentLength,
+            EndpointName = request.EndpointName,
+            RouteValuesJson = request.RouteValuesJson,
+            MetadataJson = request.MetadataJson,
         };
 
         dbContext.AuditLogs.Add(auditLog);
@@ -97,35 +77,4 @@ public sealed class AuditLogService(StoryDbContext dbContext) : IAuditLogService
             log.EndpointName,
             log.RouteValuesJson,
             log.MetadataJson);
-
-    private static string ResolveAction(HttpContext context)
-    {
-        var endpoint = context.GetEndpoint()?.DisplayName;
-        if (!string.IsNullOrWhiteSpace(endpoint))
-        {
-            return endpoint;
-        }
-
-        return $"{context.Request.Method} {context.Request.Path}";
-    }
-
-    private static string? NormalizeQueryString(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return Truncate(value, 1000);
-    }
-
-    private static string? Truncate(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return value.Length <= maxLength ? value : value[..maxLength];
-    }
 }

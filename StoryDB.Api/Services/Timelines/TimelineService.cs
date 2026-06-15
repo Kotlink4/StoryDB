@@ -1,5 +1,6 @@
 ﻿using StoryDB.Api.Contracts.Timelines;
 using StoryDB.Api.Data;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Validation;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -21,6 +22,7 @@ public partial class TimelineService : ITimelineService
     private const decimal TimelinePointSize = 22;
     private const decimal TimelinePointLaneStep = 48;
     private const decimal TimelinePointAxisGap = 28;
+    private static readonly TimeSpan TimelineReadCacheDuration = TimeSpan.FromSeconds(15);
 
     private static readonly HashSet<string> SupportedTimelineModes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -47,14 +49,23 @@ public partial class TimelineService : ITimelineService
     private readonly StoryDbContext dbContext;
     private readonly IWebHostEnvironment environment;
     private readonly TimelineEventValidator timelineEventValidator;
+    private readonly ICacheSingleFlight cacheSingleFlight;
 
     public TimelineService(
         StoryDbContext dbContext,
         IWebHostEnvironment environment,
-        TimelineEventValidator timelineEventValidator)
+        TimelineEventValidator timelineEventValidator,
+        ICacheSingleFlight cacheSingleFlight)
     {
         this.dbContext = dbContext;
         this.environment = environment;
         this.timelineEventValidator = timelineEventValidator;
+        this.cacheSingleFlight = cacheSingleFlight;
+    }
+
+    private void InvalidateTimelineReadCaches(int projectId)
+    {
+        cacheSingleFlight.Remove(global::StoryDB.Api.Services.ProjectCacheKeys.TimelineEvents(projectId));
+        cacheSingleFlight.Remove(global::StoryDB.Api.Services.ProjectCacheKeys.TimelineEventLinks(projectId));
     }
 }

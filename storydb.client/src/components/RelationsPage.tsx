@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -29,13 +29,24 @@ import {
   relationLabelBackgroundToken,
 } from '../style-preview/domain/styleRuntimeTokens'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
-import type { RelationGraph, RelationGraphLayout, RelationGraphNode, StoryObject } from '../types'
+import type {
+  Catalog,
+  CatalogEntry,
+  CatalogEntryGroup,
+  RelationGraph,
+  RelationGraphLayout,
+  RelationGraphNode,
+  StoryObject,
+  Structure,
+} from '../types'
 import { ObjectPortrait } from './StylePreviewPrimitives'
 
 const relationGraphCategories = ['character', 'membership', 'ownership', 'object', 'structure'] as const
 
 type RelationGraphCategory = typeof relationGraphCategories[number]
 type RelationGraphMode = 'all' | RelationGraphCategory
+type RelationPageGraphKind = 'relations' | 'structure'
+type StructureGraphMode = 'all' | 'structure' | 'catalog'
 
 type RelationNodeData = {
   storyObject: StoryObject
@@ -45,8 +56,22 @@ type RelationNodeData = {
 
 type RelationObjectFlowNode = Node<RelationNodeData, 'relationObject'>
 
+type StructureFlowNodeKind = 'structure' | 'catalogEntry' | 'catalogGroup'
+
+type StructureNodeData = {
+  title: string
+  subtitle: string
+  meta: string
+  kind: StructureFlowNodeKind
+  color: string
+}
+
+type StructureFlowNode = Node<StructureNodeData, 'structureNode'>
+type RelationsFlowNode = RelationObjectFlowNode | StructureFlowNode
+
 const relationNodeTypes = {
   relationObject: RelationObjectNode,
+  structureNode: StructureNode,
 }
 
 const relationHandlePositions = [
@@ -127,6 +152,34 @@ function RelationObjectNode({ data }: NodeProps<RelationObjectFlowNode>) {
       </div>
       <em>{data.relationCount}</em>
     </button>
+  )
+}
+
+function StructureNode({ data }: NodeProps<StructureFlowNode>) {
+  return (
+    <div className={`sp-structure-flow-node ${data.kind}`} style={{ '--node-color': data.color } as CSSProperties}>
+      {relationHandlePositions.map((handle) => (
+        <Handle
+          className="sp-flow-handle"
+          id={`source-${handle.id}`}
+          key={`source-${handle.id}`}
+          position={handle.position}
+          type="source"
+        />
+      ))}
+      {relationHandlePositions.map((handle) => (
+        <Handle
+          className="sp-flow-handle"
+          id={`target-${handle.id}`}
+          key={`target-${handle.id}`}
+          position={handle.position}
+          type="target"
+        />
+      ))}
+      <span>{data.subtitle}</span>
+      <strong>{data.title}</strong>
+      <em>{data.meta}</em>
+    </div>
   )
 }
 
@@ -245,12 +298,380 @@ const buildRelationFlow = (
   return { nodes, edges }
 }
 
+const structureNodeLayoutIdBase = 1_000_000_000
+const catalogGroupLayoutIdBase = 1_100_000_000
+const catalogEntryLayoutIdBase = 1_200_000_000
+const getStructureNodeLayoutId = (nodeId: number) => structureNodeLayoutIdBase + nodeId
+const getCatalogGroupLayoutId = (groupId: number) => catalogGroupLayoutIdBase + groupId
+const getCatalogEntryLayoutId = (entryId: number) => catalogEntryLayoutIdBase + entryId
+
+const buildStructureFlow = (
+  structure: Structure | null,
+  catalog: Catalog | null,
+  catalogEntries: CatalogEntry[],
+  catalogGroups: CatalogEntryGroup[],
+  layoutPositions: Map<number, { x: number; y: number }>,
+  mode: StructureGraphMode,
+  focusedNodeId: number | null,
+  ui: PreviewText,
+) => {
+  if (structure === null) {
+    return {
+      nodes: [] as StructureFlowNode[],
+      edges: [] as Edge[],
+      graph: { nodes: [], edges: [] } as RelationGraph,
+      allGraph: { nodes: [], edges: [] } as RelationGraph,
+    }
+  }
+
+  const nodes: StructureFlowNode[] = []
+  const edges: Edge[] = []
+  const graphNodes: RelationGraph['nodes'] = []
+  const graphEdges: RelationGraph['edges'] = []
+  const nodeKinds = new Map<number, StructureFlowNodeKind>()
+  const structureNodesById = new Map(structure.nodes.map((node) => [node.id, node]))
+  const linkedEntryIds = new Set(
+    structure.nodes
+      .map((node) => node.linkedCatalogEntryId)
+      .filter((entryId): entryId is number => entryId !== null),
+  )
+  const linkedGroupIds = new Set(
+    structure.nodes
+      .map((node) => node.linkedCatalogEntryGroupId)
+      .filter((groupId): groupId is number => groupId !== null),
+  )
+  const entriesById = new Map(catalogEntries.map((entry) => [entry.id, entry]))
+  const groupsById = new Map(catalogGroups.map((group) => [group.id, group]))
+  const maxStructureLevel = Math.max(...structure.nodes.map((node) => node.levelIndex), 0)
+
+  const addGraphEdge = (
+    id: string,
+    sourceId: number,
+    targetId: number,
+    relationType: string,
+    category: string,
+    description: string | null = null,
+  ) => {
+    graphEdges.push({
+      id,
+      sourceId,
+      targetId,
+      relationType,
+      category,
+      strength: null,
+      tension: null,
+      isBidirectional: false,
+      description,
+    })
+  }
+
+  structure.nodes
+    .toSorted((left, right) => left.levelIndex - right.levelIndex || left.sortOrder - right.sortOrder || left.name.localeCompare(right.name))
+    .forEach((node, index) => {
+      const layoutId = getStructureNodeLayoutId(node.id)
+      nodeKinds.set(layoutId, 'structure')
+      graphNodes.push({
+        id: layoutId,
+        name: node.name,
+        surname: null,
+        surnameForm: null,
+        imagePath: null,
+        typeKey: 'hierarchy',
+      })
+      nodes.push({
+        id: String(layoutId),
+        type: 'structureNode',
+        position: layoutPositions.get(layoutId) ?? {
+          x: 80 + node.levelIndex * 290,
+          y: 80 + index * 92,
+        },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+        data: {
+          title: node.name,
+          subtitle: ui.structureNode,
+          meta: node.nodeType?.trim() || `${ui.structureLevelIndex} ${node.levelIndex + 1}`,
+          kind: 'structure',
+          color: node.color?.trim() || relationCategoryColorTokens.structure,
+        },
+      })
+    })
+
+  const explicitEdgeKeys = new Set<string>()
+  structure.edges.forEach((edge) => {
+    if (!structureNodesById.has(edge.sourceNodeId) || !structureNodesById.has(edge.targetNodeId)) {
+      return
+    }
+
+    explicitEdgeKeys.add(`${edge.sourceNodeId}:${edge.targetNodeId}`)
+    addGraphEdge(
+      `structure-edge:${edge.id}`,
+      getStructureNodeLayoutId(edge.sourceNodeId),
+      getStructureNodeLayoutId(edge.targetNodeId),
+      edge.relationType || ui.structureEdgeDefaultType,
+      'structure',
+      edge.description,
+    )
+    edges.push({
+      id: `structure-edge:${edge.id}`,
+      source: String(getStructureNodeLayoutId(edge.sourceNodeId)),
+      target: String(getStructureNodeLayoutId(edge.targetNodeId)),
+      type: 'straight',
+      label: edge.relationType || ui.structureEdgeDefaultType,
+      markerEnd: { type: MarkerType.ArrowClosed, color: relationCategoryColorTokens.structure },
+      style: {
+        stroke: relationCategoryColorTokens.structure,
+        strokeWidth: 2.5,
+      },
+      labelBgPadding: [8, 4],
+      labelBgBorderRadius: 10,
+      labelBgStyle: {
+        fill: relationLabelBackgroundToken,
+        fillOpacity: 0.92,
+      },
+      labelStyle: {
+        fill: relationCategoryColorTokens.structure,
+        fontSize: 12,
+        fontWeight: 800,
+      },
+    })
+  })
+
+  structure.nodes.forEach((node) => {
+    if (node.parentNodeId === null || explicitEdgeKeys.has(`${node.parentNodeId}:${node.id}`)) {
+      return
+    }
+
+    edges.push({
+      id: `structure-parent:${node.parentNodeId}:${node.id}`,
+      source: String(getStructureNodeLayoutId(node.parentNodeId)),
+      target: String(getStructureNodeLayoutId(node.id)),
+      type: 'straight',
+      label: ui.structureParentNode,
+      markerEnd: { type: MarkerType.ArrowClosed, color: relationCategoryColorTokens.structure },
+      style: {
+        stroke: relationCategoryColorTokens.structure,
+        strokeDasharray: '8 6',
+        strokeWidth: 2,
+      },
+      labelBgPadding: [8, 4],
+      labelBgBorderRadius: 10,
+      labelBgStyle: {
+        fill: relationLabelBackgroundToken,
+        fillOpacity: 0.92,
+      },
+      labelStyle: {
+        fill: relationCategoryColorTokens.structure,
+        fontSize: 11,
+        fontWeight: 800,
+      },
+    })
+    addGraphEdge(
+      `structure-parent:${node.parentNodeId}:${node.id}`,
+      getStructureNodeLayoutId(node.parentNodeId),
+      getStructureNodeLayoutId(node.id),
+      ui.structureParentNode,
+      'structure',
+    )
+  })
+
+  if (catalog !== null) {
+    catalogGroups
+      .toSorted((left, right) => left.name.localeCompare(right.name))
+      .forEach((group, index) => {
+        const layoutId = getCatalogGroupLayoutId(group.id)
+        nodeKinds.set(layoutId, 'catalogGroup')
+        graphNodes.push({
+          id: layoutId,
+          name: group.name,
+          surname: null,
+          surnameForm: null,
+          imagePath: null,
+          typeKey: 'hierarchy',
+        })
+        nodes.push({
+          id: String(layoutId),
+          type: 'structureNode',
+          position: layoutPositions.get(layoutId) ?? {
+            x: 80 + Math.max(2, maxStructureLevel + 1) * 290,
+            y: 80 + index * 86,
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+          data: {
+            title: group.name,
+            subtitle: ui.catalogHierarchyGroups,
+            meta: linkedGroupIds.has(group.id) ? ui.structureLinkedCatalogGroup : catalog.name,
+            kind: 'catalogGroup',
+            color: '#38bdf8',
+          },
+        })
+      })
+
+    catalogEntries
+      .toSorted((left, right) => left.name.localeCompare(right.name))
+      .forEach((entry, index) => {
+        const layoutId = getCatalogEntryLayoutId(entry.id)
+        nodeKinds.set(layoutId, 'catalogEntry')
+        graphNodes.push({
+          id: layoutId,
+          name: entry.name,
+          surname: null,
+          surnameForm: null,
+          imagePath: entry.imagePath,
+          typeKey: 'hierarchy',
+        })
+        nodes.push({
+          id: String(layoutId),
+          type: 'structureNode',
+          position: layoutPositions.get(layoutId) ?? {
+            x: 80 + Math.max(3, maxStructureLevel + 2) * 290,
+            y: 80 + index * 86,
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+          data: {
+            title: entry.name,
+            subtitle: ui.catalogHierarchyEntries,
+            meta: linkedEntryIds.has(entry.id) ? ui.structureLinkedCatalogEntry : catalog.name,
+            kind: 'catalogEntry',
+            color: '#22c55e',
+          },
+        })
+      })
+
+    catalogEntries.forEach((entry) => {
+      if (entry.entryGroupId !== null && groupsById.has(entry.entryGroupId)) {
+        edges.push({
+          id: `catalog-group-entry:${entry.entryGroupId}:${entry.id}`,
+          source: String(getCatalogGroupLayoutId(entry.entryGroupId)),
+          target: String(getCatalogEntryLayoutId(entry.id)),
+          type: 'straight',
+          label: ui.group,
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#38bdf8' },
+          style: { stroke: '#38bdf8', strokeWidth: 1.8 },
+        })
+        addGraphEdge(
+          `catalog-group-entry:${entry.entryGroupId}:${entry.id}`,
+          getCatalogGroupLayoutId(entry.entryGroupId),
+          getCatalogEntryLayoutId(entry.id),
+          ui.group,
+          'membership',
+        )
+      }
+
+      entry.parentEntryIds.forEach((parentEntryId) => {
+        if (!entriesById.has(parentEntryId)) {
+          return
+        }
+
+        edges.push({
+          id: `catalog-entry-parent:${parentEntryId}:${entry.id}`,
+          source: String(getCatalogEntryLayoutId(parentEntryId)),
+          target: String(getCatalogEntryLayoutId(entry.id)),
+          type: 'straight',
+          label: ui.hierarchyParentLabel,
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#22c55e' },
+          style: { stroke: '#22c55e', strokeDasharray: '8 6', strokeWidth: 1.8 },
+        })
+        addGraphEdge(
+          `catalog-entry-parent:${parentEntryId}:${entry.id}`,
+          getCatalogEntryLayoutId(parentEntryId),
+          getCatalogEntryLayoutId(entry.id),
+          ui.hierarchyParentLabel,
+          'object',
+        )
+      })
+    })
+  }
+
+  structure.nodes.forEach((node) => {
+    if (node.linkedCatalogEntryGroupId !== null && groupsById.has(node.linkedCatalogEntryGroupId)) {
+      edges.push({
+        id: `structure-catalog-group:${node.id}:${node.linkedCatalogEntryGroupId}`,
+        source: String(getStructureNodeLayoutId(node.id)),
+        target: String(getCatalogGroupLayoutId(node.linkedCatalogEntryGroupId)),
+        type: 'straight',
+        label: ui.structureLinkedCatalogGroup,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#38bdf8' },
+        style: { stroke: '#38bdf8', strokeWidth: 2.2 },
+      })
+      addGraphEdge(
+        `structure-catalog-group:${node.id}:${node.linkedCatalogEntryGroupId}`,
+        getStructureNodeLayoutId(node.id),
+        getCatalogGroupLayoutId(node.linkedCatalogEntryGroupId),
+        ui.structureLinkedCatalogGroup,
+        'membership',
+      )
+    }
+
+    if (node.linkedCatalogEntryId !== null && entriesById.has(node.linkedCatalogEntryId)) {
+      edges.push({
+        id: `structure-catalog-entry:${node.id}:${node.linkedCatalogEntryId}`,
+        source: String(getStructureNodeLayoutId(node.id)),
+        target: String(getCatalogEntryLayoutId(node.linkedCatalogEntryId)),
+        type: 'straight',
+        label: ui.structureLinkedCatalogEntry,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#22c55e' },
+        style: { stroke: '#22c55e', strokeWidth: 2.2 },
+      })
+      addGraphEdge(
+        `structure-catalog-entry:${node.id}:${node.linkedCatalogEntryId}`,
+        getStructureNodeLayoutId(node.id),
+        getCatalogEntryLayoutId(node.linkedCatalogEntryId),
+        ui.structureLinkedCatalogEntry,
+        'object',
+      )
+    }
+  })
+
+  const visibleNodeIds = new Set<number>()
+  graphNodes.forEach((node) => {
+    const kind = nodeKinds.get(node.id)
+    if (mode === 'all' || (mode === 'structure' && kind === 'structure') || (mode === 'catalog' && kind !== 'structure')) {
+      visibleNodeIds.add(node.id)
+    }
+  })
+
+  let visibleGraphEdges = graphEdges.filter((edge) => visibleNodeIds.has(edge.sourceId) && visibleNodeIds.has(edge.targetId))
+  if (focusedNodeId !== null && graphNodes.some((node) => node.id === focusedNodeId)) {
+    const focusedEdges = graphEdges.filter((edge) => edge.sourceId === focusedNodeId || edge.targetId === focusedNodeId)
+    visibleNodeIds.clear()
+    visibleNodeIds.add(focusedNodeId)
+    focusedEdges.forEach((edge) => {
+      visibleNodeIds.add(edge.sourceId)
+      visibleNodeIds.add(edge.targetId)
+    })
+    visibleGraphEdges = focusedEdges
+  }
+
+  const visibleGraph = {
+    nodes: graphNodes.filter((node) => visibleNodeIds.has(node.id)),
+    edges: visibleGraphEdges,
+  }
+  const visibleEdgeIds = new Set(visibleGraphEdges.map((edge) => edge.id))
+
+  return {
+    nodes: nodes.filter((node) => visibleNodeIds.has(Number(node.id))),
+    edges: edges.filter((edge) => visibleEdgeIds.has(edge.id)),
+    graph: visibleGraph,
+    allGraph: {
+      nodes: graphNodes,
+      edges: graphEdges,
+    },
+  }
+}
+
 export type RelationsPageProps = {
+  catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
+  catalogGroupsByCatalogId: Record<number, CatalogEntryGroup[]>
+  catalogs: Catalog[]
   graph: RelationGraph
   isLayoutGenerating: boolean
   layout: RelationGraphLayout | null
   objects: StoryObject[]
   selectedEdgeId: string | null
+  structures: Structure[]
   ui: PreviewText
   onCreateRelation: () => void
   onGenerateLayout: (graphKey: string, graph: RelationGraph) => void
@@ -261,11 +682,15 @@ export type RelationsPageProps = {
 }
 
 export function RelationsPage({
+  catalogEntriesByCatalogId,
+  catalogGroupsByCatalogId,
+  catalogs,
   graph,
   isLayoutGenerating,
   layout,
   objects,
   selectedEdgeId,
+  structures,
   ui,
   onCreateRelation,
   onGenerateLayout,
@@ -274,13 +699,36 @@ export function RelationsPage({
   onSelectEdge,
   onSelect,
 }: RelationsPageProps) {
+  const [graphKind, setGraphKind] = useState<RelationPageGraphKind>('relations')
   const [graphMode, setGraphMode] = useState<RelationGraphMode>('all')
   const [focusedObjectId, setFocusedObjectId] = useState<number | null>(null)
+  const [selectedStructureId, setSelectedStructureId] = useState<number | null>(null)
+  const [structureGraphMode, setStructureGraphMode] = useState<StructureGraphMode>('all')
+  const [focusedStructureNodeId, setFocusedStructureNodeId] = useState<number | null>(null)
+  const selectedStructure = useMemo(
+    () =>
+      selectedStructureId === null
+        ? structures[0] ?? null
+        : structures.find((structure) => structure.id === selectedStructureId) ?? structures[0] ?? null,
+    [selectedStructureId, structures],
+  )
+  const selectedStructureCatalog = useMemo(
+    () =>
+      selectedStructure?.linkedCatalogId === null || selectedStructure?.linkedCatalogId === undefined
+        ? null
+        : catalogs.find((catalog) => catalog.id === selectedStructure.linkedCatalogId) ?? null,
+    [catalogs, selectedStructure],
+  )
   const visibleGraph = useMemo(
     () => getVisibleRelationGraph(graph, graphMode, focusedObjectId),
     [focusedObjectId, graph, graphMode],
   )
-  const graphKey = useMemo(() => getRelationGraphKey(graphMode, focusedObjectId), [focusedObjectId, graphMode])
+  const graphKey = useMemo(
+    () => graphKind === 'structure' && selectedStructure !== null
+      ? `structure:${selectedStructure.id}`
+      : getRelationGraphKey(graphMode, focusedObjectId),
+    [focusedObjectId, graphKind, graphMode, selectedStructure],
+  )
   const activeLayout = layout?.graphKey === graphKey ? layout : null
   const layoutPositions = useMemo(
     () =>
@@ -299,9 +747,36 @@ export function RelationsPage({
     () => buildRelationFlow(visibleGraph, objects, onSelect, layoutPositions, selectedEdgeId, ui),
     [layoutPositions, objects, onSelect, selectedEdgeId, ui, visibleGraph],
   )
-  const [flowNodes, setFlowNodes] = useState(nodes)
+  const structureFlow = useMemo(
+    () =>
+      buildStructureFlow(
+        selectedStructure,
+        selectedStructureCatalog,
+        selectedStructureCatalog === null ? [] : catalogEntriesByCatalogId[selectedStructureCatalog.id] ?? [],
+        selectedStructureCatalog === null ? [] : catalogGroupsByCatalogId[selectedStructureCatalog.id] ?? [],
+        layoutPositions,
+        structureGraphMode,
+        focusedStructureNodeId,
+        ui,
+      ),
+    [
+      catalogEntriesByCatalogId,
+      catalogGroupsByCatalogId,
+      focusedStructureNodeId,
+      layoutPositions,
+      selectedStructure,
+      selectedStructureCatalog,
+      structureGraphMode,
+      ui,
+    ],
+  )
+  const activeNodes = graphKind === 'structure' ? structureFlow.nodes : nodes
+  const activeEdges = graphKind === 'structure' ? structureFlow.edges : edges
+  const activeGraph = graphKind === 'structure' ? structureFlow.graph : visibleGraph
+  const [flowNodes, setFlowNodes] = useState<RelationsFlowNode[]>(activeNodes)
   const relationTypes = Array.from(new Set(visibleGraph.edges.map((edge) => getRelationLabel(edge.relationType, ui)))).sort()
   const focusOptions = [...graph.nodes].sort((left, right) => left.name.localeCompare(right.name))
+  const structureFocusOptions = structureFlow.allGraph.nodes.toSorted((left, right) => left.name.localeCompare(right.name))
   const graphModeOptions: Array<{ label: string; value: RelationGraphMode }> = [
     { label: ui.graphModeAll, value: 'all' },
     ...relationGraphCategories.map((category) => ({
@@ -315,16 +790,17 @@ export function RelationsPage({
       : activeLayout.isStale
         ? ui.layoutStale
         : ui.layoutSaved
-  const layoutButtonLabel = activeLayout === null ? ui.layoutGenerate : activeLayout.isStale ? ui.layoutUpdate : ui.layoutRegenerate
+  const layoutButtonLabel =
+    activeLayout === null ? ui.layoutGenerate : activeLayout.isStale ? ui.layoutUpdate : ui.layoutRegenerate
   const onNodesChange = useCallback(
     (changes: NodeChange[]) =>
-      setFlowNodes((currentNodes) => applyNodeChanges(changes, currentNodes) as RelationObjectFlowNode[]),
+      setFlowNodes((currentNodes) => applyNodeChanges(changes, currentNodes) as RelationsFlowNode[]),
     [],
   )
 
   useEffect(() => {
-    setFlowNodes(nodes)
-  }, [nodes])
+    setFlowNodes(activeNodes)
+  }, [activeNodes])
 
   useEffect(() => {
     onGraphKeyChange(graphKey)
@@ -336,45 +812,118 @@ export function RelationsPage({
     }
   }, [focusedObjectId, graph.nodes])
 
+  useEffect(() => {
+    if (selectedStructureId !== null && !structures.some((structure) => structure.id === selectedStructureId)) {
+      setSelectedStructureId(null)
+    }
+  }, [selectedStructureId, structures])
+
+  useEffect(() => {
+    if (focusedStructureNodeId !== null && !structureFlow.allGraph.nodes.some((node) => node.id === focusedStructureNodeId)) {
+      setFocusedStructureNodeId(null)
+    }
+  }, [focusedStructureNodeId, structureFlow.allGraph.nodes])
+
   return (
     <div className="sp-relations-page">
       <div className="sp-relations-overlay-head">
         <div>
           <h2>{ui.relations}</h2>
           <p>
-            {visibleGraph.nodes.length} {ui.objectsCount} · {visibleGraph.edges.length} {ui.relationsCount} · {layoutStatus}
+            {graphKind === 'structure'
+              ? `${activeGraph.nodes.length} ${ui.structureNodesCount} · ${activeGraph.edges.length} ${ui.relationsCount} · ${layoutStatus}`
+              : `${visibleGraph.nodes.length} ${ui.objectsCount} · ${visibleGraph.edges.length} ${ui.relationsCount} · ${layoutStatus}`}
           </p>
         </div>
         <div className="sp-relations-overlay-actions">
           <label className="sp-graph-control">
             <span>{ui.graphMode}</span>
-            <select value={graphMode} onChange={(event) => setGraphMode(event.target.value as RelationGraphMode)}>
-              {graphModeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
+            <select value={graphKind} onChange={(event) => setGraphKind(event.target.value as RelationPageGraphKind)}>
+              <option value="relations">{ui.graphModeRelations}</option>
+              <option value="structure">{ui.graphModeStructureDevice}</option>
             </select>
           </label>
-          <label className="sp-graph-control">
-            <span>{ui.graphFocus}</span>
-            <select
-              value={focusedObjectId ?? ''}
-              onChange={(event) =>
-                setFocusedObjectId(event.target.value.trim().length === 0 ? null : Number(event.target.value))
-              }
-            >
-              <option value="">{ui.graphFocusAll}</option>
-              {focusOptions.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {graphKind === 'relations' && (
+            <>
+              <label className="sp-graph-control">
+                <span>{ui.filteredGraphView}</span>
+                <select value={graphMode} onChange={(event) => setGraphMode(event.target.value as RelationGraphMode)}>
+                  {graphModeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="sp-graph-control">
+                <span>{ui.graphFocus}</span>
+                <select
+                  value={focusedObjectId ?? ''}
+                  onChange={(event) =>
+                    setFocusedObjectId(event.target.value.trim().length === 0 ? null : Number(event.target.value))
+                  }
+                >
+                  <option value="">{ui.graphFocusAll}</option>
+                  {focusOptions.map((node) => (
+                    <option key={node.id} value={node.id}>
+                      {node.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {graphKind === 'structure' && (
+            <>
+              <label className="sp-graph-control">
+                <span>{ui.structure}</span>
+                <select
+                  value={selectedStructure?.id ?? ''}
+                  onChange={(event) =>
+                    setSelectedStructureId(event.target.value.trim().length === 0 ? null : Number(event.target.value))
+                  }
+                >
+                  {structures.length === 0 && <option value="">{ui.noStructures}</option>}
+                  {structures.map((structure) => (
+                    <option key={structure.id} value={structure.id}>
+                      {structure.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="sp-graph-control">
+                <span>{ui.filteredGraphView}</span>
+                <select
+                  value={structureGraphMode}
+                  onChange={(event) => setStructureGraphMode(event.target.value as StructureGraphMode)}
+                >
+                  <option value="all">{ui.graphModeAll}</option>
+                  <option value="structure">{ui.structureNodes}</option>
+                  <option value="catalog">{ui.catalogs}</option>
+                </select>
+              </label>
+              <label className="sp-graph-control">
+                <span>{ui.graphFocus}</span>
+                <select
+                  value={focusedStructureNodeId ?? ''}
+                  onChange={(event) =>
+                    setFocusedStructureNodeId(event.target.value.trim().length === 0 ? null : Number(event.target.value))
+                  }
+                >
+                  <option value="">{ui.graphFocusAll}</option>
+                  {structureFocusOptions.map((node) => (
+                    <option key={node.id} value={node.id}>
+                      {node.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
           <button
             className="sp-button"
             type="button"
+            hidden={graphKind === 'structure'}
             disabled={objects.filter((storyObject) => storyObject.typeKey === 'characters').length < 2}
             onClick={onCreateRelation}
           >
@@ -383,8 +932,8 @@ export function RelationsPage({
           <button
             className="sp-button"
             type="button"
-            disabled={isLayoutGenerating || visibleGraph.nodes.length === 0}
-            onClick={() => onGenerateLayout(graphKey, visibleGraph)}
+            disabled={isLayoutGenerating || activeGraph.nodes.length === 0}
+            onClick={() => onGenerateLayout(graphKey, activeGraph)}
           >
             {isLayoutGenerating ? ui.layoutGenerating : layoutButtonLabel}
           </button>
@@ -393,13 +942,24 @@ export function RelationsPage({
       <div className="sp-relations-workspace">
         <aside className="sp-relations-legend">
           <strong>{ui.relations}</strong>
-          <span className="sp-legend-line character">{ui.relationCharacters}</span>
-          <span className="sp-legend-line membership">{ui.relationMembership}</span>
-          <span className="sp-legend-line ownership">{ui.relationOwnership}</span>
-          <span className="sp-legend-line object">{ui.relationObject}</span>
-          <span className="sp-legend-line structure">{ui.relationStructure}</span>
-          <p>{ui.relationHelp}</p>
-          {relationTypes.length > 0 && (
+          {graphKind === 'relations' ? (
+            <>
+              <span className="sp-legend-line character">{ui.relationCharacters}</span>
+              <span className="sp-legend-line membership">{ui.relationMembership}</span>
+              <span className="sp-legend-line ownership">{ui.relationOwnership}</span>
+              <span className="sp-legend-line object">{ui.relationObject}</span>
+              <span className="sp-legend-line structure">{ui.relationStructure}</span>
+              <p>{ui.relationHelp}</p>
+            </>
+          ) : (
+            <>
+              <span className="sp-legend-line structure">{ui.structureNodes}</span>
+              <span className="sp-legend-line membership">{ui.catalogHierarchyGroups}</span>
+              <span className="sp-legend-line object">{ui.catalogHierarchyEntries}</span>
+              <p>{ui.structureGraphHelp}</p>
+            </>
+          )}
+          {graphKind === 'relations' && relationTypes.length > 0 && (
             <div className="sp-relation-types">
               {relationTypes.map((relationType) => (
                 <span key={relationType}>{relationType}</span>
@@ -410,19 +970,25 @@ export function RelationsPage({
         <div className="sp-graph">
           {flowNodes.length === 0 ? (
             <div className="sp-empty">
-              <strong>{ui.noObjects}</strong>
-              <span>{ui.noRelationships}</span>
+              <strong>{graphKind === 'structure' ? ui.noStructures : ui.noObjects}</strong>
+              <span>{graphKind === 'structure' ? ui.structuresDescription : ui.noRelationships}</span>
             </div>
           ) : (
             <ReactFlow
-              edges={edges}
+              edges={activeEdges}
               fitView
               maxZoom={1.6}
               minZoom={0.2}
               nodes={flowNodes}
               nodeTypes={relationNodeTypes}
-              onEdgeClick={(_, edge) => onSelectEdge(edge.id)}
-              onNodeDragStop={(_, node) => onSaveNodePosition(graphKey, visibleGraph, Number(node.id), node.position)}
+              onEdgeClick={(_, edge) => {
+                if (graphKind === 'relations') {
+                  onSelectEdge(edge.id)
+                }
+              }}
+              onNodeDragStop={(_, node) => {
+                onSaveNodePosition(graphKey, activeGraph, Number(node.id), node.position)
+              }}
               onNodesChange={onNodesChange}
             >
               <Background color="var(--sp-grid-line)" gap={32} variant={BackgroundVariant.Lines} />

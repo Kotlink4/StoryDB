@@ -26,7 +26,7 @@ public sealed class AuditLogMiddleware
         this.configuration = configuration;
     }
 
-    public async Task InvokeAsync(HttpContext context, IAuditLogService auditLogService)
+    public async Task InvokeAsync(HttpContext context, IAuditLogQueue auditLogQueue)
     {
         var stopwatch = Stopwatch.StartNew();
         await next(context);
@@ -39,7 +39,15 @@ public sealed class AuditLogMiddleware
 
         try
         {
-            await auditLogService.WriteRequestAuditAsync(context, stopwatch.ElapsedMilliseconds, context.RequestAborted);
+            var request = AuditLogWriteRequest.FromHttpContext(context, stopwatch.ElapsedMilliseconds);
+            if (!auditLogQueue.TryEnqueue(request))
+            {
+                logger.LogWarning(
+                    "Audit log queue is full. Dropped audit log for {Method} {Path} with trace {TraceId}.",
+                    request.HttpMethod,
+                    request.Path,
+                    request.TraceId);
+            }
         }
         catch (Exception exception)
         {

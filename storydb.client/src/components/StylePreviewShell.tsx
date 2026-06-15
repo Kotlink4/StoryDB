@@ -140,6 +140,7 @@ export function StylePreviewProjectbar({
   currentUser,
   projects,
   selectedProjectId,
+  showWorkspaceTabs,
   ui,
   onCreateObject,
   onNavigateProject,
@@ -149,6 +150,7 @@ export function StylePreviewProjectbar({
   currentUser: AuthUser | null
   projects: StoryProject[]
   selectedProjectId: number | null
+  showWorkspaceTabs: boolean
   ui: PreviewText
   onCreateObject: () => void
   onNavigateProject: (projectId: number | null) => void
@@ -173,18 +175,20 @@ export function StylePreviewProjectbar({
           ))}
         </select>
       </div>
-      <div className="sp-tabs">
-        {(['database', 'relations', 'timeline'] as PreviewTab[]).map((tab) => (
-          <button
-            className={activeTab === tab ? 'active' : ''}
-            key={tab}
-            type="button"
-            onClick={() => onNavigateTab(tab)}
-          >
-            {getTabLabel(tab, ui)}
-          </button>
-        ))}
-      </div>
+      {showWorkspaceTabs && (
+        <div className="sp-tabs">
+          {(['database', 'relations', 'timeline'] as PreviewTab[]).map((tab) => (
+            <button
+              className={activeTab === tab ? 'active' : ''}
+              key={tab}
+              type="button"
+              onClick={() => onNavigateTab(tab)}
+            >
+              {getTabLabel(tab, ui)}
+            </button>
+          ))}
+        </div>
+      )}
       {currentUser !== null && (
         <button className="sp-button primary sp-project-create" type="button" onClick={onCreateObject}>
           + {ui.newObject}

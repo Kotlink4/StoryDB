@@ -14,5 +14,4 @@ public class RelationGraphLayoutItem
     public DateTime UpdatedAt { get; set; }
 
     public RelationGraphLayout? RelationGraphLayout { get; set; }
-    public StoryObject? StoryObject { get; set; }
 }

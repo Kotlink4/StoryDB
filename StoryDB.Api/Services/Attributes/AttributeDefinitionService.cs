@@ -3,12 +3,18 @@ using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Contracts.Attributes;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Services;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Services.Attributes;
 
-public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttributeDefinitionService
+public sealed class AttributeDefinitionService(
+    StoryDbContext dbContext,
+    ICacheSingleFlight cacheSingleFlight) : IAttributeDefinitionService
 {
+    private static readonly TimeSpan AttributeDefinitionsCacheDuration = TimeSpan.FromSeconds(20);
+
     private static readonly HashSet<string> SupportedDataTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "text",
@@ -26,14 +32,21 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
             return AttributeDefinitionServiceResult<IReadOnlyList<AttributeGroupDto>>.NotFound();
         }
 
-        var groups = await dbContext.AttributeGroups
-            .AsNoTracking()
-            .Include(group => group.ObjectType)
-            .Where(group => group.ProjectId == projectId && group.ObjectTypeId == objectType.Id)
-            .OrderBy(group => group.SortOrder)
-            .ThenBy(group => group.Name)
-            .Select(group => ToDto(group))
-            .ToListAsync();
+        var groups = await cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.AttributeGroups(projectId, typeKey),
+            async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = AttributeDefinitionsCacheDuration;
+
+                return await dbContext.AttributeGroups
+                    .AsNoTracking()
+                    .Include(group => group.ObjectType)
+                    .Where(group => group.ProjectId == projectId && group.ObjectTypeId == objectType.Id)
+                    .OrderBy(group => group.SortOrder)
+                    .ThenBy(group => group.Name)
+                    .Select(group => ToDto(group))
+                    .ToListAsync();
+            });
 
         return AttributeDefinitionServiceResult<IReadOnlyList<AttributeGroupDto>>.Success(groups);
     }
@@ -64,6 +77,7 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
         }
 
         group.ObjectType = objectType;
+        InvalidateAttributeCaches(projectId, request.TypeKey);
         return AttributeDefinitionServiceResult<AttributeGroupDto>.Success(ToDto(group));
     }
 
@@ -112,6 +126,7 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
         group.Name = request.Name.Trim();
         group.IconKey = TrimToNull(request.IconKey);
         await dbContext.SaveChangesAsync();
+        InvalidateAttributeCaches(projectId, request.TypeKey);
 
         group.ObjectType = objectType;
         return AttributeDefinitionServiceResult<AttributeGroupDto>.Success(ToDto(group));
@@ -144,6 +159,7 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
         dbContext.AttributeDefinitions.RemoveRange(definitions);
         dbContext.AttributeGroups.Remove(group);
         await dbContext.SaveChangesAsync();
+        InvalidateAllAttributeCaches(projectId);
 
         return AttributeDefinitionServiceResult.Success();
     }
@@ -158,18 +174,25 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
             return AttributeDefinitionServiceResult<IReadOnlyList<AttributeDefinitionDto>>.NotFound();
         }
 
-        var definitions = await dbContext.AttributeDefinitions
-            .AsNoTracking()
-            .Include(definition => definition.ObjectType)
-            .Include(definition => definition.AttributeGroup)
-            .Where(definition =>
-                definition.ProjectId == projectId &&
-                definition.ObjectTypeId == objectType.Id)
-            .OrderBy(definition => definition.AttributeGroup == null ? "" : definition.AttributeGroup.Name)
-            .ThenBy(definition => definition.SortOrder)
-            .ThenBy(definition => definition.Name)
-            .Select(definition => ToDto(definition))
-            .ToListAsync();
+        var definitions = await cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.AttributeDefinitions(projectId, typeKey),
+            async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = AttributeDefinitionsCacheDuration;
+
+                return await dbContext.AttributeDefinitions
+                    .AsNoTracking()
+                    .Include(definition => definition.ObjectType)
+                    .Include(definition => definition.AttributeGroup)
+                    .Where(definition =>
+                        definition.ProjectId == projectId &&
+                        definition.ObjectTypeId == objectType.Id)
+                    .OrderBy(definition => definition.AttributeGroup == null ? "" : definition.AttributeGroup.Name)
+                    .ThenBy(definition => definition.SortOrder)
+                    .ThenBy(definition => definition.Name)
+                    .Select(definition => ToDto(definition))
+                    .ToListAsync();
+            });
 
         return AttributeDefinitionServiceResult<IReadOnlyList<AttributeDefinitionDto>>.Success(definitions);
     }
@@ -240,6 +263,7 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
 
         dbContext.AttributeDefinitions.Add(definition);
         await dbContext.SaveChangesAsync();
+        InvalidateAttributeCaches(projectId, request.TypeKey);
 
         definition.AttributeGroup = group;
         definition.ObjectType = objectType;
@@ -310,6 +334,7 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
         definition.IconKey = TrimToNull(request.IconKey);
 
         await dbContext.SaveChangesAsync();
+        InvalidateAllAttributeCaches(projectId);
         return AttributeDefinitionServiceResult<AttributeDefinitionDto>.Success(ToDto(definition));
     }
 
@@ -330,6 +355,7 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
         dbContext.ObjectAttributes.RemoveRange(objectAttributes);
         dbContext.AttributeDefinitions.Remove(definition);
         await dbContext.SaveChangesAsync();
+        InvalidateAllAttributeCaches(projectId);
 
         return AttributeDefinitionServiceResult.Success();
     }
@@ -341,6 +367,20 @@ public sealed class AttributeDefinitionService(StoryDbContext dbContext) : IAttr
                 type.ProjectId == projectId &&
                 type.Key == typeKey &&
                 type.IsEnabled);
+    }
+
+    private void InvalidateAttributeCaches(int projectId, string typeKey)
+    {
+        cacheSingleFlight.Remove(ProjectCacheKeys.AttributeGroups(projectId, typeKey));
+        cacheSingleFlight.Remove(ProjectCacheKeys.AttributeDefinitions(projectId, typeKey));
+    }
+
+    private void InvalidateAllAttributeCaches(int projectId)
+    {
+        foreach (var typeKey in new[] { "characters", "items", "places", "organizations", "hierarchy" })
+        {
+            InvalidateAttributeCaches(projectId, typeKey);
+        }
     }
 
     private async Task<AttributeGroup?> GetOrCreateGroup(

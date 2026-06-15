@@ -10,6 +10,7 @@ export function ProfileProjectCard({
   ui,
   onDelete,
   onEdit,
+  onExport,
   onOpen,
 }: {
   isSelected: boolean
@@ -17,6 +18,7 @@ export function ProfileProjectCard({
   ui: PreviewText
   onDelete: () => void
   onEdit: () => void
+  onExport: () => void
   onOpen: () => void
 }) {
   const coverUrl = resolveAssetUrl(project.coverImagePath)
@@ -35,7 +37,12 @@ export function ProfileProjectCard({
         </div>
         <em>{ui.selectProject}</em>
       </button>
-      <KebabMenu ui={ui} onDelete={onDelete} onEdit={onEdit} />
+      <KebabMenu
+        ui={ui}
+        onDelete={project.canManage ? onDelete : undefined}
+        onEdit={project.canEdit ? onEdit : undefined}
+        onExport={onExport}
+      />
     </article>
   )
 }

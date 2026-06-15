@@ -106,6 +106,30 @@ public class RelationEndpointTests(StoryDbApiFactory factory) : IClassFixture<St
         Assert.True(structureItem.IsPinned);
     }
 
+    [Fact]
+    public async Task RelationGraph_WhenOrganizationSurnameFormMatchesCharacterSurname_ReturnsAutomaticMembership()
+    {
+        using var client = factory.CreateClient();
+        await TestUserSession.RegisterAsync(client);
+        var project = await CreateProjectAsync(client);
+        var character = await CreateObjectAsync(client, project.Id, "characters", "Лилия", "Ал Кроувел");
+
+        var initialGraph = await client.GetFromJsonAsync<RelationGraphDto>($"/api/projects/{project.Id}/relations/graph");
+        Assert.NotNull(initialGraph);
+        Assert.DoesNotContain(initialGraph.Edges, edge => edge.Category == "membership");
+
+        var organization = await CreateObjectAsync(client, project.Id, "organizations", "Дом Ал Кроувел", null, "Ал Кроувел");
+
+        var graph = await client.GetFromJsonAsync<RelationGraphDto>($"/api/projects/{project.Id}/relations/graph");
+
+        Assert.NotNull(graph);
+        Assert.Contains(graph.Edges, edge =>
+            edge.Category == "membership" &&
+            edge.RelationType == "organizationMembership" &&
+            edge.SourceId == character.Id &&
+            edge.TargetId == organization.Id);
+    }
+
     private static async Task<ProjectListItemDto> CreateProjectAsync(HttpClient client)
     {
         var projectName = $"Relation Test Project {Guid.NewGuid():N}";
@@ -123,17 +147,27 @@ public class RelationEndpointTests(StoryDbApiFactory factory) : IClassFixture<St
         return project;
     }
 
-    private static async Task<StoryObjectDto> CreateObjectAsync(HttpClient client, int projectId)
+    private static Task<StoryObjectDto> CreateObjectAsync(HttpClient client, int projectId) =>
+        CreateObjectAsync(client, projectId, "characters", "Relation Test Character", null);
+
+    private static async Task<StoryObjectDto> CreateObjectAsync(
+        HttpClient client,
+        int projectId,
+        string typeKey,
+        string name,
+        string? surname,
+        string? surnameForm = null)
     {
         var response = await client.PostAsJsonAsync($"/api/projects/{projectId}/objects", new
         {
-            typeKey = "characters",
-            name = "Relation Test Character",
-            surname = (string?)null,
-            surnameForm = (string?)null,
+            typeKey,
+            name,
+            surname,
+            surnameForm,
             description = (string?)null,
             age = (string?)null,
             role = (string?)null,
+            currentStatus = (string?)null,
             imagePath = (string?)null,
             attributes = Array.Empty<object>(),
             hierarchySelections = Array.Empty<object>(),

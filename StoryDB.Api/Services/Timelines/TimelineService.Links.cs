@@ -17,15 +17,22 @@ public partial class TimelineService
             return TimelineServiceResult<IReadOnlyList<TimelineEventLinkDto>>.NotFound();
         }
 
-        var links = await dbContext.TimelineEventLinks
-            .AsNoTracking()
-            .Where(link => link.TimelineId == timeline.Id)
-            .OrderBy(link => link.SortOrder)
-            .ThenBy(link => link.Id)
-            .Select(link => ToLinkDto(link))
-            .ToListAsync();
+        var links = await cacheSingleFlight.GetOrCreateAsync(
+            global::StoryDB.Api.Services.ProjectCacheKeys.TimelineEventLinks(projectId),
+            async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimelineReadCacheDuration;
 
-        return TimelineServiceResult<IReadOnlyList<TimelineEventLinkDto>>.Success(links);
+                return await dbContext.TimelineEventLinks
+                    .AsNoTracking()
+                    .Where(link => link.TimelineId == timeline.Id)
+                    .OrderBy(link => link.SortOrder)
+                    .ThenBy(link => link.Id)
+                    .Select(link => ToLinkDto(link))
+                    .ToListAsync();
+            });
+
+        return TimelineServiceResult<IReadOnlyList<TimelineEventLinkDto>>.Success(links!);
     }
     public async Task<TimelineServiceResult<TimelineEventLinkDto>> CreateEventLinkAsync(int projectId, TimelineEventLinkRequest request)
     {
@@ -61,6 +68,7 @@ public partial class TimelineService
         dbContext.TimelineEventLinks.Add(timelineEventLink);
         await MarkTimelineLayoutStateStale(projectId);
         await dbContext.SaveChangesAsync();
+        InvalidateTimelineReadCaches(projectId);
 
         return TimelineServiceResult<TimelineEventLinkDto>.Success(ToLinkDto(timelineEventLink));
     }
@@ -97,6 +105,7 @@ public partial class TimelineService
 
         await MarkTimelineLayoutStateStale(projectId);
         await dbContext.SaveChangesAsync();
+        InvalidateTimelineReadCaches(projectId);
 
         return TimelineServiceResult<TimelineEventLinkDto>.Success(ToLinkDto(link));
     }
@@ -119,6 +128,7 @@ public partial class TimelineService
         dbContext.TimelineEventLinks.Remove(link);
         await MarkTimelineLayoutStateStale(projectId);
         await dbContext.SaveChangesAsync();
+        InvalidateTimelineReadCaches(projectId);
 
         return TimelineServiceResult.Success();
     }

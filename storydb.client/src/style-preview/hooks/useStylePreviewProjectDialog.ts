@@ -10,12 +10,16 @@ export function useStylePreviewProjectDialog() {
   const [projectName, setProjectName] = useState('')
   const [projectCoverImagePath, setProjectCoverImagePath] = useState<string | null>(null)
   const [projectPresetKeys, setProjectPresetKeys] = useState<string[]>([])
+  const [projectTemplatePackIds, setProjectTemplatePackIds] = useState<number[]>([])
+  const [projectVisibility, setProjectVisibility] = useState<StoryProject['visibility']>('private')
 
   const resetProjectForm = () => {
     setEditingProjectId(null)
     setProjectName('')
     setProjectCoverImagePath(null)
     setProjectPresetKeys([])
+    setProjectTemplatePackIds([])
+    setProjectVisibility('private')
     setProjectDialogTab('details')
   }
 
@@ -28,6 +32,8 @@ export function useStylePreviewProjectDialog() {
     setProjectName(project.name)
     setProjectCoverImagePath(project.coverImagePath)
     setProjectPresetKeys([])
+    setProjectTemplatePackIds([])
+    setProjectVisibility(project.visibility)
     setProjectDialogTab('details')
   }
 
@@ -40,6 +46,8 @@ export function useStylePreviewProjectDialog() {
     projectDialogTab,
     projectName,
     projectPresetKeys,
+    projectTemplatePackIds,
+    projectVisibility,
     resetProjectForm,
     setEditingProjectId,
     setPendingDeleteProjectId,
@@ -47,5 +55,7 @@ export function useStylePreviewProjectDialog() {
     setProjectDialogTab,
     setProjectName,
     setProjectPresetKeys,
+    setProjectTemplatePackIds,
+    setProjectVisibility,
   }
 }

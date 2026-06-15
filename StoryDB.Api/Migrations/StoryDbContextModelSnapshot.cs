@@ -1029,11 +1029,87 @@ namespace StoryDB.Api.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("private");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OwnerUserId");
 
+                    b.HasIndex("Visibility");
+
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.ProjectTemplatePack", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int>("OwnerUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("SourceProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceProjectId");
+
+                    b.HasIndex("IsPublic", "UpdatedAt");
+
+                    b.HasIndex("OwnerUserId", "UpdatedAt");
+
+                    b.ToTable("ProjectTemplatePacks");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.ProjectTemplatePackFavorite", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TemplatePackId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "TemplatePackId");
+
+                    b.HasIndex("TemplatePackId", "UserId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("ProjectTemplatePackFavorites");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.RelationGraphLayout", b =>
@@ -1120,8 +1196,6 @@ namespace StoryDB.Api.Migrations
                         .HasColumnType("numeric");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("StoryObjectId");
 
                     b.HasIndex("RelationGraphLayoutId", "StoryObjectId")
                         .IsUnique();
@@ -2335,6 +2409,43 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("OwnerUser");
                 });
 
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.ProjectTemplatePack", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.AppUser", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.Project", "SourceProject")
+                        .WithMany("TemplatePacks")
+                        .HasForeignKey("SourceProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("OwnerUser");
+
+                    b.Navigation("SourceProject");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.ProjectTemplatePackFavorite", b =>
+                {
+                    b.HasOne("StoryDB.Api.Data.Entities.ProjectTemplatePack", "TemplatePack")
+                        .WithMany("Favorites")
+                        .HasForeignKey("TemplatePackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoryDB.Api.Data.Entities.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TemplatePack");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("StoryDB.Api.Data.Entities.RelationGraphLayout", b =>
                 {
                     b.HasOne("StoryDB.Api.Data.Entities.AppUser", "OwnerUser")
@@ -2361,15 +2472,7 @@ namespace StoryDB.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("StoryDB.Api.Data.Entities.StoryObject", "StoryObject")
-                        .WithMany()
-                        .HasForeignKey("StoryObjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("RelationGraphLayout");
-
-                    b.Navigation("StoryObject");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.StoryObject", b =>
@@ -2803,7 +2906,14 @@ namespace StoryDB.Api.Migrations
 
                     b.Navigation("Objects");
 
+                    b.Navigation("TemplatePacks");
+
                     b.Navigation("Timelines");
+                });
+
+            modelBuilder.Entity("StoryDB.Api.Data.Entities.ProjectTemplatePack", b =>
+                {
+                    b.Navigation("Favorites");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.RelationGraphLayout", b =>

@@ -11,7 +11,9 @@ import {
   fetchObjectSummaries,
   fetchRelationGraph,
   fetchRelationGraphLayout,
+  fetchStructure,
   fetchStructureAssignments,
+  fetchStructures,
   fetchStructureUsages,
   fetchTimelineEventLinks,
   fetchTimelineEvents,
@@ -35,6 +37,7 @@ import type {
   ObjectTypeKey,
   RelationGraph,
   RelationGraphLayout,
+  Structure,
   StructureAssignment,
   StructureUsage,
   StoryObject,
@@ -92,6 +95,7 @@ export function useStylePreviewWorkspaceData({
   const [relationGraph, setRelationGraph] = useState<RelationGraph>({ nodes: [], edges: [] })
   const [relationGraphLayout, setRelationGraphLayout] = useState<RelationGraphLayout | null>(null)
   const [structureAssignments, setStructureAssignments] = useState<StructureAssignment[]>([])
+  const [structures, setStructures] = useState<Structure[]>([])
   const [structureUsages, setStructureUsages] = useState<StructureUsage[]>([])
   const [attributeDefinitions, setAttributeDefinitions] = useState<AttributeDefinition[]>([])
   const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([])
@@ -174,6 +178,9 @@ export function useStylePreviewWorkspaceData({
       if (snapshot.structureAssignments !== undefined) {
         setStructureAssignments(snapshot.structureAssignments)
       }
+      if (snapshot.structures !== undefined) {
+        setStructures(snapshot.structures)
+      }
       if (snapshot.structureUsages !== undefined) {
         setStructureUsages(snapshot.structureUsages)
       }
@@ -233,14 +240,18 @@ export function useStylePreviewWorkspaceData({
       setRelationGraph({ nodes: [], edges: [] })
       setRelationGraphLayout(null)
       setStructureAssignments([])
+      setStructures([])
       setStructureUsages([])
       return undefined
     }
 
     const loadRelationGraphData = async () => {
-      const [graphResult, assignmentsResult, usagesResult] = await Promise.allSettled([
+      const [graphResult, assignmentsResult, structuresResult, usagesResult] = await Promise.allSettled([
         fetchRelationGraph(selectedProjectId),
         fetchStructureAssignments(selectedProjectId),
+        fetchStructures(selectedProjectId).then((structureSummaries) =>
+          Promise.all(structureSummaries.map((structure) => fetchStructure(selectedProjectId, structure.id))),
+        ),
         fetchStructureUsages(selectedProjectId),
       ])
 
@@ -256,10 +267,12 @@ export function useStylePreviewWorkspaceData({
       }
 
       setStructureAssignments(assignmentsResult.status === 'fulfilled' ? assignmentsResult.value : [])
+      setStructures(structuresResult.status === 'fulfilled' ? structuresResult.value : [])
       setStructureUsages(usagesResult.status === 'fulfilled' ? usagesResult.value : [])
       void writeProjectClientCachePatch(selectedProjectId, {
         ...(graphResult.status === 'fulfilled' ? { relationGraph: graphResult.value } : {}),
         ...(assignmentsResult.status === 'fulfilled' ? { structureAssignments: assignmentsResult.value } : {}),
+        ...(structuresResult.status === 'fulfilled' ? { structures: structuresResult.value } : {}),
         ...(usagesResult.status === 'fulfilled' ? { structureUsages: usagesResult.value } : {}),
       })
     }
@@ -760,6 +773,7 @@ export function useStylePreviewWorkspaceData({
     setTimelineLayout,
     setTimelineLinks,
     structureAssignments,
+    structures,
     structureUsages,
     timelineEvents,
     timelineInfo,

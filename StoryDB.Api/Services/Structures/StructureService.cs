@@ -2,12 +2,17 @@ using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Contracts.Structures;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Services;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Services.Structures;
 
-public sealed class StructureService(StoryDbContext dbContext) : IStructureService
+public sealed class StructureService(
+    StoryDbContext dbContext,
+    ICacheSingleFlight cacheSingleFlight) : IStructureService
 {
+    private static readonly TimeSpan StructureReadCacheDuration = TimeSpan.FromSeconds(15);
     private static readonly HashSet<string> SupportedOwnerKinds = ["project", "catalog", "object"];
     private static readonly HashSet<string> SupportedUsageTargetKinds = ["project", "catalog", "object"];
     private static readonly HashSet<string> SupportedLayoutKinds = ["levels", "tree", "graph"];
@@ -38,7 +43,31 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
             query = query.Where(structure => structure.OwnerId == ownerId);
         }
 
-        var structures = await query
+        var structures = normalizedOwnerKind is null && ownerId is null
+            ? await cacheSingleFlight.GetOrCreateAsync(
+                ProjectCacheKeys.StructureSummaries(projectId),
+                async entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = StructureReadCacheDuration;
+                    return await ReadStructureSummariesAsync(query);
+                })
+            : await ReadStructureSummariesAsync(query);
+
+        return StructureServiceResult<IReadOnlyList<StructureSummaryDto>>.Success(structures);
+    }
+
+    public async Task<StructureServiceResult<StructureDto>> GetStructureAsync(int projectId, int structureId)
+    {
+        if (!await StructureExists(projectId, structureId))
+        {
+            return StructureServiceResult<StructureDto>.NotFound();
+        }
+
+        return StructureServiceResult<StructureDto>.Success(await GetStructureDto(structureId));
+    }
+
+    private static Task<List<StructureSummaryDto>> ReadStructureSummariesAsync(IQueryable<Structure> query) =>
+        query
             .OrderBy(structure => structure.Name)
             .Select(structure => new StructureSummaryDto(
                 structure.Id,
@@ -54,19 +83,6 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
                 structure.Edges.Count,
                 structure.Usages.Count))
             .ToListAsync();
-
-        return StructureServiceResult<IReadOnlyList<StructureSummaryDto>>.Success(structures);
-    }
-
-    public async Task<StructureServiceResult<StructureDto>> GetStructureAsync(int projectId, int structureId)
-    {
-        if (!await StructureExists(projectId, structureId))
-        {
-            return StructureServiceResult<StructureDto>.NotFound();
-        }
-
-        return StructureServiceResult<StructureDto>.Success(await GetStructureDto(structureId));
-    }
 
     public async Task<StructureServiceResult<StructureDto>> CreateStructureAsync(int projectId, StructureRequest request)
     {
@@ -94,6 +110,7 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         dbContext.Structures.Add(structure);
         await dbContext.SaveChangesAsync();
         await ReplaceStructureItems(structure, request, now);
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureDto>.Success(await GetStructureDto(structure.Id));
     }
@@ -140,6 +157,7 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         dbContext.StructureNodes.RemoveRange(structure.Nodes);
         await dbContext.SaveChangesAsync();
         await ReplaceStructureItems(structure, request, now);
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureDto>.Success(await GetStructureDto(structure.Id));
     }
@@ -164,6 +182,7 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
 
         dbContext.Structures.Remove(structure);
         await dbContext.SaveChangesAsync();
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult.Success();
     }
@@ -199,20 +218,15 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
             query = query.Where(usage => usage.StructureId == structureId);
         }
 
-        var usages = await query
-            .OrderByDescending(usage => usage.IsPrimary)
-            .ThenBy(usage => usage.Structure!.Name)
-            .Select(usage => new StructureUsageDto(
-                usage.Id,
-                usage.ProjectId,
-                usage.StructureId,
-                usage.Structure!.Name,
-                usage.TargetKind,
-                usage.TargetId,
-                usage.DisplayName,
-                usage.Notes,
-                usage.IsPrimary))
-            .ToListAsync();
+        var usages = normalizedTargetKind is null && targetId is null && structureId is null
+            ? await cacheSingleFlight.GetOrCreateAsync(
+                ProjectCacheKeys.StructureUsages(projectId),
+                async entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = StructureReadCacheDuration;
+                    return await ReadStructureUsagesAsync(query);
+                })
+            : await ReadStructureUsagesAsync(query);
 
         return StructureServiceResult<IReadOnlyList<StructureUsageDto>>.Success(usages);
     }
@@ -266,9 +280,26 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
 
         dbContext.StructureUsages.Add(usage);
         await dbContext.SaveChangesAsync();
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureUsageDto>.Success(await GetStructureUsageDto(usage.Id));
     }
+
+    private static Task<List<StructureUsageDto>> ReadStructureUsagesAsync(IQueryable<StructureUsage> query) =>
+        query
+            .OrderByDescending(usage => usage.IsPrimary)
+            .ThenBy(usage => usage.Structure!.Name)
+            .Select(usage => new StructureUsageDto(
+                usage.Id,
+                usage.ProjectId,
+                usage.StructureId,
+                usage.Structure!.Name,
+                usage.TargetKind,
+                usage.TargetId,
+                usage.DisplayName,
+                usage.Notes,
+                usage.IsPrimary))
+            .ToListAsync();
 
     public async Task<StructureServiceResult<StructureUsageDto>> UpdateStructureUsageAsync(
         int projectId,
@@ -316,6 +347,7 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         usage.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync();
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureUsageDto>.Success(await GetStructureUsageDto(usage.Id));
     }
@@ -417,6 +449,7 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         usage.UpdatedAt = now;
 
         await dbContext.SaveChangesAsync();
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureUsageDto>.Success(await GetStructureUsageDto(usage.Id));
     }
@@ -441,6 +474,7 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
 
         dbContext.StructureUsages.Remove(usage);
         await dbContext.SaveChangesAsync();
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult.Success();
     }
@@ -481,7 +515,25 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
             query = query.Where(assignment => assignment.StoryObjectId == storyObjectId);
         }
 
-        var assignments = await query
+        var assignments =
+            structureUsageId is null &&
+            structureId is null &&
+            structureNodeId is null &&
+            storyObjectId is null
+                ? await cacheSingleFlight.GetOrCreateAsync(
+                    ProjectCacheKeys.StructureAssignments(projectId),
+                    async entry =>
+                    {
+                        entry.AbsoluteExpirationRelativeToNow = StructureReadCacheDuration;
+                        return await ReadStructureAssignmentsAsync(query);
+                    })
+                : await ReadStructureAssignmentsAsync(query);
+
+        return StructureServiceResult<IReadOnlyList<StructureAssignmentDto>>.Success(assignments);
+    }
+
+    private static Task<List<StructureAssignmentDto>> ReadStructureAssignmentsAsync(IQueryable<StructureAssignment> query) =>
+        query
             .OrderBy(assignment => assignment.StructureUsage!.Structure!.Name)
             .ThenBy(assignment => assignment.StructureNode!.LevelIndex)
             .ThenBy(assignment => assignment.StructureNode!.SortOrder)
@@ -501,9 +553,6 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
                 assignment.Notes,
                 assignment.SortOrder))
             .ToListAsync();
-
-        return StructureServiceResult<IReadOnlyList<StructureAssignmentDto>>.Success(assignments);
-    }
 
     public async Task<StructureServiceResult<StructureAssignmentDto>> AssignObjectToStructureAsync(
         int projectId,
@@ -552,6 +601,7 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
 
         dbContext.StructureAssignments.Add(assignment);
         await dbContext.SaveChangesAsync();
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureAssignmentDto>.Success(await GetStructureAssignmentDto(assignment.Id));
     }
@@ -599,6 +649,7 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
         assignment.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync();
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureAssignmentDto>.Success(await GetStructureAssignmentDto(assignment.Id));
     }
@@ -615,8 +666,17 @@ public sealed class StructureService(StoryDbContext dbContext) : IStructureServi
 
         dbContext.StructureAssignments.Remove(assignment);
         await dbContext.SaveChangesAsync();
+        InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult.Success();
+    }
+
+    private void InvalidateRelationGraphCache(int projectId)
+    {
+        cacheSingleFlight.Remove(ProjectCacheKeys.RelationGraph(projectId));
+        cacheSingleFlight.Remove(ProjectCacheKeys.StructureSummaries(projectId));
+        cacheSingleFlight.Remove(ProjectCacheKeys.StructureUsages(projectId));
+        cacheSingleFlight.Remove(ProjectCacheKeys.StructureAssignments(projectId));
     }
 
     private async Task ReplaceStructureItems(Structure structure, StructureRequest request, DateTime now)
