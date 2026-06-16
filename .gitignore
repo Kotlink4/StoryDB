@@ -287,6 +287,9 @@ FakesAssemblies/
 node_modules/
 .env
 
+# Local StoryDB image export artifacts
+tmp/storydb-image-export/*.tar
+
 # Visual Studio 6 build log
 *.plg
 

@@ -1,0 +1,17 @@
+﻿{
+    "createdAt":  "2026-06-16T10:19:18.8830649Z",
+    "images":  [
+                   {
+                       "name":  "api",
+                       "image":  "kotlink2/storydb-api:latest",
+                       "id":  "sha256:05da8800a8dad470cb25f2eeb5aee359beb8bcdaa1438028e675978a90940970",
+                       "file":  "storydb-api-latest.tar"
+                   },
+                   {
+                       "name":  "client",
+                       "image":  "kotlink2/storydb-client:latest",
+                       "id":  "sha256:1557f42b8377ba5c95d05244a495145a2863087a6209a30db8c46f789fb6a69f",
+                       "file":  "storydb-client-latest.tar"
+                   }
+               ]
+}

@@ -98,6 +98,51 @@ k6 run tests/load/k6-storydb-project.js
 
 ## Production smoke после обновления
 
+Если Docker Hub недоступен или нельзя публиковать приватные образы во внешний registry, перенести образы tar-файлами:
+
+```powershell
+.\scripts\export-storydb-images.ps1
+scp tmp\storydb-image-export\storydb-api-latest.tar root@157.22.185.96:/root/storydb/
+scp tmp\storydb-image-export\storydb-client-latest.tar root@157.22.185.96:/root/storydb/
+scp tmp\storydb-image-export\storydb-images-manifest.json root@157.22.185.96:/root/storydb/
+```
+
+Команды `scp` выше нужно запускать из корня репозитория. Если PowerShell открыт в `C:\Windows\System32`, используйте абсолютные пути, которые печатает `export-storydb-images.ps1`.
+
+Загрузить их на сервере:
+
+```bash
+cd /root/storydb
+docker load -i storydb-api-latest.tar
+docker load -i storydb-client-latest.tar
+docker compose -f docker-compose.prod.yml up -d --no-deps api client
+```
+
+Если после обновления `/live`, `/ready`, `/health` возвращают `502`, сначала смотреть API:
+
+```bash
+docker logs storydb-api --tail=120
+docker inspect storydb-api --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -E 'ConnectionStrings__StoryDb|POSTGRES'
+docker inspect storydb-postgres --format '{{range .Config.Env}}{{println .}}{{end}}' | grep POSTGRES
+```
+
+Если API был пересоздан, а `storydb-client` остался старым процессом, nginx может держать старый Docker DNS/IP upstream и продолжать отдавать `502`. После успешного старта API перезапустите client:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --no-deps client
+```
+
+Ошибка `28P01: password authentication failed for user "postgres"` означает, что пароль в `ConnectionStrings__StoryDb` у API не совпадает с паролем существующего PostgreSQL volume. Без удаления volume можно выровнять пароль так:
+
+```bash
+cd /root/storydb
+DB_PASS='put-current-compose-password-here'
+docker exec storydb-postgres psql -U postgres -d storydb -c "ALTER USER postgres WITH PASSWORD '${DB_PASS}';"
+POSTGRES_PASSWORD="$DB_PASS" docker compose -f docker-compose.prod.yml up -d --no-deps api
+```
+
+Если на сервере есть `.env`, лучше записать тот же `POSTGRES_PASSWORD` туда, чтобы следующие `docker compose up` не возвращались к дефолту.
+
 После pull/build/deploy на сервере:
 
 ```bash
