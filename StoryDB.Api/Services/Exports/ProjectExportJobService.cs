@@ -1,22 +1,34 @@
 using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Channels;
 using StoryDB.Api.Contracts.Exports;
 
 namespace StoryDB.Api.Services.Exports;
 
-public sealed class ProjectExportJobService(IServiceScopeFactory scopeFactory, ILogger<ProjectExportJobService> logger)
+public sealed class ProjectExportJobService(
+    IServiceScopeFactory scopeFactory,
+    ILogger<ProjectExportJobService> logger,
+    IConfiguration configuration)
     : IProjectExportJobService
 {
-    private const int MaxRetainedJobs = 200;
-    private static readonly TimeSpan CompletedJobRetention = TimeSpan.FromMinutes(30);
     private readonly string exportJobsDirectory = Path.Combine(Path.GetTempPath(), "storydb-export-jobs");
+    private readonly int maxRetainedJobs = Math.Max(10, configuration.GetValue("Exports:MaxRetainedJobs", 200));
+    private readonly TimeSpan completedJobRetention = TimeSpan.FromMinutes(
+        Math.Max(1, configuration.GetValue("Exports:CompletedJobRetentionMinutes", 30)));
 
     private readonly ConcurrentDictionary<Guid, ProjectExportJobState> jobs = new();
-    private readonly Channel<Guid> queue = Channel.CreateUnbounded<Guid>(new UnboundedChannelOptions
-    {
-        SingleReader = true,
-        SingleWriter = false,
-    });
+    private readonly Channel<Guid> queue = Channel.CreateBounded<Guid>(new BoundedChannelOptions(
+        Math.Max(10, configuration.GetValue("Exports:JobQueueCapacity", 100)))
+        {
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = false,
+        });
+    private readonly int queueCapacity = Math.Max(10, configuration.GetValue("Exports:JobQueueCapacity", 100));
+    private long queueDepth;
+    private long enqueuedTotal;
+    private long startedTotal;
+    private long completedTotal;
 
     public async Task<ProjectExportJobDto> EnqueueDossierExportAsync(
         int projectId,
@@ -34,7 +46,18 @@ public sealed class ProjectExportJobService(IServiceScopeFactory scopeFactory, I
             DateTimeOffset.UtcNow);
 
         jobs[job.Id] = job;
-        await queue.Writer.WriteAsync(job.Id, cancellationToken);
+        Interlocked.Increment(ref queueDepth);
+        try
+        {
+            await queue.Writer.WriteAsync(job.Id, cancellationToken);
+            Interlocked.Increment(ref enqueuedTotal);
+        }
+        catch
+        {
+            Interlocked.Decrement(ref queueDepth);
+            jobs.TryRemove(job.Id, out _);
+            throw;
+        }
 
         return ToDto(job);
     }
@@ -42,39 +65,45 @@ public sealed class ProjectExportJobService(IServiceScopeFactory scopeFactory, I
     public ProjectExportJobDto? GetJob(Guid jobId) =>
         jobs.TryGetValue(jobId, out var job) ? ToDto(job) : null;
 
-    public ProjectExportServiceResult<ProjectDossierExportDocument> GetCompletedDocument(Guid jobId)
+    public ProjectExportServiceResult<ProjectCompletedExportFile> GetCompletedFile(Guid jobId)
     {
         if (!jobs.TryGetValue(jobId, out var job))
         {
-            return ProjectExportServiceResult<ProjectDossierExportDocument>.NotFound();
+            return ProjectExportServiceResult<ProjectCompletedExportFile>.NotFound();
         }
 
         if (job.Status == ProjectExportJobStatus.Invalid)
         {
-            return ProjectExportServiceResult<ProjectDossierExportDocument>.Invalid(job.Error ?? "Export job failed.");
+            return ProjectExportServiceResult<ProjectCompletedExportFile>.Invalid(job.Error ?? "Export job failed.");
         }
 
         if (job.Status != ProjectExportJobStatus.Succeeded ||
             string.IsNullOrWhiteSpace(job.FilePath) ||
             !File.Exists(job.FilePath))
         {
-            return ProjectExportServiceResult<ProjectDossierExportDocument>.Invalid(
+            return ProjectExportServiceResult<ProjectCompletedExportFile>.Invalid(
                 job.Status == ProjectExportJobStatus.Succeeded
                     ? "Export job result is no longer available."
                     : "Export job is not completed yet.");
         }
 
-        return ProjectExportServiceResult<ProjectDossierExportDocument>.Success(
-            new ProjectDossierExportDocument(
+        return ProjectExportServiceResult<ProjectCompletedExportFile>.Success(
+            new ProjectCompletedExportFile(
+                job.FilePath,
                 job.FileName ?? "storydb-export.docx",
-                job.ContentType ?? "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                File.ReadAllBytes(job.FilePath)));
+                job.ContentType ?? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
     }
 
     public ProjectExportQueueStatsDto GetStats()
     {
         var snapshot = jobs.Values.ToArray();
         return new ProjectExportQueueStatsDto(
+            queueCapacity,
+            (int)Math.Max(0, Interlocked.Read(ref queueDepth)),
+            snapshot.Length,
+            Interlocked.Read(ref enqueuedTotal),
+            Interlocked.Read(ref startedTotal),
+            Interlocked.Read(ref completedTotal),
             snapshot.Count(job => job.Status == ProjectExportJobStatus.Queued),
             snapshot.Count(job => job.Status == ProjectExportJobStatus.Running),
             snapshot.Count(job => job.Status == ProjectExportJobStatus.Succeeded),
@@ -90,6 +119,7 @@ public sealed class ProjectExportJobService(IServiceScopeFactory scopeFactory, I
                 continue;
             }
 
+            Interlocked.Decrement(ref queueDepth);
             await RunJobAsync(job, stoppingToken);
             CleanupCompletedJobs();
         }
@@ -97,6 +127,7 @@ public sealed class ProjectExportJobService(IServiceScopeFactory scopeFactory, I
 
     private async Task RunJobAsync(ProjectExportJobState job, CancellationToken stoppingToken)
     {
+        Interlocked.Increment(ref startedTotal);
         job.Status = ProjectExportJobStatus.Running;
         job.StartedAt = DateTimeOffset.UtcNow;
         var startedAt = TimeProvider.System.GetTimestamp();
@@ -153,15 +184,19 @@ public sealed class ProjectExportJobService(IServiceScopeFactory scopeFactory, I
             job.Status = ProjectExportJobStatus.Failed;
             job.Error = "Export job failed.";
         }
+        finally
+        {
+            Interlocked.Increment(ref completedTotal);
+        }
     }
 
-    private void CleanupCompletedJobs()
+    internal void CleanupCompletedJobs()
     {
         var now = DateTimeOffset.UtcNow;
         foreach (var job in jobs.Values)
         {
-            if (jobs.Count <= MaxRetainedJobs &&
-                (job.CompletedAt is null || now - job.CompletedAt.Value < CompletedJobRetention))
+            if (jobs.Count <= maxRetainedJobs &&
+                (job.CompletedAt is null || now - job.CompletedAt.Value < completedJobRetention))
             {
                 continue;
             }

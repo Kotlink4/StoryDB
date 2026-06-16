@@ -8,10 +8,14 @@ namespace StoryDB.Api.Files;
 public sealed class LocalFileStorageService : IFileStorageService
 {
     private const string WebpContentType = "image/webp";
+    private const long DefaultMaxImagePixels = 32_000_000;
+    private const int DefaultMaxImageDimension = 12_000;
     private static readonly WebpEncoder WebpEncoder = new() { Quality = 84 };
 
     private readonly IWebHostEnvironment environment;
     private readonly ILogger<LocalFileStorageService> logger;
+    private readonly long maxImagePixels;
+    private readonly int maxImageDimension;
 
     private static readonly IReadOnlyDictionary<string, string> ImageContentTypes =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -30,10 +34,15 @@ public sealed class LocalFileStorageService : IFileStorageService
         "thumb.webp",
     };
 
-    public LocalFileStorageService(IWebHostEnvironment environment, ILogger<LocalFileStorageService> logger)
+    public LocalFileStorageService(
+        IWebHostEnvironment environment,
+        ILogger<LocalFileStorageService> logger,
+        IConfiguration? configuration = null)
     {
         this.environment = environment;
         this.logger = logger;
+        maxImagePixels = Math.Max(1, configuration?.GetValue("Media:MaxImagePixels", DefaultMaxImagePixels) ?? DefaultMaxImagePixels);
+        maxImageDimension = Math.Max(1, configuration?.GetValue("Media:MaxImageDimension", DefaultMaxImageDimension) ?? DefaultMaxImageDimension);
     }
 
     public string UploadsRootPath => Path.Combine(environment.ContentRootPath, "uploads");
@@ -156,8 +165,17 @@ public sealed class LocalFileStorageService : IFileStorageService
         await sourceStream.CopyToAsync(memoryStream, cancellationToken);
         memoryStream.Position = 0;
 
+        var imageInfo = await Image.IdentifyAsync(memoryStream, cancellationToken);
+        if (imageInfo is null)
+        {
+            throw new InvalidOperationException("Uploaded file is not a valid image.");
+        }
+
+        ValidateImageDimensions(imageInfo.Width, imageInfo.Height);
+        memoryStream.Position = 0;
         using var image = await Image.LoadAsync(memoryStream, cancellationToken);
-        var sha256 = Convert.ToHexString(SHA256.HashData(memoryStream.ToArray())).ToLowerInvariant();
+        memoryStream.Position = 0;
+        var sha256 = Convert.ToHexString(await SHA256.HashDataAsync(memoryStream, cancellationToken)).ToLowerInvariant();
 
         var now = DateTime.UtcNow;
         var mediaId = Guid.NewGuid().ToString("N");
@@ -212,6 +230,20 @@ public sealed class LocalFileStorageService : IFileStorageService
             image.Height,
             sha256,
             variants);
+    }
+
+    private void ValidateImageDimensions(int width, int height)
+    {
+        var pixels = (long)width * height;
+        if (width <= maxImageDimension &&
+            height <= maxImageDimension &&
+            pixels <= maxImagePixels)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Image is too large. Maximum dimension is {maxImageDimension}px and maximum decoded size is {maxImagePixels} pixels.");
     }
 
     private static async Task<StoredFileVariant> CreateVariantAsync(

@@ -14,6 +14,7 @@ public class ObjectService(
     ICacheSingleFlight cacheSingleFlight) : IObjectService
 {
     private static readonly TimeSpan ObjectSummariesCacheDuration = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan ObjectDetailCacheDuration = TimeSpan.FromSeconds(15);
     private static readonly string?[] ObjectSummaryCacheTypeKeys = [null, "characters", "items", "places", "organizations"];
 
     public async Task<IReadOnlyList<StoryObjectDto>> GetObjectsAsync(
@@ -104,16 +105,14 @@ public class ObjectService(
 
     public async Task<ObjectServiceResult<StoryObjectDto>> GetObjectAsync(int projectId, int objectId)
     {
-        var storyObjectExists = await dbContext.Objects
-            .AsNoTracking()
-            .AnyAsync(storyObject => storyObject.ProjectId == projectId && storyObject.Id == objectId);
+        var storyObject = await GetCachedObjectDto(projectId, objectId);
 
-        if (!storyObjectExists)
+        if (storyObject is null)
         {
             return ObjectServiceResult<StoryObjectDto>.NotFound();
         }
 
-        return ObjectServiceResult<StoryObjectDto>.Success(await GetObjectDto(projectId, objectId));
+        return ObjectServiceResult<StoryObjectDto>.Success(storyObject);
     }
     public async Task<ObjectServiceResult<StoryObjectDto>> CreateObjectAsync(int projectId, CreateStoryObjectRequest request)
     {
@@ -421,6 +420,7 @@ public class ObjectService(
         dbContext.OrganizationStructureLevels.RemoveRange(existingLevels);
 
         await dbContext.SaveChangesAsync();
+        InvalidateObjectDetailCache(projectId, objectId);
 
         return ObjectServiceResult<StoryObjectDto>.Success(await GetObjectDto(projectId, objectId));
     }
@@ -480,6 +480,7 @@ public class ObjectService(
             UpdatedAt = now,
         });
         await dbContext.SaveChangesAsync();
+        InvalidateObjectDetailCache(projectId, objectId);
 
         return ObjectServiceResult<StoryObjectDto>.Success(await GetObjectDto(projectId, objectId));
     }
@@ -511,6 +512,7 @@ public class ObjectService(
         image.Caption = NormalizeOptionalText(request.Caption);
         image.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
+        InvalidateObjectDetailCache(projectId, objectId);
 
         return ObjectServiceResult<StoryObjectDto>.Success(await GetObjectDto(projectId, objectId));
     }
@@ -533,6 +535,7 @@ public class ObjectService(
 
         dbContext.ObjectGalleryImages.Remove(image);
         await dbContext.SaveChangesAsync();
+        InvalidateObjectDetailCache(projectId, objectId);
 
         return ObjectServiceResult<StoryObjectDto>.Success(await GetObjectDto(projectId, objectId));
     }
@@ -553,6 +556,7 @@ public class ObjectService(
         var now = DateTime.UtcNow;
         cacheSingleFlight.Remove(ProjectCacheKeys.RelationGraph(projectId));
         InvalidateObjectSummariesCache(projectId);
+        InvalidateProjectObjectDetailsCache(projectId);
 
         return dbContext.RelationGraphLayouts
             .Where(layout => layout.ProjectId == projectId && !layout.IsStale)
@@ -568,6 +572,12 @@ public class ObjectService(
             cacheSingleFlight.Remove(ProjectCacheKeys.ObjectSummaries(projectId, typeKey));
         }
     }
+
+    private void InvalidateObjectDetailCache(int projectId, int objectId) =>
+        cacheSingleFlight.Remove(ProjectCacheKeys.ObjectDetail(projectId, objectId));
+
+    private void InvalidateProjectObjectDetailsCache(int projectId) =>
+        cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.ObjectDetailsPrefix(projectId));
 
     private static string? NormalizeOptionalText(string? value)
     {
@@ -953,7 +963,25 @@ public class ObjectService(
         return normalizedSelections;
     }
 
-    private async Task<StoryObjectDto> GetObjectDto(int projectId, int objectId)
+    private async Task<StoryObjectDto?> GetCachedObjectDto(int projectId, int objectId)
+    {
+        var cached = await cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.ObjectDetail(projectId, objectId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = ObjectDetailCacheDuration;
+
+                return new ObjectDetailCacheValue(await GetObjectDtoOrNull(projectId, objectId));
+            });
+
+        return cached.Value;
+    }
+
+    private async Task<StoryObjectDto> GetObjectDto(int projectId, int objectId) =>
+        await GetObjectDtoOrNull(projectId, objectId) ??
+        throw new InvalidOperationException("Story object was not found after a successful mutation.");
+
+    private async Task<StoryObjectDto?> GetObjectDtoOrNull(int projectId, int objectId)
     {
         var storyObject = await dbContext.Objects
             .AsNoTracking()
@@ -971,7 +999,11 @@ public class ObjectService(
                 currentObject.ImagePath,
                 TypeKey = currentObject.ObjectType!.Key,
             })
-            .FirstAsync();
+            .FirstOrDefaultAsync();
+        if (storyObject is null)
+        {
+            return null;
+        }
 
         var attributes = await dbContext.ObjectAttributes
             .AsNoTracking()
@@ -1794,4 +1826,6 @@ public class ObjectService(
             RelationType = relationType,
             SortOrder = index,
         });
+
+    private sealed record ObjectDetailCacheValue(StoryObjectDto? Value);
 }

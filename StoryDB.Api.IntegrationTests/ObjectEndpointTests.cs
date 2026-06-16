@@ -72,6 +72,11 @@ public class ObjectEndpointTests(StoryDbApiFactory factory) : IClassFixture<Stor
         var updatedObject = await updateResponse.Content.ReadFromJsonAsync<StoryObjectDto>();
         Assert.NotNull(updatedObject);
         Assert.Equal("Injured", updatedObject.CurrentStatus);
+
+        var reloadedObject = await client.GetFromJsonAsync<StoryObjectDto>(
+            $"/api/projects/{project.Id}/objects/{createdObject.Id}");
+        Assert.NotNull(reloadedObject);
+        Assert.Equal("Injured", reloadedObject.CurrentStatus);
     }
 
     [Fact]

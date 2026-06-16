@@ -50,7 +50,20 @@ Optional gates:
 ```powershell
 $env:STORYDB_SMOKE_MAX_FAILURE_RATE = "0"
 $env:STORYDB_SMOKE_MAX_P95_MS = "1500"
+$env:STORYDB_SMOKE_MAX_AUDIT_DROPPED = "0"
+$env:STORYDB_SMOKE_MAX_CACHE_CAPACITY_EVICTIONS = "25"
+$env:STORYDB_SMOKE_MAX_EXPORT_FAILED_JOBS = "0"
+$env:STORYDB_SMOKE_REQUIRE_DIAGNOSTICS = "1"
 ```
+
+The smoke report also includes a final diagnostics snapshot from `/health` and `/metrics/prometheus`,
+including API cache hit/miss/wait/eviction counters, audit queue counters, export queue counters,
+current process memory values, GC counters, and .NET thread pool usage. Set `STORYDB_SMOKE_REQUIRE_DIAGNOSTICS=1` when the frontend/API
+deployment should expose these endpoints; otherwise the report records missing diagnostics without failing
+older local containers.
+
+When running against the Vite dev server on `localhost:50201`, diagnostics are proxied to
+`http://localhost:5282` by default. Override this with `VITE_API_PROXY_TARGET` if the API listens elsewhere.
 
 ## Project browsing and export
 

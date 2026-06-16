@@ -5,17 +5,31 @@ namespace StoryDB.Api.Observability;
 
 public sealed class ApiMetricsService : IApiMetricsService
 {
-    private const int MaxTrackedEndpoints = 200;
+    private const int DefaultMaxTrackedEndpoints = 200;
     private const int MaxLatencySamplesPerEndpoint = 256;
 
     private readonly DateTimeOffset startedAt = DateTimeOffset.UtcNow;
     private readonly ConcurrentDictionary<string, EndpointMetrics> endpoints = new();
+    private readonly int maxTrackedEndpoints;
     private long totalRequests;
+    private long activeRequests;
     private long failedRequests;
     private long slowRequests;
+    private long overflowRequests;
+
+    public ApiMetricsService(IConfiguration configuration)
+    {
+        maxTrackedEndpoints = Math.Max(10, configuration.GetValue("Observability:MaxTrackedEndpoints", DefaultMaxTrackedEndpoints));
+    }
+
+    public void RequestStarted()
+    {
+        Interlocked.Increment(ref activeRequests);
+    }
 
     public void Record(HttpContext context, long elapsedMs, long slowRequestThresholdMs)
     {
+        Interlocked.Decrement(ref activeRequests);
         var method = context.Request.Method.ToUpperInvariant();
         var path = NormalizePath(context.Request.Path.Value);
         var statusCode = context.Response.StatusCode;
@@ -33,9 +47,10 @@ public sealed class ApiMetricsService : IApiMetricsService
             Interlocked.Increment(ref slowRequests);
         }
 
-        if (endpoints.Count >= MaxTrackedEndpoints && !endpoints.ContainsKey($"{method} {path}"))
+        if (endpoints.Count >= maxTrackedEndpoints && !endpoints.ContainsKey($"{method} {path}"))
         {
             path = "/__other__";
+            Interlocked.Increment(ref overflowRequests);
         }
 
         var endpoint = endpoints.GetOrAdd($"{method} {path}", _ => new EndpointMetrics(method, path));
@@ -55,8 +70,12 @@ public sealed class ApiMetricsService : IApiMetricsService
             startedAt,
             DateTimeOffset.UtcNow,
             Interlocked.Read(ref totalRequests),
+            Math.Max(0, Interlocked.Read(ref activeRequests)),
             Interlocked.Read(ref failedRequests),
             Interlocked.Read(ref slowRequests),
+            endpoints.Count,
+            maxTrackedEndpoints,
+            Interlocked.Read(ref overflowRequests),
             endpointSnapshots);
     }
 

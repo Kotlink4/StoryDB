@@ -12,6 +12,11 @@ public sealed record ProjectDossierExportDocument(
     string ContentType,
     byte[] Content);
 
+public sealed record ProjectCompletedExportFile(
+    string FilePath,
+    string FileName,
+    string ContentType);
+
 public sealed record ProjectExportJobDto(
     Guid Id,
     int ProjectId,
@@ -24,6 +29,12 @@ public sealed record ProjectExportJobDto(
     string? Error);
 
 public sealed record ProjectExportQueueStatsDto(
+    int Capacity,
+    int QueueDepth,
+    int RetainedJobs,
+    long EnqueuedTotal,
+    long StartedTotal,
+    long CompletedTotal,
     int Queued,
     int Running,
     int Succeeded,

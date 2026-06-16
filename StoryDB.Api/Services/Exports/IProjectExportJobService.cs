@@ -11,7 +11,7 @@ public interface IProjectExportJobService
 
     ProjectExportJobDto? GetJob(Guid jobId);
 
-    ProjectExportServiceResult<ProjectDossierExportDocument> GetCompletedDocument(Guid jobId);
+    ProjectExportServiceResult<ProjectCompletedExportFile> GetCompletedFile(Guid jobId);
 
     ProjectExportQueueStatsDto GetStats();
 }

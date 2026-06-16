@@ -30,14 +30,29 @@
       ASPNETCORE_HTTP_PORTS: 5282
       DOTNET_GCHeapHardLimitPercent: ${DOTNET_GC_HEAP_HARD_LIMIT_PERCENT:-55}
       DOTNET_GCConserveMemory: ${DOTNET_GC_CONSERVE_MEMORY:-5}
-      ConnectionStrings__StoryDb: Host=postgres;Port=5432;Database=${POSTGRES_DB:-storydb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__StoryDb: Host=postgres;Port=5432;Database=${POSTGRES_DB:-storydb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Pooling=true;Minimum Pool Size=${POSTGRES_MIN_POOL_SIZE:-0};Maximum Pool Size=${POSTGRES_MAX_POOL_SIZE:-100};Timeout=${POSTGRES_CONNECT_TIMEOUT_SECONDS:-15};Max Auto Prepare=${POSTGRES_MAX_AUTO_PREPARE:-50};Auto Prepare Min Usages=${POSTGRES_AUTO_PREPARE_MIN_USAGES:-2}
+      MemoryCache__SizeLimit: ${MEMORY_CACHE_SIZE_LIMIT:-2048}
+      Media__MaxImagePixels: ${MEDIA_MAX_IMAGE_PIXELS:-32000000}
+      Media__MaxImageDimension: ${MEDIA_MAX_IMAGE_DIMENSION:-12000}
+      Observability__MaxTrackedEndpoints: ${OBSERVABILITY_MAX_TRACKED_ENDPOINTS:-200}
+      Exports__JobQueueCapacity: ${EXPORT_JOB_QUEUE_CAPACITY:-100}
+      Exports__MaxRetainedJobs: ${EXPORT_MAX_RETAINED_JOBS:-200}
+      Exports__CompletedJobRetentionMinutes: ${EXPORT_COMPLETED_JOB_RETENTION_MINUTES:-30}
+      Exports__CleanupIntervalMinutes: ${EXPORT_CLEANUP_INTERVAL_MINUTES:-5}
+      Database__DbContextPoolSize: ${DB_CONTEXT_POOL_SIZE:-128}
+      Database__CommandTimeoutSeconds: ${POSTGRES_COMMAND_TIMEOUT_SECONDS:-30}
+      Database__MaxRetryCount: ${POSTGRES_MAX_RETRY_COUNT:-3}
+      Database__MaxRetryDelaySeconds: ${POSTGRES_MAX_RETRY_DELAY_SECONDS:-5}
+      Security__MaxRequestBodyBytes: ${API_MAX_REQUEST_BODY_BYTES:-2097152}
+      Security__MaxUploadBytes: ${API_MAX_UPLOAD_BYTES:-8388608}
+      Security__MaxFormValueLength: ${API_MAX_FORM_VALUE_LENGTH:-16384}
       Logging__FileDirectory: /app/logs
     volumes:
       - ${STORYDB_UPLOADS_PATH:-./data/uploads}:/app/uploads
       - ${STORYDB_DATAPROTECTION_PATH:-./data/dataprotection}:/root/.aspnet/DataProtection-Keys
       - ${STORYDB_LOGS_PATH:-./data/logs}:/app/logs
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5282/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5282/live >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6

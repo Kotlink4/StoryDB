@@ -504,6 +504,9 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .HasIndex(usage => new { usage.StructureId, usage.TargetKind, usage.TargetId });
 
         modelBuilder.Entity<StructureUsage>()
+            .HasIndex(usage => new { usage.ProjectId, usage.StructureId, usage.TargetKind });
+
+        modelBuilder.Entity<StructureUsage>()
             .Property(usage => usage.TargetKind)
             .HasMaxLength(40);
 
@@ -541,6 +544,12 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
 
         modelBuilder.Entity<StructureAssignment>()
             .HasIndex(assignment => new { assignment.ProjectId, assignment.StoryObjectId });
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasIndex(assignment => new { assignment.ProjectId, assignment.StoryObjectId, assignment.StructureUsageId });
+
+        modelBuilder.Entity<StructureAssignment>()
+            .HasIndex(assignment => new { assignment.ProjectId, assignment.StructureUsageId, assignment.StructureNodeId, assignment.SortOrder });
 
         modelBuilder.Entity<StructureAssignment>()
             .HasIndex(assignment => new { assignment.StructureUsageId, assignment.StructureNodeId, assignment.SortOrder });

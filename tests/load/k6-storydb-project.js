@@ -92,6 +92,13 @@ export default function (data) {
     const prometheusResponse = http.get(`${BASE_URL}/metrics/prometheus`, { tags: { endpoint: 'diagnostics' } })
     check(prometheusResponse, {
       'prometheus metrics ok': (result) => result.status === 200,
+      'prometheus contains api metrics': (result) => result.body.includes('storydb_api_requests_total'),
+      'prometheus contains active request metrics': (result) => result.body.includes('storydb_api_active_requests'),
+      'prometheus contains cache metrics': (result) => result.body.includes('storydb_cache_singleflight_hits_total'),
+      'prometheus contains audit queue metrics': (result) => result.body.includes('storydb_audit_log_queue_dropped_total'),
+      'prometheus contains export queue metrics': (result) => result.body.includes('storydb_export_job_queue_depth'),
+      'prometheus contains gc metrics': (result) => result.body.includes('storydb_process_gc_allocated_bytes_total'),
+      'prometheus contains threadpool metrics': (result) => result.body.includes('storydb_threadpool_worker_threads_used'),
     })
     getJson('/api/auth/me', 'auth')
     getJson('/api/projects', 'project-list')

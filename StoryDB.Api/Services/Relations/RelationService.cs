@@ -46,7 +46,6 @@ public sealed class RelationService(
                 storyObject.ObjectType!.Key))
             .ToListAsync();
 
-                var nodeIds = nodes.Select(node => node.Id).ToHashSet();
                 var edges = new List<RelationGraphEdgeDto>();
                 var organizationsBySurnameForm = nodes
             .Where(node => node.TypeKey == "organizations")
@@ -86,9 +85,13 @@ public sealed class RelationService(
             .AsNoTracking()
             .Where(relationship =>
                 relationship.SourceCharacter != null &&
+                relationship.SourceCharacter.ObjectType != null &&
                 relationship.SourceCharacter.ProjectId == projectId &&
-                nodeIds.Contains(relationship.SourceCharacterId) &&
-                nodeIds.Contains(relationship.TargetCharacterId))
+                relationship.SourceCharacter.ObjectType.IsEnabled &&
+                relationship.TargetCharacter != null &&
+                relationship.TargetCharacter.ObjectType != null &&
+                relationship.TargetCharacter.ProjectId == projectId &&
+                relationship.TargetCharacter.ObjectType.IsEnabled)
             .OrderBy(relationship => relationship.SortOrder)
             .Select(relationship => new RelationGraphEdgeDto(
                 $"character:{relationship.Id}",
@@ -107,9 +110,13 @@ public sealed class RelationService(
             .AsNoTracking()
             .Where(ownership =>
                 ownership.OwnerCharacter != null &&
+                ownership.OwnerCharacter.ObjectType != null &&
                 ownership.OwnerCharacter.ProjectId == projectId &&
-                nodeIds.Contains(ownership.OwnerCharacterId) &&
-                nodeIds.Contains(ownership.ItemObjectId))
+                ownership.OwnerCharacter.ObjectType.IsEnabled &&
+                ownership.ItemObject != null &&
+                ownership.ItemObject.ObjectType != null &&
+                ownership.ItemObject.ProjectId == projectId &&
+                ownership.ItemObject.ObjectType.IsEnabled)
             .OrderBy(ownership => ownership.SortOrder)
             .Select(ownership => new RelationGraphEdgeDto(
                 $"ownership:{ownership.OwnerCharacterId}:{ownership.ItemObjectId}",
@@ -128,9 +135,13 @@ public sealed class RelationService(
             .AsNoTracking()
             .Where(relation =>
                 relation.SourceObject != null &&
+                relation.SourceObject.ObjectType != null &&
                 relation.SourceObject.ProjectId == projectId &&
-                nodeIds.Contains(relation.SourceObjectId) &&
-                nodeIds.Contains(relation.TargetObjectId))
+                relation.SourceObject.ObjectType.IsEnabled &&
+                relation.TargetObject != null &&
+                relation.TargetObject.ObjectType != null &&
+                relation.TargetObject.ProjectId == projectId &&
+                relation.TargetObject.ObjectType.IsEnabled)
             .OrderBy(relation => relation.SortOrder)
             .Select(relation => new RelationGraphEdgeDto(
                 $"object:{relation.Id}",
@@ -145,24 +156,30 @@ public sealed class RelationService(
             .ToListAsync();
                 edges.AddRange(objectRelations);
 
-                var structureAssignments = await dbContext.StructureAssignments
-            .AsNoTracking()
-            .Where(assignment =>
-                assignment.ProjectId == projectId &&
-                assignment.StructureUsage != null &&
-                assignment.StructureUsage.Structure != null &&
-                assignment.StructureNode != null &&
-                assignment.StructureUsage.TargetKind == "object" &&
-                nodeIds.Contains(assignment.StoryObjectId) &&
-                nodeIds.Contains(assignment.StructureUsage.TargetId))
-            .OrderBy(assignment => assignment.StructureUsage!.Structure!.Name)
-            .ThenBy(assignment => assignment.StructureNode!.LevelIndex)
-            .ThenBy(assignment => assignment.StructureNode!.SortOrder)
-            .ThenBy(assignment => assignment.SortOrder)
-            .Select(assignment => new RelationGraphEdgeDto(
+                var structureAssignments = await (
+            from assignment in dbContext.StructureAssignments.AsNoTracking()
+            join targetObject in dbContext.Objects.AsNoTracking()
+                on assignment.StructureUsage!.TargetId equals targetObject.Id
+            where assignment.ProjectId == projectId &&
+                  assignment.StructureUsage != null &&
+                  assignment.StructureUsage.Structure != null &&
+                  assignment.StructureNode != null &&
+                  assignment.StructureUsage.TargetKind == "object" &&
+                  assignment.StoryObject != null &&
+                  assignment.StoryObject.ObjectType != null &&
+                  assignment.StoryObject.ProjectId == projectId &&
+                  assignment.StoryObject.ObjectType.IsEnabled &&
+                  targetObject.ProjectId == projectId &&
+                  targetObject.ObjectType != null &&
+                  targetObject.ObjectType.IsEnabled
+            orderby assignment.StructureUsage!.Structure!.Name,
+                assignment.StructureNode!.LevelIndex,
+                assignment.StructureNode!.SortOrder,
+                assignment.SortOrder
+            select new RelationGraphEdgeDto(
                 $"structure:{assignment.Id}",
                 assignment.StoryObjectId,
-                assignment.StructureUsage!.TargetId,
+                targetObject.Id,
                 string.IsNullOrWhiteSpace(assignment.RoleLabel)
                     ? assignment.StructureNode!.Name
                     : assignment.RoleLabel,
@@ -170,7 +187,7 @@ public sealed class RelationService(
                 null,
                 null,
                 false,
-                assignment.StructureUsage.Structure!.Name + " · " + assignment.StructureNode!.Name))
+                assignment.StructureUsage!.Structure!.Name + " · " + assignment.StructureNode!.Name))
             .ToListAsync();
                 edges.AddRange(structureAssignments);
 

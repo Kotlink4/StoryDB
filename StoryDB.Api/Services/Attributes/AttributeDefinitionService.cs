@@ -373,6 +373,7 @@ public sealed class AttributeDefinitionService(
     {
         cacheSingleFlight.Remove(ProjectCacheKeys.AttributeGroups(projectId, typeKey));
         cacheSingleFlight.Remove(ProjectCacheKeys.AttributeDefinitions(projectId, typeKey));
+        cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.ObjectDetailsPrefix(projectId));
     }
 
     private void InvalidateAllAttributeCaches(int projectId)

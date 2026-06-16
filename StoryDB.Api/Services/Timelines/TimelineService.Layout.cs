@@ -96,6 +96,17 @@ public partial class TimelineService
 
     private async Task<TimelineLayoutRulesConfig> EnsureTimelineLayoutRules(int projectId)
     {
+        return await cacheSingleFlight.GetOrCreateAsync(
+            global::StoryDB.Api.Services.ProjectCacheKeys.TimelineLayoutRules(projectId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = TimelineReadCacheDuration;
+                return await ReadOrCreateTimelineLayoutRules(projectId);
+            });
+    }
+
+    private async Task<TimelineLayoutRulesConfig> ReadOrCreateTimelineLayoutRules(int projectId)
+    {
         var path = GetTimelineLayoutRulesPath(projectId);
         if (System.IO.File.Exists(path))
         {
@@ -118,6 +129,22 @@ public partial class TimelineService
 
     private async Task<TimelineLayoutDto?> ReadTimelineLayoutState(int projectId, int? timelineId = null)
     {
+        var cached = await cacheSingleFlight.GetOrCreateAsync(
+            global::StoryDB.Api.Services.ProjectCacheKeys.TimelineLayoutState(projectId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = TimelineReadCacheDuration;
+                return new TimelineLayoutStateCacheValue(await ReadTimelineLayoutStateFromDisk(projectId));
+            });
+
+        var layout = cached.Value;
+        return layout is null || (timelineId is not null && layout.TimelineId != timelineId.Value)
+            ? null
+            : layout;
+    }
+
+    private async Task<TimelineLayoutDto?> ReadTimelineLayoutStateFromDisk(int projectId)
+    {
         var path = GetTimelineLayoutStatePath(projectId);
         if (!System.IO.File.Exists(path))
         {
@@ -128,7 +155,7 @@ public partial class TimelineService
         var state = await JsonSerializer.DeserializeAsync<TimelineLayoutStateConfig>(
             stream,
             TimelineLayoutJsonOptions);
-        if (state is null || (timelineId is not null && state.TimelineId != timelineId.Value))
+        if (state is null)
         {
             return null;
         }
@@ -157,6 +184,9 @@ public partial class TimelineService
 
         await using var stream = System.IO.File.Create(GetTimelineLayoutStatePath(projectId));
         await JsonSerializer.SerializeAsync(stream, state, TimelineLayoutJsonOptions);
+        cacheSingleFlight.Remove(global::StoryDB.Api.Services.ProjectCacheKeys.TimelineLayoutState(projectId));
     }
+
+    private sealed record TimelineLayoutStateCacheValue(TimelineLayoutDto? Value);
 }
 

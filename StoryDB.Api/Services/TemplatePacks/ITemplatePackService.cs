@@ -5,7 +5,7 @@ namespace StoryDB.Api.Services.TemplatePacks;
 
 public interface ITemplatePackService
 {
-    Task<IReadOnlyList<ProjectTemplatePack>> GetTemplatePacksAsync(
+    Task<IReadOnlyList<TemplatePackListItemDto>> GetTemplatePacksAsync(
         string scope,
         CancellationToken cancellationToken = default);
 

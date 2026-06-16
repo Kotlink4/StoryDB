@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
 using StoryDB.Api.Security;
+using StoryDB.Api.Services;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Services.TemplatePacks;
 using StoryDB.Api.Validation;
 
@@ -11,7 +13,8 @@ namespace StoryDB.Api.Services.Projects;
 public sealed class ProjectService(
     StoryDbContext dbContext,
     IProjectAccessService projectAccessService,
-    ITemplatePackService templatePackService) : IProjectService
+    ITemplatePackService templatePackService,
+    ICacheSingleFlight cacheSingleFlight) : IProjectService
 {
     private static readonly ObjectTypeTemplate[] ObjectTypeTemplates =
     [
@@ -82,6 +85,7 @@ public sealed class ProjectService(
         await ApplyPresetSolutions(project.Id, draft.PresetKeys, cancellationToken);
         await templatePackService.ApplyTemplatePacksAsync(project.Id, draft.TemplatePackIds, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCaches(project.Id);
 
         return project;
     }
@@ -123,6 +127,7 @@ public sealed class ProjectService(
         await ApplyPresetSolutions(project.Id, draft.PresetKeys, cancellationToken);
         await templatePackService.ApplyTemplatePacksAsync(project.Id, draft.TemplatePackIds, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCaches(projectId);
 
         return project;
     }
@@ -172,6 +177,9 @@ public sealed class ProjectService(
 
         return true;
     }
+
+    private void InvalidateProjectCaches(int projectId) =>
+        cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.ProjectPrefix(projectId));
 
     private static HashSet<string> NormalizeEnabledObjectTypeKeys(IReadOnlyList<string>? enabledObjectTypeKeys)
     {

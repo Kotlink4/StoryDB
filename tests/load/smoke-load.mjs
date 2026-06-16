@@ -8,6 +8,10 @@ const readPasses = Math.max(1, Number(process.env.STORYDB_SMOKE_READ_PASSES || 1
 const timeoutMs = Number(process.env.STORYDB_SMOKE_TIMEOUT_MS || 10000)
 const maxFailureRate = Number(process.env.STORYDB_SMOKE_MAX_FAILURE_RATE || 0)
 const maxP95Ms = Number(process.env.STORYDB_SMOKE_MAX_P95_MS || 1500)
+const maxAuditDropped = Number(process.env.STORYDB_SMOKE_MAX_AUDIT_DROPPED || 0)
+const maxCacheCapacityEvictions = Number(process.env.STORYDB_SMOKE_MAX_CACHE_CAPACITY_EVICTIONS || Number.POSITIVE_INFINITY)
+const maxExportFailedJobs = Number(process.env.STORYDB_SMOKE_MAX_EXPORT_FAILED_JOBS || 0)
+const requireDiagnostics = process.env.STORYDB_SMOKE_REQUIRE_DIAGNOSTICS === '1'
 const shouldCreateProject = process.env.STORYDB_SMOKE_CREATE_PROJECT === '1'
 const shouldCleanupProject = process.env.STORYDB_SMOKE_CLEANUP_PROJECT !== '0'
 const seedObjectCount = Number(process.env.STORYDB_SMOKE_SEED_OBJECTS || 0)
@@ -438,6 +442,124 @@ function percentile(values, percentage) {
   return values[index]
 }
 
+function parsePrometheusMetrics(text) {
+  const metrics = new Map()
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#')) {
+      continue
+    }
+
+    const match = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)(\{([^}]*)\})?\s+(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)$/)
+    if (!match) {
+      continue
+    }
+
+    const [, name, , labelsText, rawValue] = match
+    const value = Number(rawValue)
+    const labels = {}
+    if (labelsText) {
+      for (const labelMatch of labelsText.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)="((?:\\.|[^"])*)"/g)) {
+        labels[labelMatch[1]] = labelMatch[2]
+          .replace(/\\"/g, '"')
+          .replace(/\\n/g, '\n')
+          .replace(/\\\\/g, '\\')
+      }
+    }
+
+    if (!metrics.has(name)) {
+      metrics.set(name, [])
+    }
+
+    metrics.get(name).push({ labels, value })
+  }
+
+  return metrics
+}
+
+function metricValue(metrics, name, labels = {}) {
+  const samples = metrics.get(name) || []
+  const sample = samples.find((candidate) =>
+    Object.entries(labels).every(([key, value]) => candidate.labels[key] === value))
+  return sample?.value ?? null
+}
+
+async function collectDiagnostics() {
+  const diagnostics = {}
+  const health = await request('GET', '/health')
+  if (health.ok) {
+    try {
+      diagnostics.health = JSON.parse(health.text)
+    } catch {
+      diagnostics.healthParseError = true
+    }
+  } else {
+    diagnostics.healthStatus = health.status
+  }
+
+  const prometheus = await request('GET', '/metrics/prometheus')
+  if (!prometheus.ok) {
+    diagnostics.prometheusStatus = prometheus.status
+    return diagnostics
+  }
+
+  const metrics = parsePrometheusMetrics(prometheus.text)
+  diagnostics.prometheusMetricsFound = metrics.has('storydb_api_requests_total')
+  if (!diagnostics.prometheusMetricsFound) {
+    diagnostics.prometheusPreview = prometheus.text.slice(0, 120)
+  }
+
+  diagnostics.prometheus = {
+    api: {
+      requestsTotal: metricValue(metrics, 'storydb_api_requests_total'),
+      activeRequests: metricValue(metrics, 'storydb_api_active_requests'),
+      failedRequests: metricValue(metrics, 'storydb_api_failed_requests_total'),
+      slowRequests: metricValue(metrics, 'storydb_api_slow_requests_total'),
+      trackedEndpoints: metricValue(metrics, 'storydb_api_tracked_endpoints'),
+      endpointOverflowRequests: metricValue(metrics, 'storydb_api_endpoint_overflow_requests_total'),
+    },
+    runtime: {
+      allocatedBytes: metricValue(metrics, 'storydb_process_gc_allocated_bytes_total'),
+      gen0Collections: metricValue(metrics, 'storydb_process_gc_collections_total', { generation: '0' }),
+      heapSizeBytes: metricValue(metrics, 'storydb_process_heap_size_bytes'),
+      fragmentedBytes: metricValue(metrics, 'storydb_process_gc_fragmented_bytes'),
+      workerThreadsUsed: metricValue(metrics, 'storydb_threadpool_worker_threads_used'),
+      workerThreadsAvailable: metricValue(metrics, 'storydb_threadpool_worker_threads_available'),
+      completionPortThreadsUsed: metricValue(metrics, 'storydb_threadpool_completion_port_threads_used'),
+      completionPortThreadsAvailable: metricValue(metrics, 'storydb_threadpool_completion_port_threads_available'),
+    },
+    cache: {
+      hits: metricValue(metrics, 'storydb_cache_singleflight_hits_total'),
+      misses: metricValue(metrics, 'storydb_cache_singleflight_misses_total'),
+      waits: metricValue(metrics, 'storydb_cache_singleflight_waits_total'),
+      evictions: metricValue(metrics, 'storydb_cache_singleflight_evictions_total'),
+      capacityEvictions: metricValue(metrics, 'storydb_cache_singleflight_capacity_evictions_total'),
+      activeKeys: metricValue(metrics, 'storydb_cache_singleflight_active_keys'),
+    },
+    auditLogs: {
+      queued: metricValue(metrics, 'storydb_audit_log_queue_queued'),
+      enqueued: metricValue(metrics, 'storydb_audit_log_queue_enqueued_total'),
+      processed: metricValue(metrics, 'storydb_audit_log_queue_processed_total'),
+      failed: metricValue(metrics, 'storydb_audit_log_queue_failed_total'),
+      dropped: metricValue(metrics, 'storydb_audit_log_queue_dropped_total'),
+    },
+    exportJobs: {
+      queued: metricValue(metrics, 'storydb_export_jobs', { status: 'queued' }),
+      running: metricValue(metrics, 'storydb_export_jobs', { status: 'running' }),
+      succeeded: metricValue(metrics, 'storydb_export_jobs', { status: 'succeeded' }),
+      failed: metricValue(metrics, 'storydb_export_jobs', { status: 'failed' }),
+      queueCapacity: metricValue(metrics, 'storydb_export_job_queue_capacity'),
+      queueDepth: metricValue(metrics, 'storydb_export_job_queue_depth'),
+      retainedJobs: metricValue(metrics, 'storydb_export_job_retained_jobs'),
+      enqueuedTotal: metricValue(metrics, 'storydb_export_job_enqueued_total'),
+      startedTotal: metricValue(metrics, 'storydb_export_job_started_total'),
+      completedTotal: metricValue(metrics, 'storydb_export_job_completed_total'),
+    },
+  }
+
+  return diagnostics
+}
+
 async function main() {
   const createdProject = await createSmokeProjectIfRequested()
   const authenticated = await loginIfConfigured()
@@ -500,6 +622,7 @@ async function main() {
     })
   }
 
+  const diagnostics = await collectDiagnostics()
   const report = {
     baseUrl,
     total: results.length,
@@ -520,6 +643,7 @@ async function main() {
       failed: summary.failed,
       maxMs: Number(summary.maxMs.toFixed(2)),
     })),
+    diagnostics,
     failures: failed.slice(0, 5),
   }
 
@@ -533,7 +657,21 @@ async function main() {
     }
   }
 
-  if (failureRate > maxFailureRate || report.p95Ms > maxP95Ms) {
+  const auditDropped = diagnostics.prometheus?.auditLogs?.dropped ?? 0
+  const cacheCapacityEvictions = diagnostics.prometheus?.cache?.capacityEvictions ?? 0
+  const exportFailedJobs = diagnostics.prometheus?.exportJobs?.failed ?? 0
+  const diagnosticsMissing = requireDiagnostics && (
+    diagnostics.health?.status !== 'healthy' ||
+    diagnostics.prometheusMetricsFound !== true)
+
+  if (
+    failureRate > maxFailureRate ||
+    report.p95Ms > maxP95Ms ||
+    auditDropped > maxAuditDropped ||
+    cacheCapacityEvictions > maxCacheCapacityEvictions ||
+    exportFailedJobs > maxExportFailedJobs ||
+    diagnosticsMissing
+  ) {
     process.exitCode = 1
   }
 }

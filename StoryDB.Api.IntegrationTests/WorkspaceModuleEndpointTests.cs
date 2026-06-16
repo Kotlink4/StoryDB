@@ -160,6 +160,34 @@ public class WorkspaceModuleEndpointTests(StoryDbApiFactory factory) : IClassFix
         Assert.Contains(links, item => item.SourceEventId == first.Id && item.TargetEventId == second.Id);
     }
 
+    [Fact]
+    public async Task TimelineLayout_AfterEventMutation_ReturnsStaleCachedState()
+    {
+        using var client = factory.CreateClient();
+        await TestUserSession.RegisterAsync(client);
+        var project = await CreateProjectAsync(client);
+
+        await CreateTimelineEventAsync(client, project.Id, "Founding", 100);
+        var generateResponse = await client.PostAsync($"/api/projects/{project.Id}/timeline/layout/generate", null);
+        Assert.Equal(HttpStatusCode.OK, generateResponse.StatusCode);
+
+        var generatedLayout = await generateResponse.Content.ReadFromJsonAsync<TimelineLayoutDto>();
+        Assert.NotNull(generatedLayout);
+        Assert.False(generatedLayout.IsStale);
+
+        var cachedLayout = await client.GetFromJsonAsync<TimelineLayoutDto>(
+            $"/api/projects/{project.Id}/timeline/layout");
+        Assert.NotNull(cachedLayout);
+        Assert.False(cachedLayout.IsStale);
+
+        await CreateTimelineEventAsync(client, project.Id, "War", 200);
+
+        var staleLayout = await client.GetFromJsonAsync<TimelineLayoutDto>(
+            $"/api/projects/{project.Id}/timeline/layout");
+        Assert.NotNull(staleLayout);
+        Assert.True(staleLayout.IsStale);
+    }
+
     private static async Task<ProjectListItemDto> CreateProjectAsync(HttpClient client)
     {
         var response = await client.PostAsJsonAsync("/api/projects", new

@@ -4,20 +4,23 @@ using StoryDB.Api.Contracts.TemplatePacks;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
 using StoryDB.Api.Security;
+using StoryDB.Api.Services;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Services.TemplatePacks;
 
 public sealed class TemplatePackService(
     StoryDbContext dbContext,
-    IProjectAccessService projectAccessService) : ITemplatePackService
+    IProjectAccessService projectAccessService,
+    ICacheSingleFlight cacheSingleFlight) : ITemplatePackService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = false,
     };
 
-    public async Task<IReadOnlyList<ProjectTemplatePack>> GetTemplatePacksAsync(
+    public async Task<IReadOnlyList<TemplatePackListItemDto>> GetTemplatePacksAsync(
         string scope,
         CancellationToken cancellationToken = default)
     {
@@ -30,9 +33,6 @@ public sealed class TemplatePackService(
         var normalizedScope = scope.Trim().ToLowerInvariant();
         var query = dbContext.ProjectTemplatePacks
             .AsNoTracking()
-            .Include(pack => pack.OwnerUser)
-            .Include(pack => pack.SourceProject)
-            .Include(pack => pack.Favorites.Where(favorite => favorite.UserId == userId.Value))
             .AsQueryable();
 
         query = normalizedScope switch
@@ -45,6 +45,18 @@ public sealed class TemplatePackService(
         return await query
             .OrderByDescending(pack => pack.UpdatedAt)
             .ThenBy(pack => pack.Name)
+            .Select(pack => new TemplatePackListItemDto(
+                pack.Id,
+                pack.Name,
+                pack.Description,
+                pack.IsPublic,
+                pack.Favorites.Any(favorite => favorite.UserId == userId.Value),
+                pack.OwnerUserId,
+                pack.OwnerUser == null ? "Автор" : pack.OwnerUser.DisplayName,
+                pack.SourceProjectId,
+                pack.SourceProject == null ? null : pack.SourceProject.Name,
+                pack.UpdatedAt,
+                new TemplatePackSummaryDto(pack.AttributeCount, pack.CatalogCount, pack.StructureCount)))
             .ToListAsync(cancellationToken);
     }
 
@@ -70,6 +82,7 @@ public sealed class TemplatePackService(
         }
 
         var snapshot = await BuildSnapshotAsync(request.ProjectId, request.Options ?? new TemplatePackExportOptions(), cancellationToken);
+        var summary = ToSummary(snapshot);
         var now = DateTime.UtcNow;
         var pack = new ProjectTemplatePack
         {
@@ -79,6 +92,9 @@ public sealed class TemplatePackService(
             Description = ValidationRules.NormalizeOptionalText(request.Description),
             IsPublic = request.IsPublic,
             SnapshotJson = JsonSerializer.Serialize(snapshot, JsonOptions),
+            AttributeCount = summary.AttributeCount,
+            CatalogCount = summary.CatalogCount,
+            StructureCount = summary.StructureCount,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -209,6 +225,7 @@ public sealed class TemplatePackService(
         }
 
         await ApplySnapshotAsync(projectId, pack.SnapshotJson, cancellationToken);
+        InvalidateProjectCaches(projectId);
         return true;
     }
 
@@ -241,7 +258,12 @@ public sealed class TemplatePackService(
 
             await ApplySnapshotAsync(projectId, pack.SnapshotJson, cancellationToken);
         }
+
+        InvalidateProjectCaches(projectId);
     }
+
+    private void InvalidateProjectCaches(int projectId) =>
+        cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.ProjectPrefix(projectId));
 
     private async Task<ProjectTemplatePack?> FindReadablePackAsync(int templatePackId, CancellationToken cancellationToken)
     {
@@ -290,6 +312,9 @@ public sealed class TemplatePackService(
 
         return snapshot;
     }
+
+    private static TemplatePackSummaryDto ToSummary(TemplatePackSnapshot snapshot) =>
+        new(snapshot.Attributes.Count, snapshot.Catalogs.Count, snapshot.Structures.Count);
 
     private async Task<IReadOnlyList<AttributeSnapshot>> BuildAttributeSnapshotAsync(
         int projectId,

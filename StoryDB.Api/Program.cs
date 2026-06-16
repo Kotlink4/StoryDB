@@ -65,7 +65,10 @@ builder.Services.AddScoped<TimelineEventValidator>();
 builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddSingleton<IApiMetricsService, ApiMetricsService>();
 builder.Services.AddScoped<MediaMigrationService>();
-builder.Services.AddMemoryCache();
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = GetPositiveConfigurationValue(builder.Configuration, "MemoryCache:SizeLimit", 2048);
+});
 builder.Services.AddSingleton<ICacheSingleFlight, CacheSingleFlight>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -201,19 +204,34 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("Security:RateLimits:Expensive:WindowMinutes", 1)),
         }));
 });
-builder.Services.AddDbContext<StoryDbContext>(options =>
+var dbContextPoolSize = GetPositiveConfigurationValue(builder.Configuration, "Database:DbContextPoolSize", 128);
+builder.Services.AddDbContextPool<StoryDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("StoryDb")
         ?? throw new InvalidOperationException("Connection string 'StoryDb' was not found.");
+    var commandTimeoutSeconds = GetPositiveConfigurationValue(builder.Configuration, "Database:CommandTimeoutSeconds", 30);
+    var maxRetryCount = Math.Max(0, builder.Configuration.GetValue("Database:MaxRetryCount", 3));
+    var maxRetryDelaySeconds = GetPositiveConfigurationValue(builder.Configuration, "Database:MaxRetryDelaySeconds", 5);
     options.UseNpgsql(
         connectionString,
-        npgsqlOptions => npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));
+        npgsqlOptions =>
+        {
+            npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+            npgsqlOptions.CommandTimeout(commandTimeoutSeconds);
+            if (maxRetryCount > 0)
+            {
+                npgsqlOptions.EnableRetryOnFailure(
+                    maxRetryCount,
+                    TimeSpan.FromSeconds(maxRetryDelaySeconds),
+                    errorCodesToAdd: null);
+            }
+        });
     options.EnableDetailedErrors(builder.Environment.IsDevelopment());
     if (builder.Environment.IsDevelopment())
     {
         options.EnableSensitiveDataLogging();
     }
-});
+}, dbContextPoolSize);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -264,6 +282,30 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseMiddleware<AuditLogMiddleware>();
 app.UseAuthorization();
 
+app.MapGet("/live", () => Results.Ok(new
+{
+    status = "alive",
+    checkedAt = DateTimeOffset.UtcNow,
+    environment = app.Environment.EnvironmentName,
+})).AllowAnonymous();
+
+app.MapGet("/ready", async (IServiceProvider services, CancellationToken cancellationToken) =>
+{
+    var checkedAt = DateTimeOffset.UtcNow;
+    await using var scope = services.CreateAsyncScope();
+    var scopedDbContext = scope.ServiceProvider.GetRequiredService<StoryDbContext>();
+    var databaseAvailable = await scopedDbContext.Database.CanConnectAsync(cancellationToken);
+    var payload = new
+    {
+        status = databaseAvailable ? "ready" : "degraded",
+        checkedAt,
+        database = databaseAvailable ? "available" : "unavailable",
+        environment = app.Environment.EnvironmentName,
+    };
+
+    return databaseAvailable ? Results.Ok(payload) : Results.Json(payload, statusCode: StatusCodes.Status503ServiceUnavailable);
+}).AllowAnonymous();
+
 app.MapGet("/health", async (IServiceProvider services, CancellationToken cancellationToken) =>
 {
     var startedAt = DateTimeOffset.UtcNow;
@@ -271,6 +313,7 @@ app.MapGet("/health", async (IServiceProvider services, CancellationToken cancel
     var scopedDbContext = scope.ServiceProvider.GetRequiredService<StoryDbContext>();
     var exportJobs = services.GetRequiredService<IProjectExportJobService>().GetStats();
     var auditLogs = services.GetRequiredService<IAuditLogQueue>().GetStats();
+    var cache = services.GetRequiredService<ICacheSingleFlight>().GetStats();
     var databaseAvailable = await scopedDbContext.Database.CanConnectAsync(cancellationToken);
     var gcInfo = GC.GetGCMemoryInfo();
     var payload = new
@@ -284,6 +327,7 @@ app.MapGet("/health", async (IServiceProvider services, CancellationToken cancel
         highMemoryLoadThresholdBytes = gcInfo.HighMemoryLoadThresholdBytes,
         exportJobs,
         auditLogs,
+        cache,
         environment = app.Environment.EnvironmentName,
     };
 
@@ -298,12 +342,14 @@ app.MapGet("/metrics", (IApiMetricsService metricsService) =>
 app.MapGet("/metrics/prometheus", (
     IApiMetricsService metricsService,
     IProjectExportJobService exportJobService,
-    IAuditLogQueue auditLogQueue) =>
+    IAuditLogQueue auditLogQueue,
+    ICacheSingleFlight cacheSingleFlight) =>
 {
     var body = PrometheusMetricsFormatter.Format(
         metricsService.GetSnapshot(),
         exportJobService.GetStats(),
-        auditLogQueue.GetStats());
+        auditLogQueue.GetStats(),
+        cacheSingleFlight.GetStats());
     return Results.Text(body, "text/plain; version=0.0.4; charset=utf-8");
 }).AllowAnonymous();
 
@@ -333,6 +379,12 @@ static string GetRateLimitPartitionKey(HttpContext context)
         .FirstOrDefault();
 
     return $"ip:{forwardedAddress ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+}
+
+static int GetPositiveConfigurationValue(IConfiguration configuration, string key, int fallback)
+{
+    var value = configuration.GetValue(key, fallback);
+    return value > 0 ? value : fallback;
 }
 
 public partial class Program;

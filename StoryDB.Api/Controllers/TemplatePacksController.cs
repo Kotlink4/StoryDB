@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StoryDB.Api.Contracts.TemplatePacks;
@@ -21,7 +20,7 @@ public class TemplatePacksController(
         CancellationToken cancellationToken = default)
     {
         var packs = await templatePackService.GetTemplatePacksAsync(scope, cancellationToken);
-        return Ok(packs.Select(ToDto).ToList());
+        return Ok(packs);
     }
 
     [HttpPost("from-project")]
@@ -107,7 +106,6 @@ public class TemplatePacksController(
 
     private TemplatePackListItemDto ToDto(ProjectTemplatePack pack)
     {
-        var snapshot = ReadSummary(pack.SnapshotJson);
         return new TemplatePackListItemDto(
             pack.Id,
             pack.Name,
@@ -119,28 +117,6 @@ public class TemplatePacksController(
             pack.SourceProjectId,
             pack.SourceProject?.Name,
             pack.UpdatedAt,
-            snapshot);
+            new TemplatePackSummaryDto(pack.AttributeCount, pack.CatalogCount, pack.StructureCount));
     }
-
-    private static TemplatePackSummaryDto ReadSummary(string snapshotJson)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(snapshotJson);
-            var root = document.RootElement;
-            return new TemplatePackSummaryDto(
-                CountArray(root, "attributes"),
-                CountArray(root, "catalogs"),
-                CountArray(root, "structures"));
-        }
-        catch (JsonException)
-        {
-            return new TemplatePackSummaryDto(0, 0, 0);
-        }
-    }
-
-    private static int CountArray(JsonElement root, string propertyName) =>
-        root.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.Array
-            ? property.GetArrayLength()
-            : 0;
 }

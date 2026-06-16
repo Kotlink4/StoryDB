@@ -27,6 +27,7 @@ public sealed class RequestLogContextMiddleware
     {
         var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
         context.Response.Headers.TryAdd("X-Trace-Id", traceId);
+        metricsService.RequestStarted();
 
         var stopwatch = Stopwatch.StartNew();
         using (LogContext.PushProperty("TraceId", traceId))

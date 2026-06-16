@@ -2,12 +2,19 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Data;
 using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Services;
+using StoryDB.Api.Services.Caching;
 using StoryDB.Api.Validation;
 
 namespace StoryDB.Api.Services.Catalogs;
 
-public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
+public sealed class CatalogService(
+    StoryDbContext dbContext,
+    ICacheSingleFlight cacheSingleFlight) : ICatalogService
 {
+    private static readonly TimeSpan CatalogCacheDuration = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CatalogDetailCacheDuration = TimeSpan.FromSeconds(20);
+
     private static readonly HashSet<string> FieldTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "text",
@@ -33,12 +40,19 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
         int projectId,
         CancellationToken cancellationToken = default)
     {
-        return await dbContext.Catalogs
-            .AsNoTracking()
-            .Where(catalog => catalog.ProjectId == projectId && !catalog.IsSystem)
-            .OrderBy(catalog => catalog.SortOrder)
-            .ThenBy(catalog => catalog.Name)
-            .ToListAsync(cancellationToken);
+        return await cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.Catalogs(projectId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = CatalogCacheDuration;
+
+                return await dbContext.Catalogs
+                    .AsNoTracking()
+                    .Where(catalog => catalog.ProjectId == projectId && !catalog.IsSystem)
+                    .OrderBy(catalog => catalog.SortOrder)
+                    .ThenBy(catalog => catalog.Name)
+                    .ToListAsync(cancellationToken);
+            });
     }
 
     public async Task<CatalogServiceResult<Catalog>> CreateCatalogAsync(
@@ -85,6 +99,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
 
         dbContext.Catalogs.Add(catalog);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult<Catalog>.Success(catalog);
     }
@@ -123,6 +138,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
         catalog.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult<Catalog>.Success(catalog);
     }
@@ -197,6 +213,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
 
         dbContext.Catalogs.Remove(catalog);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult.Success();
     }
@@ -211,15 +228,23 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             return CatalogServiceResult<IReadOnlyList<CatalogEntry>>.NotFound();
         }
 
-        var entries = await dbContext.CatalogEntries
-            .AsNoTracking()
-            .Include(entry => entry.EntryGroup)
-            .Include(entry => entry.FieldValues)
-            .Include(entry => entry.ParentLinks)
-            .Where(entry => entry.CatalogId == catalogId)
-            .OrderBy(entry => entry.SortOrder)
-            .ThenBy(entry => entry.Name)
-            .ToListAsync(cancellationToken);
+        var entries = await cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.CatalogEntries(projectId, catalogId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = CatalogDetailCacheDuration;
+
+                return await dbContext.CatalogEntries
+                    .AsNoTracking()
+                    .AsSplitQuery()
+                    .Include(entry => entry.EntryGroup)
+                    .Include(entry => entry.FieldValues)
+                    .Include(entry => entry.ParentLinks)
+                    .Where(entry => entry.CatalogId == catalogId)
+                    .OrderBy(entry => entry.SortOrder)
+                    .ThenBy(entry => entry.Name)
+                    .ToListAsync(cancellationToken);
+            });
 
         return CatalogServiceResult<IReadOnlyList<CatalogEntry>>.Success(entries);
     }
@@ -241,52 +266,57 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             return CatalogServiceResult<CatalogEntry>.Invalid(validationError);
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var sortOrder = await dbContext.CatalogEntries
-            .Where(entry => entry.CatalogId == catalogId)
-            .Select(entry => (int?)entry.SortOrder)
-            .MaxAsync(cancellationToken) ?? 0;
-        var now = DateTime.UtcNow;
-        var entry = new CatalogEntry
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            CatalogId = catalogId,
-            EntryGroupId = draft.EntryGroupId,
-            Name = draft.Name.Trim(),
-            Description = NormalizeOptionalText(draft.Description),
-            ImagePath = ValidationRules.NormalizeOptionalText(draft.ImagePath),
-            SortOrder = sortOrder + 10,
-            CreatedAt = now,
-            UpdatedAt = now,
-        };
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            var sortOrder = await dbContext.CatalogEntries
+                .Where(entry => entry.CatalogId == catalogId)
+                .Select(entry => (int?)entry.SortOrder)
+                .MaxAsync(cancellationToken) ?? 0;
+            var now = DateTime.UtcNow;
+            var entry = new CatalogEntry
+            {
+                CatalogId = catalogId,
+                EntryGroupId = draft.EntryGroupId,
+                Name = draft.Name.Trim(),
+                Description = NormalizeOptionalText(draft.Description),
+                ImagePath = ValidationRules.NormalizeOptionalText(draft.ImagePath),
+                SortOrder = sortOrder + 10,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
 
-        dbContext.CatalogEntries.Add(entry);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.CatalogEntries.Add(entry);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        var fieldValidationError = await ReplaceEntryFieldValues(
-            catalogId,
-            entry.Id,
-            draft.FieldValues,
-            cancellationToken);
-        if (fieldValidationError is not null)
-        {
-            return CatalogServiceResult<CatalogEntry>.Invalid(fieldValidationError);
-        }
+            var fieldValidationError = await ReplaceEntryFieldValues(
+                catalogId,
+                entry.Id,
+                draft.FieldValues,
+                cancellationToken);
+            if (fieldValidationError is not null)
+            {
+                return CatalogServiceResult<CatalogEntry>.Invalid(fieldValidationError);
+            }
 
-        var hierarchyValidationError = await ReplaceEntryHierarchyLinks(
-            catalogId,
-            entry.Id,
-            draft.EntryGroupId,
-            draft.ParentEntryIds,
-            cancellationToken);
-        if (hierarchyValidationError is not null)
-        {
-            return CatalogServiceResult<CatalogEntry>.Invalid(hierarchyValidationError);
-        }
+            var hierarchyValidationError = await ReplaceEntryHierarchyLinks(
+                catalogId,
+                entry.Id,
+                draft.EntryGroupId,
+                draft.ParentEntryIds,
+                cancellationToken);
+            if (hierarchyValidationError is not null)
+            {
+                return CatalogServiceResult<CatalogEntry>.Invalid(hierarchyValidationError);
+            }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            InvalidateProjectCatalogCaches(projectId);
 
-        return CatalogServiceResult<CatalogEntry>.Success(await LoadEntryAsync(entry.Id, cancellationToken));
+            return CatalogServiceResult<CatalogEntry>.Success(await LoadEntryAsync(entry.Id, cancellationToken));
+        });
     }
 
     public async Task<CatalogServiceResult<CatalogEntry>> UpdateEntryAsync(
@@ -341,6 +371,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult<CatalogEntry>.Success(await LoadEntryAsync(entry.Id, cancellationToken));
     }
@@ -382,6 +413,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
 
         dbContext.CatalogEntries.Remove(entry);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult.Success();
     }
@@ -396,13 +428,20 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             return CatalogServiceResult<IReadOnlyList<CatalogEntryGroup>>.NotFound();
         }
 
-        var groups = await dbContext.CatalogEntryGroups
-            .AsNoTracking()
-            .Include(group => group.ParentLinks)
-            .Where(group => group.CatalogId == catalogId)
-            .OrderBy(group => group.SortOrder)
-            .ThenBy(group => group.Name)
-            .ToListAsync(cancellationToken);
+        var groups = await cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.CatalogEntryGroups(projectId, catalogId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = CatalogDetailCacheDuration;
+
+                return await dbContext.CatalogEntryGroups
+                    .AsNoTracking()
+                    .Include(group => group.ParentLinks)
+                    .Where(group => group.CatalogId == catalogId)
+                    .OrderBy(group => group.SortOrder)
+                    .ThenBy(group => group.Name)
+                    .ToListAsync(cancellationToken);
+            });
 
         return CatalogServiceResult<IReadOnlyList<CatalogEntryGroup>>.Success(groups);
     }
@@ -424,35 +463,40 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             return CatalogServiceResult<CatalogEntryGroup>.Invalid(validationError);
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var sortOrder = await dbContext.CatalogEntryGroups
-            .Where(group => group.CatalogId == catalogId)
-            .Select(group => (int?)group.SortOrder)
-            .MaxAsync(cancellationToken) ?? 0;
-        var group = new CatalogEntryGroup
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            CatalogId = catalogId,
-            Name = draft.Name.Trim(),
-            SortOrder = sortOrder + 10,
-        };
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            var sortOrder = await dbContext.CatalogEntryGroups
+                .Where(group => group.CatalogId == catalogId)
+                .Select(group => (int?)group.SortOrder)
+                .MaxAsync(cancellationToken) ?? 0;
+            var group = new CatalogEntryGroup
+            {
+                CatalogId = catalogId,
+                Name = draft.Name.Trim(),
+                SortOrder = sortOrder + 10,
+            };
 
-        dbContext.CatalogEntryGroups.Add(group);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.CatalogEntryGroups.Add(group);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        var groupHierarchyError = await ReplaceGroupHierarchyLinks(
-            catalogId,
-            group.Id,
-            draft.ParentGroupIds,
-            cancellationToken);
-        if (groupHierarchyError is not null)
-        {
-            return CatalogServiceResult<CatalogEntryGroup>.Invalid(groupHierarchyError);
-        }
+            var groupHierarchyError = await ReplaceGroupHierarchyLinks(
+                catalogId,
+                group.Id,
+                draft.ParentGroupIds,
+                cancellationToken);
+            if (groupHierarchyError is not null)
+            {
+                return CatalogServiceResult<CatalogEntryGroup>.Invalid(groupHierarchyError);
+            }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            InvalidateProjectCatalogCaches(projectId);
 
-        return CatalogServiceResult<CatalogEntryGroup>.Success(await LoadEntryGroupAsync(group.Id, cancellationToken));
+            return CatalogServiceResult<CatalogEntryGroup>.Success(await LoadEntryGroupAsync(group.Id, cancellationToken));
+        });
     }
 
     public async Task<CatalogServiceResult<CatalogEntryGroup>> UpdateEntryGroupAsync(
@@ -495,6 +539,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult<CatalogEntryGroup>.Success(await LoadEntryGroupAsync(group.Id, cancellationToken));
     }
@@ -532,6 +577,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             dbContext.StoryObjectCatalogSelections.Where(selection => selection.CatalogEntryGroupId == groupId));
         dbContext.CatalogEntryGroups.Remove(group);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult.Success();
     }
@@ -546,12 +592,19 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             return CatalogServiceResult<IReadOnlyList<CatalogFieldGroup>>.NotFound();
         }
 
-        var groups = await dbContext.CatalogFieldGroups
-            .AsNoTracking()
-            .Where(group => group.CatalogId == catalogId)
-            .OrderBy(group => group.SortOrder)
-            .ThenBy(group => group.Name)
-            .ToListAsync(cancellationToken);
+        var groups = await cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.CatalogFieldGroups(projectId, catalogId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = CatalogDetailCacheDuration;
+
+                return await dbContext.CatalogFieldGroups
+                    .AsNoTracking()
+                    .Where(group => group.CatalogId == catalogId)
+                    .OrderBy(group => group.SortOrder)
+                    .ThenBy(group => group.Name)
+                    .ToListAsync(cancellationToken);
+            });
 
         return CatalogServiceResult<IReadOnlyList<CatalogFieldGroup>>.Success(groups);
     }
@@ -589,6 +642,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
 
         dbContext.CatalogFieldGroups.Add(group);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult<CatalogFieldGroup>.Success(group);
     }
@@ -603,14 +657,21 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             return CatalogServiceResult<IReadOnlyList<CatalogFieldDefinition>>.NotFound();
         }
 
-        var fields = await dbContext.CatalogFieldDefinitions
-            .AsNoTracking()
-            .Include(field => field.FieldGroup)
-            .Where(field => field.CatalogId == catalogId)
-            .OrderBy(field => field.FieldGroup == null ? "" : field.FieldGroup.Name)
-            .ThenBy(field => field.SortOrder)
-            .ThenBy(field => field.Name)
-            .ToListAsync(cancellationToken);
+        var fields = await cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.CatalogFieldDefinitions(projectId, catalogId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = CatalogDetailCacheDuration;
+
+                return await dbContext.CatalogFieldDefinitions
+                    .AsNoTracking()
+                    .Include(field => field.FieldGroup)
+                    .Where(field => field.CatalogId == catalogId)
+                    .OrderBy(field => field.FieldGroup == null ? "" : field.FieldGroup.Name)
+                    .ThenBy(field => field.SortOrder)
+                    .ThenBy(field => field.Name)
+                    .ToListAsync(cancellationToken);
+            });
 
         return CatalogServiceResult<IReadOnlyList<CatalogFieldDefinition>>.Success(fields);
     }
@@ -658,6 +719,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
 
         dbContext.CatalogFieldDefinitions.Add(field);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult<CatalogFieldDefinition>.Success(await LoadFieldDefinitionAsync(field.Id, cancellationToken));
     }
@@ -706,6 +768,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
         field.ReferenceCatalogId = IsReferenceField(draft.DataType) ? draft.ReferenceCatalogId : null;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult<CatalogFieldDefinition>.Success(await LoadFieldDefinitionAsync(field.Id, cancellationToken));
     }
@@ -735,14 +798,32 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
             dbContext.CatalogEntryFieldValues.Where(value => value.FieldDefinitionId == fieldId));
         dbContext.CatalogFieldDefinitions.Remove(field);
         await dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateProjectCatalogCaches(projectId);
 
         return CatalogServiceResult.Success();
     }
 
     private Task<bool> CatalogExists(int projectId, int catalogId, CancellationToken cancellationToken) =>
-        dbContext.Catalogs.AnyAsync(catalog =>
-            catalog.ProjectId == projectId && catalog.Id == catalogId,
-            cancellationToken);
+        cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.CatalogExists(projectId, catalogId),
+            async cacheEntry =>
+            {
+                cacheEntry.AbsoluteExpirationRelativeToNow = CatalogDetailCacheDuration;
+
+                return await dbContext.Catalogs.AnyAsync(catalog =>
+                    catalog.ProjectId == projectId && catalog.Id == catalogId,
+                    cancellationToken);
+            });
+
+    private void InvalidateProjectCatalogCaches(int projectId)
+    {
+        cacheSingleFlight.Remove(ProjectCacheKeys.Catalogs(projectId));
+        cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.CatalogDetailsPrefix(projectId));
+        cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.ObjectDetailsPrefix(projectId));
+        cacheSingleFlight.Remove(ProjectCacheKeys.RelationGraph(projectId));
+        cacheSingleFlight.Remove(ProjectCacheKeys.StructureSummaries(projectId));
+        cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.StructureDetailsPrefix(projectId));
+    }
 
     private async Task<string?> ValidateEntryRequest(
         int catalogId,
@@ -1042,6 +1123,7 @@ public sealed class CatalogService(StoryDbContext dbContext) : ICatalogService
     private async Task<CatalogEntry> LoadEntryAsync(int entryId, CancellationToken cancellationToken) =>
         await dbContext.CatalogEntries
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(entry => entry.EntryGroup)
             .Include(entry => entry.FieldValues)
             .Include(entry => entry.ParentLinks)

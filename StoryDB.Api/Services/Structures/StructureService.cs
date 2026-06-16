@@ -63,7 +63,7 @@ public sealed class StructureService(
             return StructureServiceResult<StructureDto>.NotFound();
         }
 
-        return StructureServiceResult<StructureDto>.Success(await GetStructureDto(structureId));
+        return StructureServiceResult<StructureDto>.Success(await GetCachedStructureDto(projectId, structureId));
     }
 
     private static Task<List<StructureSummaryDto>> ReadStructureSummariesAsync(IQueryable<Structure> query) =>
@@ -675,6 +675,7 @@ public sealed class StructureService(
     {
         cacheSingleFlight.Remove(ProjectCacheKeys.RelationGraph(projectId));
         cacheSingleFlight.Remove(ProjectCacheKeys.StructureSummaries(projectId));
+        cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.StructureDetailsPrefix(projectId));
         cacheSingleFlight.Remove(ProjectCacheKeys.StructureUsages(projectId));
         cacheSingleFlight.Remove(ProjectCacheKeys.StructureAssignments(projectId));
     }
@@ -1129,6 +1130,15 @@ public sealed class StructureService(
 
         return count == groupIds.Count;
     }
+
+    private Task<StructureDto> GetCachedStructureDto(int projectId, int structureId) =>
+        cacheSingleFlight.GetOrCreateAsync(
+            ProjectCacheKeys.StructureDetail(projectId, structureId),
+            async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = StructureReadCacheDuration;
+                return await GetStructureDto(structureId);
+            });
 
     private async Task<StructureDto> GetStructureDto(int structureId)
     {

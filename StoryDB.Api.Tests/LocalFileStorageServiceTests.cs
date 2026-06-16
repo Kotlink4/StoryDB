@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using StoryDB.Api.Files;
@@ -44,6 +45,38 @@ public sealed class LocalFileStorageServiceTests
     }
 
     [Fact]
+    public async Task SaveImageAsync_WhenDecodedPixelsExceedLimit_RejectsImageBeforeStoring()
+    {
+        var rootPath = CreateTempDirectory();
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Media:MaxImagePixels"] = "1",
+                    ["Media:MaxImageDimension"] = "12000",
+                })
+                .Build();
+            var service = CreateService(rootPath, configuration);
+            await using var stream = new MemoryStream(CreatePngBytes(width: 2, height: 1));
+            var file = new FormFile(stream, 0, stream.Length, "file", "wide.png")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "image/png",
+            };
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveImageAsync(file, projectId: 7));
+
+            Assert.Contains("Image is too large", exception.Message);
+            Assert.Empty(Directory.GetFiles(Path.Combine(rootPath, "uploads"), "*", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task DeleteUploadedFileAsync_DoesNotDeleteFilesOutsideUploads()
     {
         var rootPath = CreateTempDirectory();
@@ -63,10 +96,11 @@ public sealed class LocalFileStorageServiceTests
         }
     }
 
-    private static LocalFileStorageService CreateService(string rootPath) =>
+    private static LocalFileStorageService CreateService(string rootPath, IConfiguration? configuration = null) =>
         new(
             new TestWebHostEnvironment(rootPath),
-            NullLogger<LocalFileStorageService>.Instance);
+            NullLogger<LocalFileStorageService>.Instance,
+            configuration);
 
     private static string CreateTempDirectory()
     {
@@ -77,7 +111,12 @@ public sealed class LocalFileStorageServiceTests
 
     private static byte[] CreateTinyPngBytes()
     {
-        using var image = new Image<Rgba32>(1, 1, new Rgba32(42, 96, 128));
+        return CreatePngBytes(width: 1, height: 1);
+    }
+
+    private static byte[] CreatePngBytes(int width, int height)
+    {
+        using var image = new Image<Rgba32>(width, height, new Rgba32(42, 96, 128));
         using var stream = new MemoryStream();
         image.SaveAsPng(stream);
         return stream.ToArray();

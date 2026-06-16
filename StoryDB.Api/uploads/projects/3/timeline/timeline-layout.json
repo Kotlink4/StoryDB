@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "projectId": 3,
+  "id": 2,
+  "timelineId": 2,
+  "algorithmVersion": "timeline-layout-v30",
+  "isStale": true,
+  "generatedAt": "2026-06-16T01:34:11.1502936Z",
+  "items": [
+    {
+      "id": 0,
+      "timelineEventId": 3,
+      "x": 85,
+      "y": 596,
+      "width": 22,
+      "height": 22,
+      "lane": 0,
+      "layer": 3,
+      "isPinned": false
+    }
+  ]
+}

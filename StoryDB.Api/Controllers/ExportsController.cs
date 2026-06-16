@@ -79,11 +79,11 @@ public sealed class ExportsController(
             return NotFound();
         }
 
-        var result = exportJobService.GetCompletedDocument(jobId);
+        var result = exportJobService.GetCompletedFile(jobId);
         return result.Status switch
         {
-            ProjectExportServiceStatus.Success => File(
-                result.Value!.Content,
+            ProjectExportServiceStatus.Success => PhysicalFile(
+                result.Value!.FilePath,
                 result.Value.ContentType,
                 result.Value.FileName),
             ProjectExportServiceStatus.NotFound => NotFound(),

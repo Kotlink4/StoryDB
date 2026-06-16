@@ -38,7 +38,16 @@ public class UploadsController(
             return BadRequest(validationError);
         }
 
-        var storedFile = await fileStorageService.SaveImageAsync(file, projectId, HttpContext.RequestAborted);
+        StoredFile storedFile;
+        try
+        {
+            storedFile = await fileStorageService.SaveImageAsync(file, projectId, HttpContext.RequestAborted);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(exception.Message);
+        }
+
         var now = DateTime.UtcNow;
         var asset = new MediaAsset
         {
