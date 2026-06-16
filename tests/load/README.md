@@ -62,6 +62,10 @@ current process memory values, GC counters, and .NET thread pool usage. Set `STO
 deployment should expose these endpoints; otherwise the report records missing diagnostics without failing
 older local containers.
 
+When running against Docker, `localhost:50201` proxies `/api`, `/health`, `/metrics` and
+`/metrics/prometheus` to the API container. You can also point `STORYDB_BASE_URL` directly to
+`http://localhost:5282` when you want to bypass nginx and test the API only.
+
 When running against the Vite dev server on `localhost:50201`, diagnostics are proxied to
 `http://localhost:5282` by default. Override this with `VITE_API_PROXY_TARGET` if the API listens elsewhere.
 

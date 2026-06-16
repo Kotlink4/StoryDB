@@ -30,7 +30,7 @@
       ASPNETCORE_HTTP_PORTS: 5282
       DOTNET_GCHeapHardLimitPercent: ${DOTNET_GC_HEAP_HARD_LIMIT_PERCENT:-55}
       DOTNET_GCConserveMemory: ${DOTNET_GC_CONSERVE_MEMORY:-5}
-      ConnectionStrings__StoryDb: Host=postgres;Port=5432;Database=storydb;Username=postgres;Password=postgres;Pooling=true;Minimum Pool Size=${POSTGRES_MIN_POOL_SIZE:-0};Maximum Pool Size=${POSTGRES_MAX_POOL_SIZE:-100};Timeout=${POSTGRES_CONNECT_TIMEOUT_SECONDS:-15};Max Auto Prepare=${POSTGRES_MAX_AUTO_PREPARE:-50};Auto Prepare Min Usages=${POSTGRES_AUTO_PREPARE_MIN_USAGES:-2}
+      ConnectionStrings__StoryDb: Host=postgres;Port=5432;Database=storydb;Username=postgres;Password=postgres;Pooling=true;Minimum Pool Size=${POSTGRES_MIN_POOL_SIZE:-0};Maximum Pool Size=${POSTGRES_MAX_POOL_SIZE:-128};Timeout=${POSTGRES_CONNECT_TIMEOUT_SECONDS:-15};Max Auto Prepare=${POSTGRES_MAX_AUTO_PREPARE:-50};Auto Prepare Min Usages=${POSTGRES_AUTO_PREPARE_MIN_USAGES:-2}
       MemoryCache__SizeLimit: ${MEMORY_CACHE_SIZE_LIMIT:-2048}
       Media__MaxImagePixels: ${MEDIA_MAX_IMAGE_PIXELS:-32000000}
       Media__MaxImageDimension: ${MEDIA_MAX_IMAGE_DIMENSION:-12000}
