@@ -25,7 +25,14 @@
   Structure,
   StructureAssignment,
   StructureAssignmentDraft,
+  StructureCatalogAssignmentSyncPreview,
+  StructureCatalogAssignmentSyncResult,
+  StructureCatalogSyncPreview,
+  StructureCatalogSyncResult,
+  StructureDetailsDraft,
   StructureDraft,
+  StructureNode,
+  StructureNodeDetailsDraft,
   StructureOwnerKind,
   StructureSummary,
   StructureUsage,
@@ -283,6 +290,7 @@ const toStructurePayload = (draft: StructureDraft) => ({
   ownerId: draft.ownerKind === 'project' ? null : draft.ownerId,
   layoutKind: draft.layoutKind,
   nodeBindingMode: draft.nodeBindingMode,
+  catalogSyncMode: draft.catalogSyncMode,
   linkedCatalogId: draft.linkedCatalogId,
   nodes: draft.nodes.map((node, index) => ({
     clientId: node.clientId.trim() || `node-${index}`,
@@ -1241,11 +1249,67 @@ export const updateStructureRequest = async (
   return (await response.json()) as Structure
 }
 
+export const updateStructureDetailsRequest = async (
+  projectId: number,
+  structureId: number,
+  draft: StructureDetailsDraft,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/structures/${structureId}/details`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: draft.name,
+      description: draft.description,
+    }),
+  })
+  await ensureOk(response, 'Failed to update structure details.')
+
+  return (await response.json()) as Structure
+}
+
+export const updateStructureNodeDetailsRequest = async (
+  projectId: number,
+  structureId: number,
+  nodeId: number,
+  draft: StructureNodeDetailsDraft,
+) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/structures/${structureId}/nodes/${nodeId}/details`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: draft.name,
+      description: draft.description,
+      nodeType: draft.nodeType,
+      color: draft.color,
+      iconKey: draft.iconKey,
+    }),
+  })
+  await ensureOk(response, 'Failed to update structure node details.')
+
+  return (await response.json()) as StructureNode
+}
+
 export const deleteStructureRequest = async (projectId: number, structureId: number) => {
   const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/structures/${structureId}`, {
     method: 'DELETE',
   })
   await ensureOk(response, 'Failed to delete structure.')
+}
+
+export const fetchStructureCatalogSyncPreview = async (projectId: number, structureId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/structures/${structureId}/catalog-sync`)
+  await ensureOk(response, 'Failed to load structure catalog sync preview.')
+
+  return (await response.json()) as StructureCatalogSyncPreview
+}
+
+export const applyStructureCatalogSync = async (projectId: number, structureId: number) => {
+  const response = await apiFetch(`${apiBaseUrl}/projects/${projectId}/structures/${structureId}/catalog-sync`, {
+    method: 'POST',
+  })
+  await ensureOk(response, 'Failed to synchronize structure with catalog.')
+
+  return (await response.json()) as StructureCatalogSyncResult
 }
 
 export const fetchStructureUsages = async (
@@ -1311,6 +1375,27 @@ export const makeStructureUsageIndividualRequest = async (projectId: number, usa
   await ensureOk(response, 'Failed to make structure individual.')
 
   return (await response.json()) as StructureUsage
+}
+
+export const fetchStructureCatalogAssignmentSyncPreview = async (projectId: number, usageId: number) => {
+  const response = await apiFetch(
+    `${apiBaseUrl}/projects/${projectId}/structures/usages/${usageId}/catalog-assignment-sync`,
+  )
+  await ensureOk(response, 'Failed to load structure catalog assignment synchronization preview.')
+
+  return (await response.json()) as StructureCatalogAssignmentSyncPreview
+}
+
+export const applyStructureCatalogAssignmentSync = async (projectId: number, usageId: number) => {
+  const response = await apiFetch(
+    `${apiBaseUrl}/projects/${projectId}/structures/usages/${usageId}/catalog-assignment-sync`,
+    {
+      method: 'POST',
+    },
+  )
+  await ensureOk(response, 'Failed to synchronize structure assignments with catalog.')
+
+  return (await response.json()) as StructureCatalogAssignmentSyncResult
 }
 
 export const deleteStructureUsageRequest = async (projectId: number, usageId: number) => {

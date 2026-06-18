@@ -6,9 +6,17 @@ import {
   createCatalogEntryRequest,
   createStructureRequest,
   deleteStructureRequest,
+  applyStructureCatalogSync,
+  applyStructureCatalogAssignmentSync,
   fetchStructure,
+  fetchStructureAssignments,
+  fetchStructureCatalogAssignmentSyncPreview,
+  fetchStructureCatalogSyncPreview,
+  fetchStructureUsages,
   fetchStructures,
   getApiErrorMessage,
+  updateStructureDetailsRequest,
+  updateStructureNodeDetailsRequest,
   updateStructureRequest,
 } from '../api'
 import type {
@@ -16,6 +24,10 @@ import type {
   CatalogEntry,
   CatalogEntryGroup,
   Structure,
+  StructureAssignment,
+  StructureCatalogAssignmentSyncPreview,
+  StructureCatalogSyncMode,
+  StructureCatalogSyncPreview,
   StructureDraft,
   StructureEdgeDraft,
   StructureLayoutKind,
@@ -23,12 +35,45 @@ import type {
   StructureNodeBindingMode,
   StructureOwnerKind,
   StructureSummary,
+  StructureUsage,
   StoryProject,
 } from '../types'
+import { buildCatalogGroupTree, formatCatalogGroupTreeLabel } from '../domain/catalogGroupTree'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import { KebabMenu, SectionIcon } from './StylePreviewPrimitives'
 
 type StructureCatalogMode = 'none' | 'existing' | 'new'
+
+const isCatalogSyncModeAvailable = (
+  mode: StructureCatalogSyncMode,
+  nodeBindingMode: StructureNodeBindingMode,
+  linkedCatalogId: number | null,
+) => {
+  if (mode === 'manual') {
+    return true
+  }
+
+  if (linkedCatalogId === null) {
+    return false
+  }
+
+  if (mode === 'catalogEntries') {
+    return nodeBindingMode === 'catalogEntry' || nodeBindingMode === 'mixed'
+  }
+
+  if (mode === 'catalogGroups') {
+    return nodeBindingMode === 'catalogEntryGroup' || nodeBindingMode === 'mixed'
+  }
+
+  return nodeBindingMode === 'mixed'
+}
+
+const normalizeCatalogSyncMode = (
+  mode: StructureCatalogSyncMode,
+  nodeBindingMode: StructureNodeBindingMode,
+  linkedCatalogId: number | null,
+): StructureCatalogSyncMode =>
+  isCatalogSyncModeAvailable(mode, nodeBindingMode, linkedCatalogId) ? mode : 'manual'
 
 const normalizeNodesForBindingMode = (
   nodes: StructureNodeDraft[],
@@ -138,6 +183,7 @@ const emptyStructureDraft = (projectId: number): StructureDraft => ({
   ownerId: projectId,
   layoutKind: 'levels',
   nodeBindingMode: 'mixed',
+  catalogSyncMode: 'manual',
   linkedCatalogId: null,
   nodes: [],
   edges: [],
@@ -183,6 +229,7 @@ const toStructureDraft = (structure: Structure): StructureDraft => ({
   ownerId: structure.ownerId,
   layoutKind: structure.layoutKind,
   nodeBindingMode: structure.nodeBindingMode,
+  catalogSyncMode: structure.catalogSyncMode,
   linkedCatalogId: structure.linkedCatalogId,
   nodes: structure.nodes.map((node) => ({
     clientId: String(node.id),
@@ -238,9 +285,18 @@ export function StructuresWorkspace({
   const [isSaving, setIsSaving] = useState(false)
   const [isDetailSaving, setIsDetailSaving] = useState(false)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [isCatalogSyncLoading, setIsCatalogSyncLoading] = useState(false)
   const [structures, setStructures] = useState<StructureSummary[]>([])
   const [selectedStructureId, setSelectedStructureId] = useState<number | null>(null)
   const [selectedDraft, setSelectedDraft] = useState<StructureDraft | null>(null)
+  const [selectedStructureAssignments, setSelectedStructureAssignments] = useState<StructureAssignment[]>([])
+  const [selectedStructureUsages, setSelectedStructureUsages] = useState<StructureUsage[]>([])
+  const [selectedStructureTimelineReferenceCount, setSelectedStructureTimelineReferenceCount] = useState(0)
+  const [assignmentSyncPreviewsByUsageId, setAssignmentSyncPreviewsByUsageId] = useState<
+    Record<number, StructureCatalogAssignmentSyncPreview>
+  >({})
+  const [assignmentSyncLoadingUsageId, setAssignmentSyncLoadingUsageId] = useState<number | null>(null)
+  const [catalogSyncPreview, setCatalogSyncPreview] = useState<StructureCatalogSyncPreview | null>(null)
   const availableCatalogs = [
     ...catalogs,
     ...createdCatalogs.filter((catalog) => !catalogs.some((existingCatalog) => existingCatalog.id === catalog.id)),
@@ -250,6 +306,7 @@ export function StructuresWorkspace({
     !isSaving &&
     (catalogMode !== 'existing' || draft.linkedCatalogId !== null) &&
     (catalogMode !== 'new' || (newCatalogName.trim().length > 0 || draft.name.trim().length > 0))
+  const draftSyncCatalogId = draft.linkedCatalogId ?? (catalogMode === 'new' ? 0 : null)
 
   const loadStructures = useCallback(async () => {
     setStructures(await fetchStructures(selectedProject.id))
@@ -262,6 +319,11 @@ export function StructuresWorkspace({
     setCreatedCatalogs([])
     setSelectedStructureId(null)
     setSelectedDraft(null)
+    setSelectedStructureAssignments([])
+    setSelectedStructureUsages([])
+    setSelectedStructureTimelineReferenceCount(0)
+    setAssignmentSyncPreviewsByUsageId({})
+    setCatalogSyncPreview(null)
     void loadStructures().catch(() => onError(errorMessage))
   }, [errorMessage, loadStructures, onError, selectedProject.id])
 
@@ -305,6 +367,7 @@ export function StructuresWorkspace({
       const createdStructure = await createStructureRequest(selectedProject.id, {
         ...draft,
         linkedCatalogId,
+        catalogSyncMode: normalizeCatalogSyncMode(draft.catalogSyncMode, draft.nodeBindingMode, linkedCatalogId),
         nodes,
         ownerId: ownerKind === 'catalog' ? linkedCatalogId : draft.ownerId,
       })
@@ -314,6 +377,7 @@ export function StructuresWorkspace({
       await loadStructures()
       setSelectedStructureId(createdStructure.id)
       setSelectedDraft(toStructureDraft(createdStructure))
+      setSelectedStructureTimelineReferenceCount(createdStructure.timelineReferenceCount)
       onMessage(ui.saved)
     } catch (error) {
       onError(getApiErrorMessage(error, errorMessage))
@@ -328,6 +392,11 @@ export function StructuresWorkspace({
       if (selectedStructureId === structure.id) {
         setSelectedStructureId(null)
         setSelectedDraft(null)
+        setSelectedStructureAssignments([])
+        setSelectedStructureUsages([])
+        setSelectedStructureTimelineReferenceCount(0)
+        setAssignmentSyncPreviewsByUsageId({})
+        setCatalogSyncPreview(null)
       }
       await loadStructures()
       onMessage(ui.deleted)
@@ -397,8 +466,32 @@ export function StructuresWorkspace({
     setSelectedStructureId(structureId)
     setIsDetailLoading(true)
     try {
-      const structure = await fetchStructure(selectedProject.id, structureId)
+      const [structure, assignments] = await Promise.all([
+        fetchStructure(selectedProject.id, structureId),
+        fetchStructureAssignments(selectedProject.id, { structureId }),
+      ])
+      const usages = await fetchStructureUsages(selectedProject.id, { structureId })
+      const assignmentSyncPreviewEntries =
+        structure.linkedCatalogId === null
+          ? []
+          : await Promise.all(
+              usages.map(async (usage) => {
+                try {
+                  const preview = await fetchStructureCatalogAssignmentSyncPreview(selectedProject.id, usage.id)
+                  return [usage.id, preview] as const
+                } catch {
+                  return null
+                }
+              }),
+            )
       setSelectedDraft(toStructureDraft(structure))
+      setSelectedStructureAssignments(assignments)
+      setSelectedStructureUsages(usages)
+      setSelectedStructureTimelineReferenceCount(structure.timelineReferenceCount)
+      setAssignmentSyncPreviewsByUsageId(
+        Object.fromEntries(assignmentSyncPreviewEntries.filter((entry) => entry !== null)),
+      )
+      setCatalogSyncPreview(null)
     } catch (error) {
       onError(getApiErrorMessage(error, errorMessage))
     } finally {
@@ -407,7 +500,10 @@ export function StructuresWorkspace({
   }
 
   const updateSelectedDraft = (patch: Partial<StructureDraft>) =>
-    setSelectedDraft((currentDraft) => (currentDraft === null ? currentDraft : { ...currentDraft, ...patch }))
+    setSelectedDraft((currentDraft) => {
+      setCatalogSyncPreview(null)
+      return currentDraft === null ? currentDraft : { ...currentDraft, ...patch }
+    })
 
   const updateSelectedNode = (clientId: string, patch: Partial<StructureNodeDraft>) =>
     setSelectedDraft((currentDraft) =>
@@ -487,7 +583,12 @@ export function StructuresWorkspace({
     )
 
   const saveSelectedStructure = async () => {
-    if (selectedStructureId === null || selectedDraft === null || selectedDraft.name.trim().length === 0) {
+    if (
+      selectedStructureId === null ||
+      selectedDraft === null ||
+      selectedDraft.name.trim().length === 0 ||
+      selectedStructureAssignments.length > 0
+    ) {
       return
     }
 
@@ -495,6 +596,9 @@ export function StructuresWorkspace({
     try {
       const updatedStructure = await updateStructureRequest(selectedProject.id, selectedStructureId, selectedDraft)
       setSelectedDraft(toStructureDraft(updatedStructure))
+      setSelectedStructureTimelineReferenceCount(updatedStructure.timelineReferenceCount)
+      setSelectedStructureAssignments(await fetchStructureAssignments(selectedProject.id, { structureId: selectedStructureId }))
+      setSelectedStructureUsages(await fetchStructureUsages(selectedProject.id, { structureId: selectedStructureId }))
       await loadStructures()
       onMessage(ui.saved)
     } catch (error) {
@@ -502,6 +606,185 @@ export function StructuresWorkspace({
     } finally {
       setIsDetailSaving(false)
     }
+  }
+
+  const saveSelectedStructureDetails = async () => {
+    if (selectedStructureId === null || selectedDraft === null || selectedDraft.name.trim().length === 0) {
+      return
+    }
+
+    setIsDetailSaving(true)
+    try {
+      const updatedStructure = await updateStructureDetailsRequest(selectedProject.id, selectedStructureId, {
+        name: selectedDraft.name,
+        description: selectedDraft.description,
+      })
+      setSelectedDraft((currentDraft) =>
+        currentDraft === null
+          ? currentDraft
+          : {
+              ...currentDraft,
+              name: updatedStructure.name,
+              description: updatedStructure.description ?? '',
+            },
+      )
+      setSelectedStructureTimelineReferenceCount(updatedStructure.timelineReferenceCount)
+      setSelectedStructureAssignments(await fetchStructureAssignments(selectedProject.id, { structureId: selectedStructureId }))
+      setSelectedStructureUsages(await fetchStructureUsages(selectedProject.id, { structureId: selectedStructureId }))
+      await loadStructures()
+      onMessage(ui.saved)
+    } catch (error) {
+      onError(getApiErrorMessage(error, errorMessage))
+    } finally {
+      setIsDetailSaving(false)
+    }
+  }
+
+  const saveSelectedNodeDetails = async (clientId: string) => {
+    if (selectedStructureId === null || selectedDraft === null || !/^\d+$/.test(clientId)) {
+      return
+    }
+
+    const node = selectedDraft.nodes.find((currentNode) => currentNode.clientId === clientId)
+    if (node === undefined || node.name.trim().length === 0) {
+      return
+    }
+
+    setIsDetailSaving(true)
+    try {
+      const updatedNode = await updateStructureNodeDetailsRequest(
+        selectedProject.id,
+        selectedStructureId,
+        Number(clientId),
+        {
+          name: node.name,
+          description: node.description,
+          nodeType: node.nodeType,
+          color: node.color,
+          iconKey: node.iconKey,
+        },
+      )
+      setSelectedDraft((currentDraft) =>
+        currentDraft === null
+          ? currentDraft
+          : {
+              ...currentDraft,
+              nodes: currentDraft.nodes.map((currentNode) =>
+                currentNode.clientId === clientId
+                  ? {
+                      ...currentNode,
+                      name: updatedNode.name,
+                      description: updatedNode.description ?? '',
+                      nodeType: updatedNode.nodeType ?? '',
+                      color: updatedNode.color ?? '',
+                      iconKey: updatedNode.iconKey ?? '',
+                    }
+                  : currentNode,
+              ),
+            },
+      )
+      await loadStructures()
+      onMessage(ui.saved)
+    } catch (error) {
+      onError(getApiErrorMessage(error, errorMessage))
+    } finally {
+      setIsDetailSaving(false)
+    }
+  }
+
+  const previewSelectedCatalogSync = async () => {
+    if (selectedStructureId === null || selectedDraft === null || selectedDraft.catalogSyncMode === 'manual') {
+      return
+    }
+
+    setIsCatalogSyncLoading(true)
+    try {
+      setCatalogSyncPreview(await fetchStructureCatalogSyncPreview(selectedProject.id, selectedStructureId))
+    } catch (error) {
+      onError(getApiErrorMessage(error, errorMessage))
+    } finally {
+      setIsCatalogSyncLoading(false)
+    }
+  }
+
+  const applySelectedCatalogSync = async () => {
+    if (selectedStructureId === null || selectedDraft === null || selectedDraft.catalogSyncMode === 'manual') {
+      return
+    }
+
+    setIsCatalogSyncLoading(true)
+    try {
+      const result = await applyStructureCatalogSync(selectedProject.id, selectedStructureId)
+      setSelectedDraft(toStructureDraft(result.structure))
+      setSelectedStructureTimelineReferenceCount(result.structure.timelineReferenceCount)
+      setSelectedStructureAssignments(await fetchStructureAssignments(selectedProject.id, { structureId: selectedStructureId }))
+      setSelectedStructureUsages(await fetchStructureUsages(selectedProject.id, { structureId: selectedStructureId }))
+      setCatalogSyncPreview(null)
+      await loadStructures()
+      onMessage(ui.structureCatalogSyncApplied)
+    } catch (error) {
+      onError(getApiErrorMessage(error, errorMessage))
+    } finally {
+      setIsCatalogSyncLoading(false)
+    }
+  }
+
+  const syncStructureUsageAssignments = async (usage: StructureUsage) => {
+    if (selectedStructureId === null) {
+      return
+    }
+
+    setAssignmentSyncLoadingUsageId(usage.id)
+    try {
+      await applyStructureCatalogAssignmentSync(selectedProject.id, usage.id)
+      const [assignments, preview] = await Promise.all([
+        fetchStructureAssignments(selectedProject.id, { structureId: selectedStructureId }),
+        fetchStructureCatalogAssignmentSyncPreview(selectedProject.id, usage.id),
+      ])
+      setSelectedStructureAssignments(assignments)
+      setAssignmentSyncPreviewsByUsageId((currentPreviews) => ({
+        ...currentPreviews,
+        [usage.id]: preview,
+      }))
+      await loadStructures()
+      onMessage(ui.structureCatalogAssignmentSync)
+    } catch (error) {
+      onError(getApiErrorMessage(error, ui.structureCatalogAssignmentSyncFailed))
+    } finally {
+      setAssignmentSyncLoadingUsageId(null)
+    }
+  }
+
+  const selectedAssignmentCountsByNodeId = new Map<number, number>()
+  const selectedAssignmentsByNodeId = new Map<number, StructureAssignment[]>()
+  const selectedAssignmentCountsByUsageId = new Map<number, number>()
+  selectedStructureAssignments.forEach((assignment) => {
+    selectedAssignmentCountsByNodeId.set(
+      assignment.structureNodeId,
+      (selectedAssignmentCountsByNodeId.get(assignment.structureNodeId) ?? 0) + 1,
+    )
+    selectedAssignmentsByNodeId.set(assignment.structureNodeId, [
+      ...(selectedAssignmentsByNodeId.get(assignment.structureNodeId) ?? []),
+      assignment,
+    ])
+    selectedAssignmentCountsByUsageId.set(
+      assignment.structureUsageId,
+      (selectedAssignmentCountsByUsageId.get(assignment.structureUsageId) ?? 0) + 1,
+    )
+  })
+  const hasSelectedStructureAssignments = selectedStructureAssignments.length > 0
+  const hasSelectedStructureTimelineReferences = selectedStructureTimelineReferenceCount > 0
+  const isSelectedTopologyLocked = hasSelectedStructureAssignments || hasSelectedStructureTimelineReferences
+  const getStructureUsageTargetLabel = (usage: StructureUsage) => {
+    if (usage.targetKind === 'project') {
+      return selectedProject.name
+    }
+
+    if (usage.targetKind === 'catalog') {
+      return availableCatalogs.find((catalog) => catalog.id === usage.targetId)?.name ?? ui.structureOwnerCatalog
+    }
+
+    return usage.displayName ?? `${ui.structureOwnerObject} #${usage.targetId}`
   }
 
   return (
@@ -569,6 +852,7 @@ export function StructuresWorkspace({
                 const nodeBindingMode = event.target.value as StructureNodeBindingMode
                 updateDraft({
                   nodeBindingMode,
+                  catalogSyncMode: normalizeCatalogSyncMode(draft.catalogSyncMode, nodeBindingMode, draftSyncCatalogId),
                   nodes: normalizeNodesForBindingMode(draft.nodes, nodeBindingMode),
                 })
               }}
@@ -590,6 +874,7 @@ export function StructuresWorkspace({
                 updateDraft({
                   linkedCatalogId: nextCatalogId,
                   ownerId: draft.ownerKind === 'catalog' ? nextCatalogId : draft.ownerId,
+                  catalogSyncMode: normalizeCatalogSyncMode(draft.catalogSyncMode, draft.nodeBindingMode, nextCatalogId),
                   nodes: nextCatalogId === draft.linkedCatalogId ? draft.nodes : clearNodeCatalogBindings(draft.nodes),
                 })
               }}
@@ -609,6 +894,7 @@ export function StructuresWorkspace({
                   updateDraft({
                     linkedCatalogId: catalogId,
                     ownerId: draft.ownerKind === 'catalog' ? catalogId : draft.ownerId,
+                    catalogSyncMode: normalizeCatalogSyncMode(draft.catalogSyncMode, draft.nodeBindingMode, catalogId),
                     nodes: catalogId === draft.linkedCatalogId ? draft.nodes : clearNodeCatalogBindings(draft.nodes),
                   })
                 }}
@@ -632,6 +918,13 @@ export function StructuresWorkspace({
               />
             </label>
           )}
+          <CatalogSyncModeSelect
+            ui={ui}
+            value={draft.catalogSyncMode}
+            nodeBindingMode={draft.nodeBindingMode}
+            linkedCatalogId={draftSyncCatalogId}
+            onChange={(catalogSyncMode) => updateDraft({ catalogSyncMode })}
+          />
           <p className="sp-form-hint">{ui.structureCatalogHint}</p>
         </div>
         <div className="sp-detail-actions">
@@ -676,6 +969,7 @@ export function StructuresWorkspace({
         <div className="sp-cards sp-structure-list">
           {structures.map((structure) => {
             const linkedCatalog = availableCatalogs.find((catalog) => catalog.id === structure.linkedCatalogId)
+            const canDeleteStructure = structure.usageCount === 0 && structure.timelineReferenceCount === 0
 
             return (
               <article
@@ -683,7 +977,10 @@ export function StructuresWorkspace({
                 key={structure.id}
               >
                 <div className="sp-card-menu">
-                  <KebabMenu ui={ui} onDelete={() => void deleteStructure(structure)} />
+                  <KebabMenu
+                    ui={ui}
+                    onDelete={canDeleteStructure ? () => void deleteStructure(structure) : undefined}
+                  />
                 </div>
                 <button className="sp-card-main" type="button" onClick={() => void openStructure(structure.id)}>
                   <div className="sp-structure-icon">
@@ -696,6 +993,9 @@ export function StructuresWorkspace({
                       <span>{structure.layoutKind}</span>
                       <span>{ui.structureNodesCount}: {structure.nodeCount}</span>
                       <span>{ui.structureUsageCount}: {structure.usageCount}</span>
+                      {structure.timelineReferenceCount > 0 && (
+                        <span>{ui.structureTimelineReferenceCount}: {structure.timelineReferenceCount}</span>
+                      )}
                       {linkedCatalog !== undefined && (
                         <span>{ui.structureLinkedCatalog}: {linkedCatalog.name}</span>
                       )}
@@ -724,12 +1024,38 @@ export function StructuresWorkspace({
               <button
                 className="sp-button primary"
                 type="button"
-                disabled={isDetailSaving || selectedDraft.name.trim().length === 0}
+                disabled={isDetailSaving || selectedDraft.name.trim().length === 0 || isSelectedTopologyLocked}
                 onClick={() => void saveSelectedStructure()}
               >
                 {isDetailSaving ? ui.saving : ui.save}
               </button>
             </div>
+            {isSelectedTopologyLocked && (
+              <div className="sp-note">
+                <strong>{ui.structureTopologyLocked}</strong>
+                <span>{ui.structureTopologyLockedHint}</span>
+                <div className="sp-tags">
+                  {hasSelectedStructureAssignments && (
+                    <span>{ui.structureAssignmentCount}: {selectedStructureAssignments.length}</span>
+                  )}
+                  {hasSelectedStructureTimelineReferences && (
+                    <span>
+                      {ui.structureTimelineReferenceCount}: {selectedStructureTimelineReferenceCount}
+                    </span>
+                  )}
+                </div>
+                <div className="sp-detail-actions">
+                  <button
+                    className="sp-button"
+                    disabled={isDetailSaving || selectedDraft.name.trim().length === 0}
+                    type="button"
+                    onClick={() => void saveSelectedStructureDetails()}
+                  >
+                    {isDetailSaving ? ui.saving : ui.structureDetailsSave}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="sp-form">
               <label>
@@ -749,6 +1075,7 @@ export function StructuresWorkspace({
               <label>
                 {ui.structureOwnerKind}
                 <select
+                  disabled={isSelectedTopologyLocked}
                   value={selectedDraft.ownerKind}
                   onChange={(event) => {
                     const ownerKind = event.target.value as StructureOwnerKind
@@ -773,6 +1100,7 @@ export function StructuresWorkspace({
               <label>
                 {ui.structureLayoutKind}
                 <select
+                  disabled={isSelectedTopologyLocked}
                   value={selectedDraft.layoutKind}
                   onChange={(event) => updateSelectedDraft({ layoutKind: event.target.value as StructureLayoutKind })}
                 >
@@ -784,10 +1112,16 @@ export function StructuresWorkspace({
               <label>
                 {ui.structureBindingMode}
                 <select
+                  disabled={isSelectedTopologyLocked}
                   value={selectedDraft.nodeBindingMode}
                   onChange={(event) =>
                     updateSelectedDraft({
                       nodeBindingMode: event.target.value as StructureNodeBindingMode,
+                      catalogSyncMode: normalizeCatalogSyncMode(
+                        selectedDraft.catalogSyncMode,
+                        event.target.value as StructureNodeBindingMode,
+                        selectedDraft.linkedCatalogId,
+                      ),
                       nodes: normalizeNodesForBindingMode(
                         selectedDraft.nodes,
                         event.target.value as StructureNodeBindingMode,
@@ -804,12 +1138,18 @@ export function StructuresWorkspace({
               <label>
                 {ui.structureLinkedCatalog}
                 <select
+                  disabled={isSelectedTopologyLocked}
                   value={selectedDraft.linkedCatalogId ?? ''}
                   onChange={(event) => {
                     const catalogId = event.target.value === '' ? null : Number(event.target.value)
                     updateSelectedDraft({
                       linkedCatalogId: catalogId,
                       ownerId: selectedDraft.ownerKind === 'catalog' ? catalogId : selectedDraft.ownerId,
+                      catalogSyncMode: normalizeCatalogSyncMode(
+                        selectedDraft.catalogSyncMode,
+                        selectedDraft.nodeBindingMode,
+                        catalogId,
+                      ),
                       nodes:
                         catalogId === selectedDraft.linkedCatalogId
                           ? selectedDraft.nodes
@@ -825,7 +1165,100 @@ export function StructuresWorkspace({
                   ))}
                 </select>
               </label>
+              <CatalogSyncModeSelect
+                ui={ui}
+                value={selectedDraft.catalogSyncMode}
+                nodeBindingMode={selectedDraft.nodeBindingMode}
+                linkedCatalogId={selectedDraft.linkedCatalogId}
+                disabled={isSelectedTopologyLocked}
+                onChange={(catalogSyncMode) => updateSelectedDraft({ catalogSyncMode })}
+              />
             </div>
+
+            {selectedDraft.catalogSyncMode !== 'manual' && (
+              <div className="sp-structure-sync sp-panel-subtle">
+                <div>
+                  <strong>{ui.structureCatalogSync}</strong>
+                  <p>{ui.structureCatalogSyncHint}</p>
+                </div>
+                <div className="sp-detail-actions">
+                  <button
+                    className="sp-button"
+                    type="button"
+                    disabled={isCatalogSyncLoading || isDetailSaving}
+                    onClick={() => void previewSelectedCatalogSync()}
+                  >
+                    {isCatalogSyncLoading ? ui.loading : ui.structureCatalogSyncPreview}
+                  </button>
+                  <button
+                    className="sp-button primary"
+                    type="button"
+                    disabled={isCatalogSyncLoading || isDetailSaving || isSelectedTopologyLocked}
+                    onClick={() => void applySelectedCatalogSync()}
+                  >
+                    {ui.structureCatalogSyncApply}
+                  </button>
+                </div>
+                {catalogSyncPreview !== null && (
+                  <div className="sp-tags">
+                    <span>{ui.structureCatalogSyncExisting}: {catalogSyncPreview.existingNodeCount}</span>
+                    <span>{ui.structureCatalogSyncMissing}: {catalogSyncPreview.missingNodeCount}</span>
+                    {catalogSyncPreview.nodes.slice(0, 8).map((node) => (
+                      <span key={`${node.sourceKind}-${node.sourceId}`}>
+                        {node.action === 'create' ? '+ ' : ''}{node.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedStructureUsages.length > 0 && (
+              <div className="sp-structure-sync sp-panel-subtle">
+                <div>
+                  <strong>{ui.structureUsages}</strong>
+                  <p>{ui.structureUsagesHint}</p>
+                </div>
+                <div className="sp-structure-usage-list">
+                  {selectedStructureUsages.map((usage) => {
+                    const preview = assignmentSyncPreviewsByUsageId[usage.id] ?? null
+                    const assignmentCount = selectedAssignmentCountsByUsageId.get(usage.id) ?? 0
+                    const canSyncAssignments =
+                      selectedDraft.linkedCatalogId !== null &&
+                      preview !== null &&
+                      preview.missingAssignmentCount > 0
+
+                    return (
+                      <article className="sp-structure-usage-card" key={usage.id}>
+                        <div>
+                          <strong>{usage.displayName ?? usage.structureName}</strong>
+                          <span>{getStructureUsageTargetLabel(usage)}</span>
+                        </div>
+                        <div className="sp-tags">
+                          {usage.isPrimary && <span>{ui.primary}</span>}
+                          <span>{usage.targetKind}</span>
+                          <span>{ui.structureAssignmentCount}: {assignmentCount}</span>
+                          {preview !== null && (
+                            <>
+                              <span>{ui.structureCatalogAssignmentSyncMissing}: {preview.missingAssignmentCount}</span>
+                              <span>{ui.structureCatalogAssignmentSyncExisting}: {preview.existingAssignmentCount}</span>
+                            </>
+                          )}
+                        </div>
+                        <button
+                          className="sp-button"
+                          disabled={!canSyncAssignments || assignmentSyncLoadingUsageId === usage.id}
+                          type="button"
+                          onClick={() => void syncStructureUsageAssignments(usage)}
+                        >
+                          {assignmentSyncLoadingUsageId === usage.id ? ui.loading : ui.structureCatalogAssignmentSync}
+                        </button>
+                      </article>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="sp-structure-nodes">
               <div className="sp-structure-nodes-head">
@@ -833,7 +1266,7 @@ export function StructuresWorkspace({
                   <h3>{ui.structureNodes}</h3>
                   <p>{ui.structureNodesHint}</p>
                 </div>
-                <button className="sp-button" type="button" onClick={addSelectedNode}>
+                <button className="sp-button" disabled={isSelectedTopologyLocked} type="button" onClick={addSelectedNode}>
                   {ui.structureAddNode}
                 </button>
               </div>
@@ -845,7 +1278,14 @@ export function StructuresWorkspace({
                 </div>
               ) : (
                 <>
-                  <StructureMapPreview draft={selectedDraft} ui={ui} />
+                  <StructureMapPreview
+                    draft={selectedDraft}
+                    ui={ui}
+                    catalogEntriesByCatalogId={catalogEntriesByCatalogId}
+                    catalogGroupsByCatalogId={catalogGroupsByCatalogId}
+                    assignmentCountsByNodeId={selectedAssignmentCountsByNodeId}
+                    assignmentsByNodeId={selectedAssignmentsByNodeId}
+                  />
                   <StructureNodeDraftList
                     nodes={selectedDraft.nodes}
                     ui={ui}
@@ -853,8 +1293,12 @@ export function StructuresWorkspace({
                     nodeBindingMode={selectedDraft.nodeBindingMode}
                     catalogEntriesByCatalogId={catalogEntriesByCatalogId}
                     catalogGroupsByCatalogId={catalogGroupsByCatalogId}
+                    assignmentCountsByNodeId={selectedAssignmentCountsByNodeId}
                     onNodeChange={updateSelectedNode}
+                    onNodeDetailsSave={(clientId) => void saveSelectedNodeDetails(clientId)}
                     onNodeRemove={removeSelectedNode}
+                    isNodeDetailsSaving={isDetailSaving}
+                    isTopologyLocked={isSelectedTopologyLocked}
                   />
                   <StructureEdgeDraftSection
                     edges={selectedDraft.edges}
@@ -863,6 +1307,7 @@ export function StructuresWorkspace({
                     onEdgeAdd={addSelectedEdge}
                     onEdgeChange={updateSelectedEdge}
                     onEdgeRemove={removeSelectedEdge}
+                    isTopologyLocked={isSelectedTopologyLocked}
                   />
                 </>
               )}
@@ -874,15 +1319,70 @@ export function StructuresWorkspace({
   )
 }
 
+function CatalogSyncModeSelect({
+  ui,
+  value,
+  nodeBindingMode,
+  linkedCatalogId,
+  disabled = false,
+  onChange,
+}: {
+  ui: PreviewText
+  value: StructureCatalogSyncMode
+  nodeBindingMode: StructureNodeBindingMode
+  linkedCatalogId: number | null
+  disabled?: boolean
+  onChange: (value: StructureCatalogSyncMode) => void
+}) {
+  const options: Array<{ value: StructureCatalogSyncMode; label: string }> = [
+    { value: 'manual', label: ui.structureCatalogSyncManual },
+    { value: 'catalogEntries', label: ui.structureCatalogSyncEntries },
+    { value: 'catalogGroups', label: ui.structureCatalogSyncGroups },
+    { value: 'catalogTree', label: ui.structureCatalogSyncTree },
+  ]
+
+  return (
+    <label>
+      {ui.structureCatalogSyncMode}
+      <select
+        disabled={disabled}
+        value={normalizeCatalogSyncMode(value, nodeBindingMode, linkedCatalogId)}
+        onChange={(event) => onChange(event.target.value as StructureCatalogSyncMode)}
+      >
+        {options.map((option) => (
+          <option
+            key={option.value}
+            value={option.value}
+            disabled={!isCatalogSyncModeAvailable(option.value, nodeBindingMode, linkedCatalogId)}
+          >
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 function StructureMapPreview({
   draft,
   ui,
+  catalogEntriesByCatalogId = {},
+  catalogGroupsByCatalogId = {},
+  assignmentCountsByNodeId,
+  assignmentsByNodeId,
 }: {
   draft: StructureDraft
   ui: PreviewText
+  catalogEntriesByCatalogId?: Record<number, CatalogEntry[]>
+  catalogGroupsByCatalogId?: Record<number, CatalogEntryGroup[]>
+  assignmentCountsByNodeId?: Map<number, number>
+  assignmentsByNodeId?: Map<number, StructureAssignment[]>
 }) {
   const [focusedNodeClientId, setFocusedNodeClientId] = useState<string | null>(null)
   const nodes = draft.nodes
+  const focusedNode = focusedNodeClientId === null
+    ? null
+    : nodes.find((node) => node.clientId === focusedNodeClientId) ?? null
   const validNodeIds = new Set(nodes.map((node) => node.clientId))
   const validEdges = draft.edges.filter(
     (edge) =>
@@ -907,6 +1407,36 @@ function StructureMapPreview({
   const levelIndexes = Array.from(new Set(nodes.map((node) => node.levelIndex))).sort((left, right) => left - right)
   const getNodeName = (clientId: string) =>
     nodes.find((node) => node.clientId === clientId)?.name.trim() || ui.structureNode
+  const focusedParent = focusedNode?.parentClientId === null || focusedNode?.parentClientId === undefined
+    ? null
+    : nodes.find((node) => node.clientId === focusedNode.parentClientId) ?? null
+  const focusedChildren = focusedNode === null
+    ? []
+    : nodes
+        .filter((node) => node.parentClientId === focusedNode.clientId)
+        .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name))
+  const focusedIncomingEdges = focusedNode === null
+    ? []
+    : validEdges.filter((edge) => edge.targetClientId === focusedNode.clientId)
+  const focusedOutgoingEdges = focusedNode === null
+    ? []
+    : validEdges.filter((edge) => edge.sourceClientId === focusedNode.clientId)
+  const focusedCatalogEntry = focusedNode?.linkedCatalogEntryId === null || focusedNode?.linkedCatalogEntryId === undefined
+    ? null
+    : (draft.linkedCatalogId === null ? [] : catalogEntriesByCatalogId[draft.linkedCatalogId] ?? [])
+        .find((entry) => entry.id === focusedNode.linkedCatalogEntryId) ?? null
+  const focusedCatalogGroup = focusedNode?.linkedCatalogEntryGroupId === null || focusedNode?.linkedCatalogEntryGroupId === undefined
+    ? null
+    : (draft.linkedCatalogId === null ? [] : catalogGroupsByCatalogId[draft.linkedCatalogId] ?? [])
+        .find((group) => group.id === focusedNode.linkedCatalogEntryGroupId) ?? null
+  const focusedAssignmentCount =
+    focusedNode !== null && /^\d+$/.test(focusedNode.clientId)
+      ? assignmentCountsByNodeId?.get(Number(focusedNode.clientId)) ?? 0
+      : null
+  const focusedAssignments =
+    focusedNode !== null && /^\d+$/.test(focusedNode.clientId)
+      ? assignmentsByNodeId?.get(Number(focusedNode.clientId)) ?? []
+      : []
 
   return (
     <section className="sp-structure-map-preview">
@@ -929,6 +1459,72 @@ function StructureMapPreview({
             {ui.structureFocusReset}
           </button>
         </div>
+      )}
+
+      {focusedNode !== null && (
+        <article className="sp-structure-node-dossier">
+          <div>
+            <span>{ui.structureNodeDossier}</span>
+            <h4>{focusedNode.name.trim() || ui.structureNode}</h4>
+            <p>{focusedNode.description.trim() || ui.noDescription}</p>
+          </div>
+          <dl>
+            <div>
+              <dt>{ui.structureNodeType}</dt>
+              <dd>{focusedNode.nodeType.trim() || '-'}</dd>
+            </div>
+            <div>
+              <dt>{ui.structureLevelIndex}</dt>
+              <dd>{focusedNode.levelIndex + 1}</dd>
+            </div>
+            <div>
+              <dt>{ui.structureParentNode}</dt>
+              <dd>{focusedParent?.name.trim() || '-'}</dd>
+            </div>
+            <div>
+              <dt>{ui.structureChildNodes}</dt>
+              <dd>{focusedChildren.length}</dd>
+            </div>
+            <div>
+              <dt>{ui.relationsCount}</dt>
+              <dd>{focusedIncomingEdges.length + focusedOutgoingEdges.length}</dd>
+            </div>
+            {focusedAssignmentCount !== null && (
+              <div>
+                <dt>{ui.structureAssignmentCount}</dt>
+                <dd>{focusedAssignmentCount}</dd>
+              </div>
+            )}
+          </dl>
+          {(focusedCatalogEntry !== null || focusedCatalogGroup !== null || focusedChildren.length > 0) && (
+            <div className="sp-tags">
+              {focusedCatalogEntry !== null && (
+                <span>{ui.structureLinkedCatalogEntry}: {focusedCatalogEntry.name}</span>
+              )}
+              {focusedCatalogGroup !== null && (
+                <span>{ui.structureLinkedCatalogGroup}: {focusedCatalogGroup.name}</span>
+              )}
+              {focusedChildren.slice(0, 6).map((childNode) => (
+                <span key={childNode.clientId}>{childNode.name.trim() || ui.structureNode}</span>
+              ))}
+            </div>
+          )}
+          {focusedAssignments.length > 0 && (
+            <div className="sp-structure-node-members">
+              <strong>{ui.structureNodeMembers}</strong>
+              <div className="sp-tags">
+                {focusedAssignments.slice(0, 8).map((assignment) => (
+                  <span key={assignment.id}>
+                    {assignment.storyObjectName}
+                    {assignment.roleLabel === null || assignment.roleLabel.trim().length === 0
+                      ? ''
+                      : ` · ${assignment.roleLabel}`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </article>
       )}
 
       <div className="sp-structure-level-preview">
@@ -993,8 +1589,12 @@ function StructureNodeDraftList({
   nodeBindingMode,
   catalogEntriesByCatalogId,
   catalogGroupsByCatalogId,
+  assignmentCountsByNodeId,
   onNodeChange,
+  onNodeDetailsSave,
   onNodeRemove,
+  isNodeDetailsSaving = false,
+  isTopologyLocked = false,
 }: {
   nodes: StructureNodeDraft[]
   ui: PreviewText
@@ -1002,14 +1602,29 @@ function StructureNodeDraftList({
   nodeBindingMode: StructureNodeBindingMode
   catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
   catalogGroupsByCatalogId: Record<number, CatalogEntryGroup[]>
+  assignmentCountsByNodeId?: Map<number, number>
   onNodeChange: (clientId: string, patch: Partial<StructureNodeDraft>) => void
+  onNodeDetailsSave?: (clientId: string) => void
   onNodeRemove: (clientId: string) => void
+  isNodeDetailsSaving?: boolean
+  isTopologyLocked?: boolean
 }) {
   const catalogEntries = linkedCatalogId === null ? [] : catalogEntriesByCatalogId[linkedCatalogId] ?? []
   const catalogGroups = linkedCatalogId === null ? [] : catalogGroupsByCatalogId[linkedCatalogId] ?? []
+  const catalogGroupTree = buildCatalogGroupTree(catalogGroups)
   const canBindEntries = linkedCatalogId !== null && (nodeBindingMode === 'catalogEntry' || nodeBindingMode === 'mixed')
   const canBindGroups =
     linkedCatalogId !== null && (nodeBindingMode === 'catalogEntryGroup' || nodeBindingMode === 'mixed')
+  const linkedEntryClientIds = new Map(
+    nodes
+      .filter((node) => node.linkedCatalogEntryId !== null)
+      .map((node) => [node.linkedCatalogEntryId!, node.clientId]),
+  )
+  const linkedGroupClientIds = new Map(
+    nodes
+      .filter((node) => node.linkedCatalogEntryGroupId !== null)
+      .map((node) => [node.linkedCatalogEntryGroupId!, node.clientId]),
+  )
 
   return (
     <div className="sp-structure-node-list">
@@ -1032,6 +1647,7 @@ function StructureNodeDraftList({
           <label>
             {ui.structureParentNode}
             <select
+              disabled={isTopologyLocked}
               value={node.parentClientId ?? ''}
               onChange={(event) =>
                 onNodeChange(node.clientId, {
@@ -1060,6 +1676,7 @@ function StructureNodeDraftList({
             <label>
               {ui.structureLinkedCatalogEntry}
               <select
+                disabled={isTopologyLocked}
                 value={node.linkedCatalogEntryId ?? ''}
                 onChange={(event) =>
                   onNodeChange(node.clientId, {
@@ -1069,11 +1686,15 @@ function StructureNodeDraftList({
                 }
               >
                 <option value="">{ui.catalogNoSelection}</option>
-                {catalogEntries.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
+                {catalogEntries.map((entry) => {
+                  const linkedClientId = linkedEntryClientIds.get(entry.id)
+                  const isUsedByAnotherNode = linkedClientId !== undefined && linkedClientId !== node.clientId
+                  return (
+                  <option disabled={isUsedByAnotherNode} key={entry.id} value={entry.id}>
+                    {isUsedByAnotherNode ? `${entry.name} (${ui.structureCatalogLinkAlreadyUsed})` : entry.name}
                   </option>
-                ))}
+                  )
+                })}
               </select>
             </label>
           )}
@@ -1081,6 +1702,7 @@ function StructureNodeDraftList({
             <label>
               {ui.structureLinkedCatalogGroup}
               <select
+                disabled={isTopologyLocked}
                 value={node.linkedCatalogEntryGroupId ?? ''}
                 onChange={(event) =>
                   onNodeChange(node.clientId, {
@@ -1090,17 +1712,23 @@ function StructureNodeDraftList({
                 }
               >
                 <option value="">{ui.catalogNoSelection}</option>
-                {catalogGroups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
+                {catalogGroupTree.map(({ group, depth }) => {
+                  const linkedClientId = linkedGroupClientIds.get(group.id)
+                  const isUsedByAnotherNode = linkedClientId !== undefined && linkedClientId !== node.clientId
+                  const label = formatCatalogGroupTreeLabel(group, depth)
+                  return (
+                  <option disabled={isUsedByAnotherNode} key={group.id} value={group.id}>
+                    {isUsedByAnotherNode ? `${label} (${ui.structureCatalogLinkAlreadyUsed})` : label}
                   </option>
-                ))}
+                  )
+                })}
               </select>
             </label>
           )}
           <label>
             {ui.structureLevelIndex}
             <input
+              disabled={isTopologyLocked}
               min="0"
               type="number"
               value={node.levelIndex}
@@ -1114,6 +1742,7 @@ function StructureNodeDraftList({
           <label>
             {ui.structureSortOrder}
             <input
+              disabled={isTopologyLocked}
               min="0"
               type="number"
               value={node.sortOrder}
@@ -1124,9 +1753,27 @@ function StructureNodeDraftList({
               }
             />
           </label>
+          {assignmentCountsByNodeId !== undefined && /^\d+$/.test(node.clientId) && (
+            <div className="sp-tags">
+              <span>
+                {ui.structureAssignmentCount}: {assignmentCountsByNodeId.get(Number(node.clientId)) ?? 0}
+              </span>
+            </div>
+          )}
           <div className="sp-structure-node-actions">
+            {onNodeDetailsSave !== undefined && /^\d+$/.test(node.clientId) && (
+              <button
+                className="sp-button"
+                disabled={isNodeDetailsSaving || node.name.trim().length === 0}
+                type="button"
+                onClick={() => onNodeDetailsSave(node.clientId)}
+              >
+                {ui.structureNodeDetailsSave}
+              </button>
+            )}
             <button
               className="sp-button danger"
+              disabled={isTopologyLocked}
               type="button"
               onClick={() => onNodeRemove(node.clientId)}
             >
@@ -1146,6 +1793,7 @@ function StructureEdgeDraftSection({
   onEdgeAdd,
   onEdgeChange,
   onEdgeRemove,
+  isTopologyLocked = false,
 }: {
   edges: StructureEdgeDraft[]
   nodes: StructureNodeDraft[]
@@ -1153,8 +1801,9 @@ function StructureEdgeDraftSection({
   onEdgeAdd: () => void
   onEdgeChange: (edgeIndex: number, patch: Partial<StructureEdgeDraft>) => void
   onEdgeRemove: (edgeIndex: number) => void
+  isTopologyLocked?: boolean
 }) {
-  const canCreateEdge = nodes.length > 1
+  const canCreateEdge = nodes.length > 1 && !isTopologyLocked
   const getNodeName = (clientId: string) =>
     nodes.find((node) => node.clientId === clientId)?.name.trim() || ui.structureNode
 
@@ -1182,6 +1831,7 @@ function StructureEdgeDraftSection({
               <label>
                 {ui.structureEdgeSource}
                 <select
+                  disabled={isTopologyLocked}
                   value={edge.sourceClientId}
                   onChange={(event) => {
                     const sourceClientId = event.target.value
@@ -1204,6 +1854,7 @@ function StructureEdgeDraftSection({
               <label>
                 {ui.structureEdgeTarget}
                 <select
+                  disabled={isTopologyLocked}
                   value={edge.targetClientId}
                   onChange={(event) => onEdgeChange(edgeIndex, { targetClientId: event.target.value })}
                 >
@@ -1219,6 +1870,7 @@ function StructureEdgeDraftSection({
               <label>
                 {ui.relationType}
                 <input
+                  disabled={isTopologyLocked}
                   value={edge.relationType}
                   placeholder={ui.structureEdgeTypePlaceholder}
                   onChange={(event) => onEdgeChange(edgeIndex, { relationType: event.target.value })}
@@ -1227,6 +1879,7 @@ function StructureEdgeDraftSection({
               <label>
                 {ui.description}
                 <input
+                  disabled={isTopologyLocked}
                   value={edge.description}
                   onChange={(event) => onEdgeChange(edgeIndex, { description: event.target.value })}
                 />
@@ -1234,6 +1887,7 @@ function StructureEdgeDraftSection({
               <label>
                 {ui.structureSortOrder}
                 <input
+                  disabled={isTopologyLocked}
                   min="0"
                   type="number"
                   value={edge.sortOrder}
@@ -1250,7 +1904,12 @@ function StructureEdgeDraftSection({
                 <span>{getNodeName(edge.targetClientId)}</span>
               </div>
               <div className="sp-structure-node-actions">
-                <button className="sp-button danger" type="button" onClick={() => onEdgeRemove(edgeIndex)}>
+                <button
+                  className="sp-button danger"
+                  disabled={isTopologyLocked}
+                  type="button"
+                  onClick={() => onEdgeRemove(edgeIndex)}
+                >
                   {ui.delete}
                 </button>
               </div>

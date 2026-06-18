@@ -1,4 +1,6 @@
 import { ChevronRight } from 'lucide-react'
+import type { CSSProperties } from 'react'
+import { buildCatalogGroupTree } from '../domain/catalogGroupTree'
 import type {
   AttributeGroup,
   Catalog,
@@ -44,6 +46,8 @@ export function CatalogSidebarSection({
   onOpenCatalog,
   onOpenCatalogEntryGroup,
 }: CatalogSidebarSectionProps) {
+  const catalogGroupTree = buildCatalogGroupTree(catalogEntryGroups)
+
   return (
     <div className="sidebar-group is-module-start">
       <div className="sidebar-catalog-list" role="group" aria-label={t.catalogs}>
@@ -98,7 +102,7 @@ export function CatalogSidebarSection({
               </button>
               {isCatalogActive && (
                 <div className="sidebar-subnav sidebar-nested-subnav" role="group">
-                  {catalogEntryGroups.map((group) => (
+                  {catalogGroupTree.map(({ group, depth }) => (
                     <button
                       className={
                         catalogEntryGroupFilter === String(group.id)
@@ -106,6 +110,7 @@ export function CatalogSidebarSection({
                           : 'sidebar-subbutton'
                       }
                       key={group.id}
+                      style={{ '--catalog-group-indent': `${depth * 14}px` } as CSSProperties}
                       type="button"
                       onClick={() => onOpenCatalogEntryGroup(group.id)}
                     >

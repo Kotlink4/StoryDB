@@ -225,7 +225,9 @@ describe('temporalState', () => {
       ownerId: organization.id,
       layoutKind: 'levels',
       nodeBindingMode: 'none',
+      catalogSyncMode: 'manual',
       linkedCatalogId: null,
+      timelineReferenceCount: 0,
       nodes: [
         {
           id: 70,

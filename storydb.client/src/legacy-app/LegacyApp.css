@@ -993,7 +993,7 @@
   border: 0;
   border-left: 2px solid var(--border);
   border-radius: 0 6px 6px 0;
-  padding: 0 10px;
+  padding: 0 10px 0 calc(10px + var(--catalog-group-indent, 0px));
   color: var(--muted);
   background: transparent;
   font: inherit;

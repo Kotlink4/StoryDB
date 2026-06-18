@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { X } from 'lucide-react'
 
 import {
+  applyStructureCatalogAssignmentSync,
   assignObjectToStructureRequest,
   assignStructureRequest,
   createStructureRequest,
@@ -9,6 +10,7 @@ import {
   deleteStructureUsageRequest,
   fetchStructure,
   fetchStructureAssignments,
+  fetchStructureCatalogAssignmentSyncPreview,
   fetchStructures,
   fetchStructureUsages,
   getApiErrorMessage,
@@ -46,6 +48,7 @@ import type {
   StoryObject,
   Structure,
   StructureAssignment,
+  StructureCatalogAssignmentSyncPreview,
   StructureNodeDraft,
   StructureSummary,
   StructureUsage,
@@ -944,6 +947,9 @@ function OrganizationStructureView({
   )
   const [selectedStructureId, setSelectedStructureId] = useState('')
   const [structureAssignments, setStructureAssignments] = useState<Record<number, StructureAssignment[]>>({})
+  const [structureAssignmentSyncPreviews, setStructureAssignmentSyncPreviews] = useState<
+    Record<number, StructureCatalogAssignmentSyncPreview>
+  >({})
   const [structureDetails, setStructureDetails] = useState<Record<number, Structure>>({})
   const [structureUsages, setStructureUsages] = useState<StructureUsage[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -996,10 +1002,24 @@ function OrganizationStructureView({
           return [usage.id, assignments] as const
         }),
       )
+      const details = Object.fromEntries(detailEntries)
+      const previewEntries = await Promise.all(
+        usages
+          .filter((usage) => details[usage.structureId]?.linkedCatalogId !== null)
+          .map(async (usage) => {
+            try {
+              const preview = await fetchStructureCatalogAssignmentSyncPreview(selectedProjectId, usage.id)
+              return [usage.id, preview] as const
+            } catch {
+              return null
+            }
+          }),
+      )
       setAvailableStructures(structures)
       setStructureUsages(usages)
-      setStructureDetails(Object.fromEntries(detailEntries))
+      setStructureDetails(details)
       setStructureAssignments(Object.fromEntries(assignmentEntries))
+      setStructureAssignmentSyncPreviews(Object.fromEntries(previewEntries.filter((entry) => entry !== null)))
       setSelectedStructureId((currentId) =>
         currentId.trim().length > 0 &&
         structures.some((structure) => String(structure.id) === currentId) &&
@@ -1100,6 +1120,7 @@ function OrganizationStructureView({
         ownerId: storyObject.id,
         layoutKind: 'levels',
         nodeBindingMode: 'mixed',
+        catalogSyncMode: 'manual',
         linkedCatalogId: null,
         nodes,
         edges: [],
@@ -1244,6 +1265,7 @@ function OrganizationStructureView({
         ownerId: storyObject.id,
         layoutKind: 'levels',
         nodeBindingMode: 'none',
+        catalogSyncMode: 'manual',
         linkedCatalogId: null,
         nodes,
         edges: [],
@@ -1331,6 +1353,27 @@ function OrganizationStructureView({
       await loadStructureData()
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const syncCatalogAssignments = async (usage: StructureUsage) => {
+    if (selectedProjectId === null || isSaving) {
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    try {
+      const result = await applyStructureCatalogAssignmentSync(selectedProjectId, usage.id)
+      setStructureAssignments((currentAssignments) => ({
+        ...currentAssignments,
+        [usage.id]: result.assignments,
+      }))
+      await loadStructureData()
+    } catch (error) {
+      setError(getApiErrorMessage(error, ui.structureCatalogAssignmentSyncFailed))
     } finally {
       setIsSaving(false)
     }
@@ -1508,6 +1551,7 @@ function OrganizationStructureView({
                 ? null
                 : catalogs.find((catalog) => catalog.id === structure.linkedCatalogId) ?? null
             const assignments = structureAssignments[usage.id] ?? []
+            const assignmentSyncPreview = structureAssignmentSyncPreviews[usage.id] ?? null
             const levelIndexes =
               structure === undefined
                 ? []
@@ -1528,6 +1572,16 @@ function OrganizationStructureView({
                       <>
                         <span>{ui.structureLinkedCatalog}: {linkedCatalog.name}</span>
                         <span>{ui.structureSharedCatalog}</span>
+                        {assignmentSyncPreview !== null && (
+                          <span>
+                            {ui.structureCatalogAssignmentSyncMissing}: {assignmentSyncPreview.missingAssignmentCount}
+                          </span>
+                        )}
+                        {assignmentSyncPreview !== null && (
+                          <span>
+                            {ui.structureCatalogAssignmentSyncExisting}: {assignmentSyncPreview.existingAssignmentCount}
+                          </span>
+                        )}
                       </>
                     )}
                   </div>
@@ -1595,6 +1649,20 @@ function OrganizationStructureView({
                   )
                 )}
                 <div className="sp-detail-actions">
+                  {linkedCatalog !== null && (
+                    <button
+                      className="sp-button"
+                      disabled={
+                        isSaving ||
+                        assignmentSyncPreview === null ||
+                        assignmentSyncPreview.missingAssignmentCount === 0
+                      }
+                      type="button"
+                      onClick={() => void syncCatalogAssignments(usage)}
+                    >
+                      {ui.structureCatalogAssignmentSync}
+                    </button>
+                  )}
                   {!usage.isPrimary && (
                     <button
                       className="sp-button"

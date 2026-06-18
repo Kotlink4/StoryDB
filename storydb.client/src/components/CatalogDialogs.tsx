@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 
 import { uploadImageRequest } from '../api'
+import { buildCatalogGroupTree, formatCatalogGroupTreeLabel } from '../domain/catalogGroupTree'
 import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type {
   Catalog,
@@ -36,6 +37,8 @@ export function CatalogGroupDialog({
   onCatalogGroupParentIdsChange: (value: number[]) => void
   onSave: () => void
 }) {
+  const catalogGroupTree = buildCatalogGroupTree(catalogGroups)
+
   return (
     <PreviewDialog title={`${editingCatalogGroupId === null ? ui.newGroup : ui.edit}: ${catalog.name}`} onClose={onCancel}>
       <div className="sp-form">
@@ -55,11 +58,11 @@ export function CatalogGroupDialog({
                 )
               }
             >
-              {catalogGroups
-                .filter((group) => group.id !== editingCatalogGroupId)
-                .map((group) => (
+              {catalogGroupTree
+                .filter(({ group }) => group.id !== editingCatalogGroupId)
+                .map(({ group, depth }) => (
                   <option key={group.id} value={group.id}>
-                    {group.name}
+                    {formatCatalogGroupTreeLabel(group, depth)}
                   </option>
                 ))}
             </select>
@@ -108,6 +111,7 @@ export function CatalogEntryDialog({
   onSave: () => void
 }) {
   const catalogTemplateUi = catalogTemplateLabels[language]
+  const catalogGroupTree = buildCatalogGroupTree(catalogGroups)
 
   return (
     <PreviewDialog title={`${editingCatalogEntryId === null ? ui.newCatalogEntry : ui.edit}: ${catalog.name}`} onClose={onCancel}>
@@ -132,9 +136,9 @@ export function CatalogEntryDialog({
             }
           >
             <option value="">{ui.noGroup}</option>
-            {catalogGroups.map((group) => (
+            {catalogGroupTree.map(({ group, depth }) => (
               <option key={group.id} value={group.id}>
-                {group.name}
+                {formatCatalogGroupTreeLabel(group, depth)}
               </option>
             ))}
           </select>

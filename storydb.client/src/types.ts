@@ -152,6 +152,7 @@ export type OrganizationStructureSlotDraft = {
 export type StructureOwnerKind = 'project' | 'catalog' | 'object'
 export type StructureLayoutKind = 'levels' | 'tree' | 'graph'
 export type StructureNodeBindingMode = 'none' | 'catalogEntry' | 'catalogEntryGroup' | 'mixed'
+export type StructureCatalogSyncMode = 'manual' | 'catalogEntries' | 'catalogGroups' | 'catalogTree'
 
 export type Structure = {
   id: number
@@ -162,7 +163,9 @@ export type Structure = {
   ownerId: number | null
   layoutKind: StructureLayoutKind
   nodeBindingMode: StructureNodeBindingMode
+  catalogSyncMode: StructureCatalogSyncMode
   linkedCatalogId: number | null
+  timelineReferenceCount: number
   nodes: StructureNode[]
   edges: StructureEdge[]
 }
@@ -231,9 +234,66 @@ export type StructureDraft = {
   ownerId: number | null
   layoutKind: StructureLayoutKind
   nodeBindingMode: StructureNodeBindingMode
+  catalogSyncMode: StructureCatalogSyncMode
   linkedCatalogId: number | null
   nodes: StructureNodeDraft[]
   edges: StructureEdgeDraft[]
+}
+
+export type StructureDetailsDraft = Pick<StructureDraft, 'name' | 'description'>
+
+export type StructureCatalogSyncNode = {
+  sourceKind: 'entry' | 'group'
+  sourceId: number
+  name: string
+  description: string | null
+  parentSourceId: number | null
+  parentSourceKind: 'entry' | 'group' | null
+  existingNodeId: number | null
+  parentNodeId: number | null
+  levelIndex: number
+  sortOrder: number
+  action: 'exists' | 'create'
+}
+
+export type StructureCatalogSyncPreview = {
+  structureId: number
+  linkedCatalogId: number | null
+  catalogSyncMode: StructureCatalogSyncMode
+  existingNodeCount: number
+  missingNodeCount: number
+  nodes: StructureCatalogSyncNode[]
+}
+
+export type StructureCatalogSyncResult = {
+  structureId: number
+  createdNodeCount: number
+  structure: Structure
+}
+
+export type StructureCatalogAssignmentSyncItem = {
+  storyObjectId: number
+  storyObjectName: string
+  structureNodeId: number
+  structureNodeName: string
+  sourceKind: 'entry' | 'group'
+  sourceId: number
+  action: 'exists' | 'create'
+}
+
+export type StructureCatalogAssignmentSyncPreview = {
+  structureUsageId: number
+  structureId: number
+  linkedCatalogId: number
+  existingAssignmentCount: number
+  missingAssignmentCount: number
+  items: StructureCatalogAssignmentSyncItem[]
+}
+
+export type StructureCatalogAssignmentSyncResult = {
+  structureUsageId: number
+  createdAssignmentCount: number
+  assignments: StructureAssignment[]
 }
 
 export type StructureUsageDraft = {
@@ -265,6 +325,8 @@ export type StructureNodeDraft = {
   levelIndex: number
   sortOrder: number
 }
+
+export type StructureNodeDetailsDraft = Pick<StructureNodeDraft, 'name' | 'description' | 'nodeType' | 'color' | 'iconKey'>
 
 export type StructureEdgeDraft = {
   sourceClientId: string

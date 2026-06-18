@@ -1095,11 +1095,10 @@ public sealed class CatalogService(
             .Distinct()
             .ToList();
 
-        dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
-            dbContext.CatalogEntryGroupHierarchyLinks.Where(link => link.ChildGroupId == groupId));
-
         if (parentIds.Count == 0)
         {
+            dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
+                dbContext.CatalogEntryGroupHierarchyLinks.Where(link => link.ChildGroupId == groupId));
             return null;
         }
 
@@ -1111,6 +1110,14 @@ public sealed class CatalogService(
             return "One or more parent groups were not found.";
         }
 
+        if (await WouldCreateGroupHierarchyCycle(catalogId, groupId, parentIds, cancellationToken))
+        {
+            return "Catalog group hierarchy cannot contain cycles.";
+        }
+
+        dbContext.CatalogEntryGroupHierarchyLinks.RemoveRange(
+            dbContext.CatalogEntryGroupHierarchyLinks.Where(link => link.ChildGroupId == groupId));
+
         dbContext.CatalogEntryGroupHierarchyLinks.AddRange(parentIds.Select(parentId => new CatalogEntryGroupHierarchyLink
         {
             ParentGroupId = parentId,
@@ -1118,6 +1125,61 @@ public sealed class CatalogService(
         }));
 
         return null;
+    }
+
+    private async Task<bool> WouldCreateGroupHierarchyCycle(
+        int catalogId,
+        int groupId,
+        IReadOnlyList<int> parentIds,
+        CancellationToken cancellationToken)
+    {
+        var catalogGroupIds = await dbContext.CatalogEntryGroups
+            .AsNoTracking()
+            .Where(group => group.CatalogId == catalogId)
+            .Select(group => group.Id)
+            .ToListAsync(cancellationToken);
+        var catalogGroupIdSet = catalogGroupIds.ToHashSet();
+        var links = await dbContext.CatalogEntryGroupHierarchyLinks
+            .AsNoTracking()
+            .Where(link =>
+                link.ChildGroupId != groupId &&
+                catalogGroupIdSet.Contains(link.ParentGroupId) &&
+                catalogGroupIdSet.Contains(link.ChildGroupId))
+            .ToListAsync(cancellationToken);
+        var childrenByParentId = links
+            .GroupBy(link => link.ParentGroupId)
+            .ToDictionary(group => group.Key, group => group.Select(link => link.ChildGroupId).ToList());
+
+        var proposedParentIds = parentIds.ToHashSet();
+        var stack = new Stack<int>();
+        var visited = new HashSet<int>();
+        stack.Push(groupId);
+
+        while (stack.Count > 0)
+        {
+            var currentId = stack.Pop();
+            if (!visited.Add(currentId))
+            {
+                continue;
+            }
+
+            if (currentId != groupId && proposedParentIds.Contains(currentId))
+            {
+                return true;
+            }
+
+            if (!childrenByParentId.TryGetValue(currentId, out var childIds))
+            {
+                continue;
+            }
+
+            foreach (var childId in childIds)
+            {
+                stack.Push(childId);
+            }
+        }
+
+        return false;
     }
 
     private async Task<CatalogEntry> LoadEntryAsync(int entryId, CancellationToken cancellationToken) =>

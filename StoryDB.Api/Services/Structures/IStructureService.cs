@@ -18,7 +18,22 @@ public interface IStructureService
         int structureId,
         StructureRequest request);
 
+    Task<StructureServiceResult<StructureDto>> UpdateStructureDetailsAsync(
+        int projectId,
+        int structureId,
+        StructureDetailsRequest request);
+
+    Task<StructureServiceResult<StructureNodeDto>> UpdateStructureNodeDetailsAsync(
+        int projectId,
+        int structureId,
+        int nodeId,
+        StructureNodeDetailsRequest request);
+
     Task<StructureServiceResult> DeleteStructureAsync(int projectId, int structureId);
+
+    Task<StructureServiceResult<StructureCatalogSyncPreviewDto>> PreviewCatalogSyncAsync(int projectId, int structureId);
+
+    Task<StructureServiceResult<StructureCatalogSyncResultDto>> ApplyCatalogSyncAsync(int projectId, int structureId);
 
     Task<StructureServiceResult<IReadOnlyList<StructureUsageDto>>> GetStructureUsagesAsync(
         int projectId,
@@ -37,6 +52,14 @@ public interface IStructureService
         StructureUsageRequest request);
 
     Task<StructureServiceResult<StructureUsageDto>> MakeStructureUsageIndividualAsync(int projectId, int usageId);
+
+    Task<StructureServiceResult<StructureCatalogAssignmentSyncPreviewDto>> PreviewCatalogAssignmentSyncAsync(
+        int projectId,
+        int usageId);
+
+    Task<StructureServiceResult<StructureCatalogAssignmentSyncResultDto>> ApplyCatalogAssignmentSyncAsync(
+        int projectId,
+        int usageId);
 
     Task<StructureServiceResult> DeleteStructureUsageAsync(int projectId, int usageId);
 

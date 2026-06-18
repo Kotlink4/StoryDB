@@ -436,6 +436,7 @@ public sealed class TemplatePackService(
                 structure.OwnerKind,
                 structure.LayoutKind,
                 structure.NodeBindingMode,
+                structure.CatalogSyncMode,
                 structure.LinkedCatalog == null ? null : structure.LinkedCatalog.Key,
                 structure.LinkedCatalog == null ? null : structure.LinkedCatalog.Name,
                 structure.Nodes
@@ -754,6 +755,9 @@ public sealed class TemplatePackService(
                 OwnerId = ownerKind == "catalog" ? linkedCatalog?.Id : null,
                 LayoutKind = structureSnapshot.LayoutKind,
                 NodeBindingMode = structureSnapshot.NodeBindingMode,
+                CatalogSyncMode = string.IsNullOrWhiteSpace(structureSnapshot.CatalogSyncMode)
+                    ? "manual"
+                    : structureSnapshot.CatalogSyncMode,
                 LinkedCatalogId = linkedCatalog?.Id,
                 CreatedAt = now,
                 UpdatedAt = now,
@@ -915,6 +919,7 @@ public sealed class TemplatePackService(
         string OwnerKind,
         string LayoutKind,
         string NodeBindingMode,
+        string? CatalogSyncMode,
         string? LinkedCatalogKey,
         string? LinkedCatalogName,
         IReadOnlyList<StructureNodeSnapshot> Nodes,

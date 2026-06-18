@@ -14,6 +14,7 @@ import type {
   LayoutMode,
 } from '../types'
 import { resolveAssetUrl } from '../api'
+import { buildCatalogGroupTree, formatCatalogGroupTreeLabel } from '../domain/catalogGroupTree'
 import { CatalogEntryCard } from './CatalogEntryCard'
 import { ImageDropzone } from './ImageDropzone'
 
@@ -127,6 +128,8 @@ export function CatalogPanel({
   onShowEntryForm,
   onShowTemplate,
 }: CatalogPanelProps) {
+  const catalogGroupTree = buildCatalogGroupTree(catalogEntryGroups)
+
   const saveOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       event.preventDefault()
@@ -361,11 +364,11 @@ export function CatalogPanel({
                       )
                     }
                   >
-                    {catalogEntryGroups
-                      .filter((group) => group.id !== activeCatalogEntryGroup.id)
-                      .map((group) => (
+                    {catalogGroupTree
+                      .filter(({ group }) => group.id !== activeCatalogEntryGroup.id)
+                      .map(({ group, depth }) => (
                         <option key={group.id} value={group.id}>
-                          {group.name}
+                          {formatCatalogGroupTreeLabel(group, depth)}
                         </option>
                       ))}
                   </select>
@@ -611,9 +614,9 @@ export function CatalogPanel({
                       }
                     >
                       <option value="">{t.primaryAttributeGroup}</option>
-                      {catalogEntryGroups.map((group) => (
+                      {catalogGroupTree.map(({ group, depth }) => (
                         <option key={group.id} value={group.id}>
-                          {group.name}
+                          {formatCatalogGroupTreeLabel(group, depth)}
                         </option>
                       ))}
                     </select>

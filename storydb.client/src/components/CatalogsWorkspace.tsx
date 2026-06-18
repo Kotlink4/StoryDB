@@ -1,4 +1,11 @@
+import type { CSSProperties } from 'react'
+
 import { resolveAssetUrl } from '../api'
+import {
+  buildCatalogGroupTree,
+  countCatalogEntriesInGroupTree,
+  getCatalogGroupDescendantIds,
+} from '../domain/catalogGroupTree'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { GroupDisplayMode } from '../style-preview/domain/stylePreviewUiTypes'
 import type { Catalog, CatalogEntry, CatalogEntryGroup } from '../types'
@@ -46,10 +53,13 @@ export function CatalogsWorkspace({
   onSelectCatalog: (catalogId: number) => void
   onSelectGroup: (groupId: number | null) => void
 }) {
+  const catalogGroupTree = buildCatalogGroupTree(catalogGroups)
+  const selectedCatalogGroupIds =
+    selectedCatalogGroupId === null ? null : getCatalogGroupDescendantIds(catalogGroups, selectedCatalogGroupId)
   const visibleEntries =
     selectedCatalogGroupId === null
       ? catalogEntries
-      : catalogEntries.filter((entry) => entry.entryGroupId === selectedCatalogGroupId)
+      : catalogEntries.filter((entry) => entry.entryGroupId !== null && selectedCatalogGroupIds?.has(entry.entryGroupId))
 
   return (
     <>
@@ -110,15 +120,19 @@ export function CatalogsWorkspace({
                     <strong>{ui.all}</strong>
                     <span>{catalogEntries.length}</span>
                   </button>
-                  {catalogGroups.map((group) => (
-                    <div className="sp-group-block" key={group.id}>
+                  {catalogGroupTree.map(({ group, depth }) => (
+                    <div
+                      className="sp-group-block"
+                      key={group.id}
+                      style={{ '--catalog-group-indent': `${depth * 14}px` } as CSSProperties}
+                    >
                       <button
                         className={selectedCatalogGroupId === group.id ? 'active' : ''}
                         type="button"
                         onClick={() => onSelectGroup(group.id)}
                       >
                         <strong>{group.name}</strong>
-                        <span>{catalogEntries.filter((entry) => entry.entryGroupId === group.id).length}</span>
+                        <span>{countCatalogEntriesInGroupTree(catalogEntries, catalogGroups, group.id)}</span>
                       </button>
                       <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group.id)} onEdit={() => onEditGroup(group)} />
                     </div>
@@ -136,8 +150,12 @@ export function CatalogsWorkspace({
                 >
                   {ui.all}
                 </button>
-                {catalogGroups.map((group) => (
-                  <span className="sp-group-chip" key={group.id}>
+                {catalogGroupTree.map(({ group, depth }) => (
+                  <span
+                    className="sp-group-chip"
+                    key={group.id}
+                    style={{ '--catalog-group-indent': `${depth * 14}px` } as CSSProperties}
+                  >
                     <button
                       className={selectedCatalogGroupId === group.id ? 'active' : ''}
                       type="button"

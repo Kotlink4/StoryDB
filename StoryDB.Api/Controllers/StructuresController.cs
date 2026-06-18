@@ -53,11 +53,46 @@ public class StructuresController(IStructureService structureService) : Controll
         return ToActionResult(result);
     }
 
+    [HttpPut("{structureId:int}/details")]
+    public async Task<ActionResult<StructureDto>> UpdateStructureDetails(
+        int projectId,
+        int structureId,
+        StructureDetailsRequest request)
+    {
+        var result = await structureService.UpdateStructureDetailsAsync(projectId, structureId, request);
+        return ToActionResult(result);
+    }
+
+    [HttpPut("{structureId:int}/nodes/{nodeId:int}/details")]
+    public async Task<ActionResult<StructureNodeDto>> UpdateStructureNodeDetails(
+        int projectId,
+        int structureId,
+        int nodeId,
+        StructureNodeDetailsRequest request)
+    {
+        var result = await structureService.UpdateStructureNodeDetailsAsync(projectId, structureId, nodeId, request);
+        return ToActionResult(result);
+    }
+
     [HttpDelete("{structureId:int}")]
     public async Task<IActionResult> DeleteStructure(int projectId, int structureId)
     {
         var result = await structureService.DeleteStructureAsync(projectId, structureId);
         return ToNoContentResult(result);
+    }
+
+    [HttpGet("{structureId:int}/catalog-sync")]
+    public async Task<ActionResult<StructureCatalogSyncPreviewDto>> PreviewCatalogSync(int projectId, int structureId)
+    {
+        var result = await structureService.PreviewCatalogSyncAsync(projectId, structureId);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("{structureId:int}/catalog-sync")]
+    public async Task<ActionResult<StructureCatalogSyncResultDto>> ApplyCatalogSync(int projectId, int structureId)
+    {
+        var result = await structureService.ApplyCatalogSyncAsync(projectId, structureId);
+        return ToActionResult(result);
     }
 
     [HttpGet("usages")]
@@ -104,6 +139,24 @@ public class StructuresController(IStructureService structureService) : Controll
     public async Task<ActionResult<StructureUsageDto>> MakeStructureUsageIndividual(int projectId, int usageId)
     {
         var result = await structureService.MakeStructureUsageIndividualAsync(projectId, usageId);
+        return ToActionResult(result);
+    }
+
+    [HttpGet("usages/{usageId:int}/catalog-assignment-sync")]
+    public async Task<ActionResult<StructureCatalogAssignmentSyncPreviewDto>> PreviewCatalogAssignmentSync(
+        int projectId,
+        int usageId)
+    {
+        var result = await structureService.PreviewCatalogAssignmentSyncAsync(projectId, usageId);
+        return ToActionResult(result);
+    }
+
+    [HttpPost("usages/{usageId:int}/catalog-assignment-sync")]
+    public async Task<ActionResult<StructureCatalogAssignmentSyncResultDto>> ApplyCatalogAssignmentSync(
+        int projectId,
+        int usageId)
+    {
+        var result = await structureService.ApplyCatalogAssignmentSyncAsync(projectId, usageId);
         return ToActionResult(result);
     }
 

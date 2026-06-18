@@ -391,11 +391,19 @@ public sealed class RelationService(
     private static int? TryGetStructureGraphId(string graphKey)
     {
         const string prefix = "structure:";
-        return graphKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-            int.TryParse(graphKey[prefix.Length..], out var structureId) &&
-            structureId > 0
-                ? structureId
-                : null;
+        if (!graphKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var idEndIndex = graphKey.IndexOf(':', prefix.Length);
+        var idPart = idEndIndex < 0
+            ? graphKey[prefix.Length..]
+            : graphKey[prefix.Length..idEndIndex];
+
+        return int.TryParse(idPart, out var structureId) && structureId > 0
+            ? structureId
+            : null;
     }
 
     private static int ToStructureNodeLayoutId(int id) => StructureNodeLayoutIdBase + id;

@@ -402,6 +402,11 @@ public class StoryDbContext(DbContextOptions<StoryDbContext> options) : DbContex
             .Property(structure => structure.NodeBindingMode)
             .HasMaxLength(40);
 
+        modelBuilder.Entity<Structure>()
+            .Property(structure => structure.CatalogSyncMode)
+            .HasMaxLength(40)
+            .HasDefaultValue("manual");
+
         modelBuilder.Entity<StructureNode>()
             .HasOne(node => node.Structure)
             .WithMany(structure => structure.Nodes)

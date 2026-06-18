@@ -1,4 +1,6 @@
 import { getInitials } from '../style-preview/domain/previewDisplay'
+import { buildCatalogGroupTree } from '../domain/catalogGroupTree'
+import type { CSSProperties } from 'react'
 import type { PreviewSection, PreviewTab } from '../style-preview/domain/stylePreviewRouting'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import {
@@ -257,6 +259,8 @@ export function StylePreviewSidebar({
   onSelectAttributeGroup: (groupId: number | null) => void
   onSelectCatalogGroup: (groupId: number | null) => void
 }) {
+  const catalogGroupTree = buildCatalogGroupTree(catalogGroups)
+
   return (
     <aside className="sp-sidebar">
       <nav className="sp-sidebar-tabs" aria-label={ui.project}>
@@ -377,10 +381,11 @@ export function StylePreviewSidebar({
                   >
                     {ui.all}
                   </button>
-                  {catalogGroups.map((group) => (
+                  {catalogGroupTree.map(({ group, depth }) => (
                     <div className="sp-sidebar-subtab-row" key={group.id}>
                       <button
                         className={selectedCatalogGroupId === group.id ? 'active' : ''}
+                        style={{ '--catalog-group-indent': `${depth * 14}px` } as CSSProperties}
                         type="button"
                         onClick={() => onSelectCatalogGroup(group.id)}
                       >

@@ -9,7 +9,9 @@ public record StructureDto(
     int? OwnerId,
     string LayoutKind,
     string NodeBindingMode,
+    string CatalogSyncMode,
     int? LinkedCatalogId,
+    int TimelineReferenceCount,
     IReadOnlyList<StructureNodeDto> Nodes,
     IReadOnlyList<StructureEdgeDto> Edges);
 
@@ -22,10 +24,12 @@ public record StructureSummaryDto(
     int? OwnerId,
     string LayoutKind,
     string NodeBindingMode,
+    string CatalogSyncMode,
     int? LinkedCatalogId,
     int NodeCount,
     int EdgeCount,
-    int UsageCount);
+    int UsageCount,
+    int TimelineReferenceCount);
 
 public record StructureUsageDto(
     int Id,
@@ -95,9 +99,14 @@ public record StructureRequest(
     int? OwnerId,
     string LayoutKind,
     string NodeBindingMode,
+    string? CatalogSyncMode,
     int? LinkedCatalogId,
     IReadOnlyList<StructureNodeRequest> Nodes,
     IReadOnlyList<StructureEdgeRequest> Edges);
+
+public record StructureDetailsRequest(
+    string Name,
+    string? Description);
 
 public record StructureNodeRequest(
     string ClientId,
@@ -112,9 +121,64 @@ public record StructureNodeRequest(
     int LevelIndex,
     int SortOrder);
 
+public record StructureNodeDetailsRequest(
+    string Name,
+    string? Description,
+    string? NodeType,
+    string? Color,
+    string? IconKey);
+
 public record StructureEdgeRequest(
     string SourceClientId,
     string TargetClientId,
     string RelationType,
     string? Description,
     int SortOrder);
+
+public record StructureCatalogSyncPreviewDto(
+    int StructureId,
+    int? LinkedCatalogId,
+    string CatalogSyncMode,
+    int ExistingNodeCount,
+    int MissingNodeCount,
+    IReadOnlyList<StructureCatalogSyncNodeDto> Nodes);
+
+public record StructureCatalogSyncNodeDto(
+    string SourceKind,
+    int SourceId,
+    string Name,
+    string? Description,
+    int? ParentSourceId,
+    string? ParentSourceKind,
+    int? ExistingNodeId,
+    int? ParentNodeId,
+    int LevelIndex,
+    int SortOrder,
+    string Action);
+
+public record StructureCatalogSyncResultDto(
+    int StructureId,
+    int CreatedNodeCount,
+    StructureDto Structure);
+
+public record StructureCatalogAssignmentSyncPreviewDto(
+    int StructureUsageId,
+    int StructureId,
+    int LinkedCatalogId,
+    int ExistingAssignmentCount,
+    int MissingAssignmentCount,
+    IReadOnlyList<StructureCatalogAssignmentSyncItemDto> Items);
+
+public record StructureCatalogAssignmentSyncItemDto(
+    int StoryObjectId,
+    string StoryObjectName,
+    int StructureNodeId,
+    string StructureNodeName,
+    string SourceKind,
+    int SourceId,
+    string Action);
+
+public record StructureCatalogAssignmentSyncResultDto(
+    int StructureUsageId,
+    int CreatedAssignmentCount,
+    IReadOnlyList<StructureAssignmentDto> Assignments);

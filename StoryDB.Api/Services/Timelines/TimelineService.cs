@@ -67,5 +67,7 @@ public partial class TimelineService : ITimelineService
     {
         cacheSingleFlight.Remove(global::StoryDB.Api.Services.ProjectCacheKeys.TimelineEvents(projectId));
         cacheSingleFlight.Remove(global::StoryDB.Api.Services.ProjectCacheKeys.TimelineEventLinks(projectId));
+        cacheSingleFlight.Remove(global::StoryDB.Api.Services.ProjectCacheKeys.StructureSummaries(projectId));
+        cacheSingleFlight.RemoveByPrefix(global::StoryDB.Api.Services.ProjectCacheKeys.StructureDetailsPrefix(projectId));
     }
 }

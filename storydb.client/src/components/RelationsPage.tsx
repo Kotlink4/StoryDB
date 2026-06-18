@@ -28,6 +28,7 @@ import {
   relationCategoryColorTokens,
   relationLabelBackgroundToken,
 } from '../style-preview/domain/styleRuntimeTokens'
+import { buildCatalogGroupTree } from '../domain/catalogGroupTree'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type {
   Catalog,
@@ -38,6 +39,7 @@ import type {
   RelationGraphNode,
   StoryObject,
   Structure,
+  StructureAssignment,
 } from '../types'
 import { ObjectPortrait } from './StylePreviewPrimitives'
 
@@ -46,7 +48,7 @@ const relationGraphCategories = ['character', 'membership', 'ownership', 'object
 type RelationGraphCategory = typeof relationGraphCategories[number]
 type RelationGraphMode = 'all' | RelationGraphCategory
 type RelationPageGraphKind = 'relations' | 'structure'
-type StructureGraphMode = 'all' | 'structure' | 'catalog'
+type StructureGraphMode = 'all' | 'structure' | 'catalog' | 'assignments'
 
 type RelationNodeData = {
   storyObject: StoryObject
@@ -56,12 +58,13 @@ type RelationNodeData = {
 
 type RelationObjectFlowNode = Node<RelationNodeData, 'relationObject'>
 
-type StructureFlowNodeKind = 'structure' | 'catalogEntry' | 'catalogGroup'
+type StructureFlowNodeKind = 'structure' | 'catalogEntry' | 'catalogGroup' | 'assignmentObject'
 
 type StructureNodeData = {
   title: string
   subtitle: string
   meta: string
+  description: string | null
   kind: StructureFlowNodeKind
   color: string
 }
@@ -157,7 +160,11 @@ function RelationObjectNode({ data }: NodeProps<RelationObjectFlowNode>) {
 
 function StructureNode({ data }: NodeProps<StructureFlowNode>) {
   return (
-    <div className={`sp-structure-flow-node ${data.kind}`} style={{ '--node-color': data.color } as CSSProperties}>
+    <div
+      className={`sp-structure-flow-node ${data.kind}`}
+      style={{ '--node-color': data.color } as CSSProperties}
+      title={data.description === null ? data.title : `${data.title}\n${data.description}`}
+    >
       {relationHandlePositions.map((handle) => (
         <Handle
           className="sp-flow-handle"
@@ -178,6 +185,7 @@ function StructureNode({ data }: NodeProps<StructureFlowNode>) {
       ))}
       <span>{data.subtitle}</span>
       <strong>{data.title}</strong>
+      {data.description !== null && <p>{data.description}</p>}
       <em>{data.meta}</em>
     </div>
   )
@@ -310,6 +318,9 @@ const buildStructureFlow = (
   catalog: Catalog | null,
   catalogEntries: CatalogEntry[],
   catalogGroups: CatalogEntryGroup[],
+  assignments: StructureAssignment[],
+  objects: StoryObject[],
+  onSelect: (storyObject: StoryObject) => void,
   layoutPositions: Map<number, { x: number; y: number }>,
   mode: StructureGraphMode,
   focusedNodeId: number | null,
@@ -317,19 +328,20 @@ const buildStructureFlow = (
 ) => {
   if (structure === null) {
     return {
-      nodes: [] as StructureFlowNode[],
+      nodes: [] as RelationsFlowNode[],
       edges: [] as Edge[],
       graph: { nodes: [], edges: [] } as RelationGraph,
       allGraph: { nodes: [], edges: [] } as RelationGraph,
     }
   }
 
-  const nodes: StructureFlowNode[] = []
+  const nodes: RelationsFlowNode[] = []
   const edges: Edge[] = []
   const graphNodes: RelationGraph['nodes'] = []
   const graphEdges: RelationGraph['edges'] = []
   const nodeKinds = new Map<number, StructureFlowNodeKind>()
   const structureNodesById = new Map(structure.nodes.map((node) => [node.id, node]))
+  const objectsById = new Map(objects.map((storyObject) => [storyObject.id, storyObject]))
   const linkedEntryIds = new Set(
     structure.nodes
       .map((node) => node.linkedCatalogEntryId)
@@ -391,6 +403,7 @@ const buildStructureFlow = (
           title: node.name,
           subtitle: ui.structureNode,
           meta: node.nodeType?.trim() || `${ui.structureLevelIndex} ${node.levelIndex + 1}`,
+          description: node.description?.trim() || null,
           kind: 'structure',
           color: node.color?.trim() || relationCategoryColorTokens.structure,
         },
@@ -475,10 +488,105 @@ const buildStructureFlow = (
     )
   })
 
+  const structureAssignments = assignments.filter((assignment) => assignment.structureId === structure.id)
+  const assignmentCountsByObjectId = new Map<number, number>()
+  structureAssignments.forEach((assignment) => {
+    assignmentCountsByObjectId.set(
+      assignment.storyObjectId,
+      (assignmentCountsByObjectId.get(assignment.storyObjectId) ?? 0) + 1,
+    )
+  })
+
+  const assignmentsByNodeId = new Map<number, StructureAssignment[]>()
+  structureAssignments.forEach((assignment) => {
+    assignmentsByNodeId.set(assignment.structureNodeId, [
+      ...(assignmentsByNodeId.get(assignment.structureNodeId) ?? []),
+      assignment,
+    ])
+  })
+
+  const addedAssignmentObjectIds = new Set<number>()
+  structureAssignments
+    .toSorted((left, right) =>
+      left.structureNodeName.localeCompare(right.structureNodeName) ||
+      left.sortOrder - right.sortOrder ||
+      left.storyObjectName.localeCompare(right.storyObjectName),
+    )
+    .forEach((assignment) => {
+      const storyObject = objectsById.get(assignment.storyObjectId)
+      const structureNode = structureNodesById.get(assignment.structureNodeId)
+      if (storyObject === undefined || structureNode === undefined) {
+        return
+      }
+
+      if (!addedAssignmentObjectIds.has(storyObject.id)) {
+        addedAssignmentObjectIds.add(storyObject.id)
+        nodeKinds.set(storyObject.id, 'assignmentObject')
+        graphNodes.push({
+          id: storyObject.id,
+          name: getObjectFullName(storyObject),
+          surname: storyObject.surname,
+          surnameForm: storyObject.surnameForm,
+          imagePath: storyObject.imagePath,
+          typeKey: storyObject.typeKey as RelationGraphNode['typeKey'],
+        })
+        const siblingIndex = assignmentsByNodeId.get(assignment.structureNodeId)?.findIndex(
+          (currentAssignment) => currentAssignment.storyObjectId === assignment.storyObjectId,
+        ) ?? 0
+        nodes.push({
+          id: String(storyObject.id),
+          type: 'relationObject',
+          position: layoutPositions.get(storyObject.id) ?? {
+            x: 80 + (structureNode.levelIndex + 1) * 290,
+            y: 84 + structure.nodes.indexOf(structureNode) * 92 + siblingIndex * 82,
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+          data: {
+            storyObject,
+            relationCount: assignmentCountsByObjectId.get(storyObject.id) ?? 1,
+            onSelect,
+          },
+        })
+      }
+
+      const edgeId = `structure-assignment:${assignment.id}`
+      edges.push({
+        id: edgeId,
+        source: String(getStructureNodeLayoutId(assignment.structureNodeId)),
+        target: String(storyObject.id),
+        type: 'straight',
+        label: assignment.roleLabel?.trim() || ui.structureMembership,
+        markerEnd: { type: MarkerType.ArrowClosed, color: relationCategoryColorTokens.structure },
+        style: {
+          stroke: relationCategoryColorTokens.structure,
+          strokeWidth: 2.2,
+        },
+        labelBgPadding: [8, 4],
+        labelBgBorderRadius: 10,
+        labelBgStyle: {
+          fill: relationLabelBackgroundToken,
+          fillOpacity: 0.92,
+        },
+        labelStyle: {
+          fill: relationCategoryColorTokens.structure,
+          fontSize: 12,
+          fontWeight: 800,
+        },
+      })
+      addGraphEdge(
+        edgeId,
+        getStructureNodeLayoutId(assignment.structureNodeId),
+        storyObject.id,
+        assignment.roleLabel?.trim() || ui.structureMembership,
+        'structure',
+        assignment.notes,
+      )
+    })
+
   if (catalog !== null) {
-    catalogGroups
-      .toSorted((left, right) => left.name.localeCompare(right.name))
-      .forEach((group, index) => {
+    buildCatalogGroupTree(catalogGroups)
+      .forEach(({ group, depth }, index) => {
         const layoutId = getCatalogGroupLayoutId(group.id)
         nodeKinds.set(layoutId, 'catalogGroup')
         graphNodes.push({
@@ -493,7 +601,7 @@ const buildStructureFlow = (
           id: String(layoutId),
           type: 'structureNode',
           position: layoutPositions.get(layoutId) ?? {
-            x: 80 + Math.max(2, maxStructureLevel + 1) * 290,
+            x: 80 + Math.max(2, maxStructureLevel + 1) * 290 + depth * 80,
             y: 80 + index * 86,
           },
           sourcePosition: Position.Right,
@@ -502,6 +610,7 @@ const buildStructureFlow = (
             title: group.name,
             subtitle: ui.catalogHierarchyGroups,
             meta: linkedGroupIds.has(group.id) ? ui.structureLinkedCatalogGroup : catalog.name,
+            description: null,
             kind: 'catalogGroup',
             color: '#38bdf8',
           },
@@ -534,11 +643,37 @@ const buildStructureFlow = (
             title: entry.name,
             subtitle: ui.catalogHierarchyEntries,
             meta: linkedEntryIds.has(entry.id) ? ui.structureLinkedCatalogEntry : catalog.name,
+            description: entry.description?.trim() || null,
             kind: 'catalogEntry',
             color: '#22c55e',
           },
         })
       })
+
+    catalogGroups.forEach((group) => {
+      group.parentGroupIds.forEach((parentGroupId) => {
+        if (!groupsById.has(parentGroupId)) {
+          return
+        }
+
+        edges.push({
+          id: `catalog-group-parent:${parentGroupId}:${group.id}`,
+          source: String(getCatalogGroupLayoutId(parentGroupId)),
+          target: String(getCatalogGroupLayoutId(group.id)),
+          type: 'straight',
+          label: ui.structureParentNode,
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#38bdf8' },
+          style: { stroke: '#38bdf8', strokeDasharray: '8 6', strokeWidth: 1.8 },
+        })
+        addGraphEdge(
+          `catalog-group-parent:${parentGroupId}:${group.id}`,
+          getCatalogGroupLayoutId(parentGroupId),
+          getCatalogGroupLayoutId(group.id),
+          ui.structureParentNode,
+          'membership',
+        )
+      })
+    })
 
     catalogEntries.forEach((entry) => {
       if (entry.entryGroupId !== null && groupsById.has(entry.entryGroupId)) {
@@ -628,7 +763,12 @@ const buildStructureFlow = (
   const visibleNodeIds = new Set<number>()
   graphNodes.forEach((node) => {
     const kind = nodeKinds.get(node.id)
-    if (mode === 'all' || (mode === 'structure' && kind === 'structure') || (mode === 'catalog' && kind !== 'structure')) {
+    if (
+      mode === 'all' ||
+      (mode === 'structure' && kind === 'structure') ||
+      (mode === 'catalog' && (kind === 'catalogEntry' || kind === 'catalogGroup')) ||
+      (mode === 'assignments' && (kind === 'structure' || kind === 'assignmentObject'))
+    ) {
       visibleNodeIds.add(node.id)
     }
   })
@@ -662,6 +802,15 @@ const buildStructureFlow = (
   }
 }
 
+const getStructureGraphKey = (
+  structureId: number,
+  mode: StructureGraphMode,
+  focusedStructureNodeId: number | null,
+) =>
+  focusedStructureNodeId === null
+    ? `structure:${structureId}:${mode}`
+    : `structure:${structureId}:${mode}:focus:${focusedStructureNodeId}`
+
 export type RelationsPageProps = {
   catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
   catalogGroupsByCatalogId: Record<number, CatalogEntryGroup[]>
@@ -671,6 +820,7 @@ export type RelationsPageProps = {
   layout: RelationGraphLayout | null
   objects: StoryObject[]
   selectedEdgeId: string | null
+  structureAssignments: StructureAssignment[]
   structures: Structure[]
   ui: PreviewText
   onCreateRelation: () => void
@@ -690,6 +840,7 @@ export function RelationsPage({
   layout,
   objects,
   selectedEdgeId,
+  structureAssignments,
   structures,
   ui,
   onCreateRelation,
@@ -725,9 +876,9 @@ export function RelationsPage({
   )
   const graphKey = useMemo(
     () => graphKind === 'structure' && selectedStructure !== null
-      ? `structure:${selectedStructure.id}`
+      ? getStructureGraphKey(selectedStructure.id, structureGraphMode, focusedStructureNodeId)
       : getRelationGraphKey(graphMode, focusedObjectId),
-    [focusedObjectId, graphKind, graphMode, selectedStructure],
+    [focusedObjectId, focusedStructureNodeId, graphKind, graphMode, selectedStructure, structureGraphMode],
   )
   const activeLayout = layout?.graphKey === graphKey ? layout : null
   const layoutPositions = useMemo(
@@ -754,6 +905,9 @@ export function RelationsPage({
         selectedStructureCatalog,
         selectedStructureCatalog === null ? [] : catalogEntriesByCatalogId[selectedStructureCatalog.id] ?? [],
         selectedStructureCatalog === null ? [] : catalogGroupsByCatalogId[selectedStructureCatalog.id] ?? [],
+        structureAssignments,
+        objects,
+        onSelect,
         layoutPositions,
         structureGraphMode,
         focusedStructureNodeId,
@@ -764,9 +918,12 @@ export function RelationsPage({
       catalogGroupsByCatalogId,
       focusedStructureNodeId,
       layoutPositions,
+      objects,
+      onSelect,
       selectedStructure,
       selectedStructureCatalog,
       structureGraphMode,
+      structureAssignments,
       ui,
     ],
   )
@@ -897,9 +1054,10 @@ export function RelationsPage({
                   value={structureGraphMode}
                   onChange={(event) => setStructureGraphMode(event.target.value as StructureGraphMode)}
                 >
-                  <option value="all">{ui.graphModeAll}</option>
+                  <option value="all">{ui.structureGraphModeAll}</option>
                   <option value="structure">{ui.structureNodes}</option>
                   <option value="catalog">{ui.catalogs}</option>
+                  <option value="assignments">{ui.structureMembership}</option>
                 </select>
               </label>
               <label className="sp-graph-control">
@@ -956,6 +1114,7 @@ export function RelationsPage({
               <span className="sp-legend-line structure">{ui.structureNodes}</span>
               <span className="sp-legend-line membership">{ui.catalogHierarchyGroups}</span>
               <span className="sp-legend-line object">{ui.catalogHierarchyEntries}</span>
+              <span className="sp-legend-line structure">{ui.structureMembership}</span>
               <p>{ui.structureGraphHelp}</p>
             </>
           )}

@@ -1298,6 +1298,7 @@ export function StylePreview() {
     isLayoutGenerating: isRelationLayoutGenerating,
     layout: relationGraphLayout,
     objects: linkableObjects,
+    structureAssignments,
     structures,
     selectedEdgeId: selectedRelationEdgeId,
     ui,
