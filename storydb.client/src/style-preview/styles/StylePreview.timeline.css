@@ -1,0 +1,795 @@
+﻿.sp-axis {
+  position: relative;
+  min-width: 1600px;
+  overflow: visible;
+  transform-origin: 0 0;
+  isolation: isolate;
+}
+
+.sp-axis::before {
+  content: '';
+  position: absolute;
+  top: 640px;
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--sp-timeline-axis-line);
+  box-shadow: 0 8px 24px var(--sp-shadow-soft);
+  z-index: 5;
+}
+
+.sp-axis::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 640px;
+  background: repeating-linear-gradient(
+    to top,
+    var(--sp-timeline-lane-a) 0,
+    var(--sp-timeline-lane-a) 96px,
+    var(--sp-timeline-lane-b) 96px,
+    var(--sp-timeline-lane-b) 192px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sp-axis.is-unformed::before {
+  top: 160px;
+}
+
+.sp-timeline-ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sp-timeline-ticks span {
+  position: absolute;
+  top: 656px;
+  transform: translateX(-50%);
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sp-timeline-ticks span::before {
+  content: '';
+  position: absolute;
+  right: 50%;
+  bottom: 24px;
+  width: 1px;
+  height: 598px;
+  background: var(--sp-timeline-tick-line);
+}
+
+.sp-timeline-ticks span.minor {
+  color: transparent;
+  font-size: 0;
+}
+
+.sp-timeline-ticks span.month {
+  color: var(--sp-muted);
+  font-size: 11px;
+}
+
+.sp-timeline-ticks span.day {
+  color: color-mix(in srgb, var(--sp-muted) 76%, transparent);
+  font-size: 10px;
+}
+
+.sp-timeline-ticks span.minor::before {
+  bottom: 28px;
+  height: 24px;
+  background: var(--sp-timeline-minor-tick-line);
+}
+
+.sp-timeline-ticks span.month::before {
+  bottom: 28px;
+  height: 96px;
+  background: color-mix(in srgb, var(--sp-timeline-tick-line) 72%, transparent);
+}
+
+.sp-timeline-ticks span.day::before {
+  bottom: 28px;
+  height: 14px;
+  background: color-mix(in srgb, var(--sp-timeline-minor-tick-line) 76%, transparent);
+}
+
+.sp-timeline-ticks span.major::before {
+  background: var(--sp-timeline-tick-line);
+}
+
+.sp-timeline-origin {
+  position: absolute;
+  top: -4000px;
+  bottom: -4000px;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--sp-timeline-origin-line);
+  pointer-events: none;
+  z-index: 12;
+}
+
+.sp-timeline-origin span {
+  position: absolute;
+  top: 76px;
+  left: 10px;
+  max-width: 150px;
+  border: 1px solid var(--sp-line);
+  border-radius: 999px;
+  background: var(--sp-timeline-origin-bg);
+  padding: 5px 9px;
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.sp-timepoint {
+  position: absolute;
+  top: 0;
+  width: 180px;
+  transform: translateX(-50%);
+}
+
+.sp-timepoint i {
+  position: absolute;
+  top: 152px;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  border: 4px solid white;
+  border-radius: 999px;
+  background: var(--sp-accent);
+  box-shadow: 0 0 0 2px var(--sp-accent);
+}
+
+.sp-timepoint article {
+  position: absolute;
+  width: 180px;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  background: var(--sp-surface);
+  padding: 12px;
+  box-shadow: 0 12px 28px var(--sp-shadow-soft);
+}
+
+.sp-timepoint article.top {
+  bottom: -132px;
+}
+
+.sp-timepoint article.bottom {
+  top: 190px;
+}
+
+.sp-timeline-link-lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 60;
+}
+
+.sp-timeline-link-line path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--sp-ink) 76%, transparent);
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 2px;
+  opacity: 0.9;
+}
+
+.sp-timeline-link-line text {
+  display: none;
+}
+
+.sp-timeline-link-line.partOf path {
+  stroke-dasharray: 8 6;
+}
+
+.sp-timeline-link-line.simultaneous path {
+  stroke: color-mix(in srgb, var(--sp-ink) 72%, transparent);
+}
+
+.sp-timeline-link-line.causes path {
+  stroke: var(--sp-timeline-link-causes);
+}
+
+.sp-timeline-cluster {
+  position: absolute;
+  z-index: 82;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  border: 2px solid var(--sp-surface);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--event-color) 84%, var(--sp-accent));
+  color: var(--sp-on-data-color);
+  padding: 0;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--event-color) 46%, transparent),
+    0 16px 32px var(--sp-shadow);
+  cursor: pointer;
+}
+
+.sp-timeline-cluster strong {
+  font-size: 13px;
+  line-height: 1;
+  text-shadow: 0 1px 0 var(--sp-data-text-shadow);
+}
+
+.sp-timeline-cluster span {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  max-width: 170px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--event-color) 44%, var(--sp-line));
+  border-radius: 999px;
+  background: var(--sp-overlay);
+  padding: 3px 7px;
+  color: var(--sp-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.sp-timeline-cluster:hover span,
+.sp-timeline-cluster.is-open span {
+  opacity: 1;
+}
+
+.sp-timeline-cluster.is-open {
+  outline: 3px solid color-mix(in srgb, var(--event-color) 24%, transparent);
+  outline-offset: 4px;
+}
+
+.sp-timeline-cluster-popover {
+  position: absolute;
+  z-index: 160;
+  width: min(300px, 80vw);
+  max-height: 320px;
+  transform: translate(-50%, -100%);
+  overflow: auto;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  background: var(--sp-overlay);
+  padding: 10px;
+  box-shadow: 0 24px 50px var(--sp-shadow);
+  backdrop-filter: blur(14px);
+}
+
+.sp-timeline-cluster-popover > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--sp-ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.sp-timeline-cluster-popover > button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  gap: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  padding: 8px;
+  color: var(--sp-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sp-timeline-cluster-popover > button:hover {
+  background: var(--sp-soft);
+}
+
+.sp-timeline-cluster-popover i {
+  grid-row: span 2;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.sp-timeline-cluster-popover span,
+.sp-timeline-cluster-popover em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-timeline-cluster-popover span {
+  font-weight: 900;
+}
+
+.sp-timeline-cluster-popover em {
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.sp-timeline-item {
+  position: absolute;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--event-color) 30%, var(--sp-line));
+  border-radius: 20px;
+  background: var(--sp-surface);
+  padding: 11px 14px 11px 42px;
+  box-shadow: 0 18px 42px var(--sp-shadow);
+  cursor: pointer;
+}
+
+.sp-timeline-item.is-selected,
+.sp-timepoint article.is-selected {
+  border-color: var(--sp-ink);
+  box-shadow: 0 20px 44px var(--sp-shadow);
+}
+
+.sp-timeline-item strong,
+.sp-timeline-item span,
+.sp-timeline-item em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-timeline-item span {
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sp-timeline-item em {
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.sp-timeline-item-marker {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  border: 4px solid var(--sp-surface);
+  border-radius: 999px;
+  background: var(--event-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--event-color) 55%, transparent);
+}
+
+.sp-timeline-item.point {
+  box-sizing: border-box;
+  display: block;
+  overflow: visible;
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 0;
+  border: 3px solid var(--sp-surface);
+  border-radius: 999px;
+  background: var(--event-color);
+  padding: 0;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--event-color) 62%, transparent),
+    0 12px 28px var(--sp-shadow);
+}
+
+.sp-timeline-item.point.is-compact {
+  width: 14px !important;
+  height: 14px !important;
+  border-width: 2px;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--event-color) 62%, transparent),
+    0 8px 18px var(--sp-shadow);
+}
+
+.sp-timeline-item.point::before {
+  display: none;
+}
+
+.sp-timeline-item.point.is-selected {
+  outline: 3px solid color-mix(in srgb, var(--event-color) 24%, transparent);
+  outline-offset: 4px;
+}
+
+.sp-timeline-item.point .sp-timeline-point-label {
+  display: none;
+}
+
+.sp-timeline-item.point .sp-timeline-point-label strong,
+.sp-timeline-item.point .sp-timeline-point-label em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 0 var(--sp-surface),
+    1px 0 0 var(--sp-surface),
+    0 -1px 0 var(--sp-surface),
+    -1px 0 0 var(--sp-surface);
+}
+
+.sp-timeline-item.point .sp-timeline-point-label strong {
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.sp-timeline-item.point .sp-timeline-point-label em {
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.sp-timeline-item.duration {
+  align-content: start;
+  overflow: visible;
+  border: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--event-color) 78%, var(--sp-surface));
+  color: var(--sp-on-data-color);
+  padding: 0;
+  box-shadow: 0 10px 22px var(--sp-shadow-soft);
+}
+
+.sp-timeline-item.duration.is-compact {
+  overflow: visible;
+  border: 0;
+  box-shadow:
+    0 8px 18px var(--sp-shadow-soft),
+    inset 0 0 0 1px color-mix(in srgb, var(--event-color) 70%, var(--sp-surface));
+}
+
+.sp-timeline-item.duration .sp-timeline-item-marker {
+  display: none;
+}
+
+.sp-timeline-item.duration strong,
+.sp-timeline-item.duration span,
+.sp-timeline-item.duration em {
+  color: inherit;
+  text-shadow: 0 1px 0 var(--sp-data-text-shadow);
+}
+
+.sp-timeline-item.duration strong {
+  position: absolute;
+  top: 7px;
+  right: 12px;
+  left: 12px;
+  z-index: 2;
+  font-size: 13px;
+  line-height: 16px;
+}
+
+.sp-timeline-item.duration.is-compact strong {
+  top: -28px;
+  right: auto;
+  left: 0;
+  width: max-content;
+  max-width: 220px;
+  border: 1px solid color-mix(in srgb, var(--event-color) 58%, var(--sp-surface));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--event-color) 82%, var(--sp-surface));
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 14px;
+  box-shadow: 0 8px 18px var(--sp-shadow-soft);
+}
+
+.sp-timeline-item.duration span,
+.sp-timeline-item.duration em {
+  display: none;
+}
+
+.sp-timeline-item.duration::before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--sp-glass-line);
+}
+
+.sp-timeline-item.duration.is-compact::before {
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
+.sp-timeline-item.duration::after {
+  content: "";
+  position: absolute;
+  top: 48px;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: var(--sp-strong-line);
+  pointer-events: none;
+}
+
+.sp-timeline-item.duration.is-compact::after {
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  opacity: 0.9;
+}
+
+.sp-timeline-item.era {
+  align-content: start;
+  border: 1px solid color-mix(in srgb, var(--event-color) 18%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--event-color) 10%, transparent), transparent),
+    var(--sp-era-overlay);
+  color: color-mix(in srgb, var(--sp-ink) 42%, transparent);
+  padding: 92px 22px 18px;
+  font-size: 38px;
+  text-transform: uppercase;
+  box-shadow: none;
+  cursor: default;
+  pointer-events: none;
+}
+
+.sp-timeline-item.era .sp-timeline-item-marker {
+  display: none;
+}
+
+.sp-timeline-item.era strong {
+  position: absolute;
+  top: var(--era-label-y);
+  left: 12px;
+  display: block;
+  max-width: min(720px, calc(100% - 24px));
+  color: color-mix(in srgb, var(--sp-ink) 42%, transparent);
+  font-size: clamp(28px, 4vw, 54px);
+  line-height: 0.98;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+.sp-timeline-item.era span {
+  display: none;
+}
+
+.sp-timeline-item.chapter {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.sp-timeline-item.chapter::before {
+  content: "";
+  position: absolute;
+  top: -4000px;
+  bottom: -4000px;
+  left: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--event-color) 72%, transparent);
+  pointer-events: none;
+}
+
+.sp-timeline-chapter-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+  max-width: 220px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--event-color) 34%, var(--sp-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sp-overlay) 88%, var(--event-color));
+  color: var(--sp-ink);
+  padding: 8px 13px;
+  font-weight: 900;
+  box-shadow: 0 12px 28px var(--sp-shadow-soft);
+}
+
+.sp-timeline-chapter-label strong {
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.sp-timeline-chapter-label em {
+  color: var(--sp-muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.sp-timeline-event-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  border: 1px solid var(--sp-line);
+  border-radius: 24px;
+  background: var(--sp-surface);
+  padding: 20px;
+}
+
+.sp-timeline-event-panel h3,
+.sp-timeline-event-panel p {
+  margin: 0;
+}
+
+.sp-timeline-event-panel h3 {
+  font-size: 26px;
+}
+
+.sp-timeline-event-panel > div:first-child > span {
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sp-timeline-event-meta {
+  display: grid;
+  gap: 8px;
+  border-radius: 18px;
+  background: var(--sp-soft);
+  padding: 14px;
+}
+
+.sp-timeline-participants,
+.sp-timeline-participant-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.sp-timeline-participants span {
+  border: 1px solid var(--sp-line);
+  border-radius: 999px;
+  background: var(--sp-surface);
+  padding: 8px 10px;
+  font-weight: 800;
+}
+
+.sp-timeline-changes {
+  display: grid;
+  gap: 8px;
+}
+
+.sp-timeline-change-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--sp-line);
+  border-radius: 16px;
+  background: var(--sp-surface);
+  padding: 10px;
+}
+
+.sp-timeline-change-row span,
+.sp-timeline-change-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-timeline-detail {
+  display: grid;
+  gap: 14px;
+}
+
+.sp-timeline-detail > .sp-detail-actions {
+  display: flex;
+}
+
+.sp-timeline-detail-head {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.sp-timeline-detail-head h2,
+.sp-timeline-detail-head p {
+  margin: 0;
+}
+
+.sp-timeline-detail-head span {
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sp-timeline-detail-marker {
+  width: 14px;
+  min-height: 64px;
+  border-radius: 999px;
+  box-shadow: 0 12px 28px var(--sp-shadow-soft);
+}
+
+.sp-timeline-detail-cover {
+  display: grid;
+  width: 132px;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  color: var(--sp-on-data-color);
+  font-size: 30px;
+  font-weight: 900;
+  object-fit: cover;
+  object-position: center top;
+  box-shadow: 0 12px 28px var(--sp-shadow-soft);
+}
+
+.sp-timeline-detail-list {
+  display: grid;
+  gap: 8px;
+}
+
+.sp-timeline-participant-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  background: var(--sp-surface);
+  padding: 8px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sp-timeline-participant-card .sp-portrait {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.sp-timeline-participant-card span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sp-timeline-participant-card em {
+  color: var(--sp-muted);
+  font-style: normal;
+  font-size: 12px;
+}
+
+.sp-timeline-gallery-upload {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+
+

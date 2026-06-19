@@ -249,7 +249,6 @@ public sealed class ProjectService(
 
         if (normalizedPresetKeys.Contains("world-catalogs"))
         {
-            await EnsureCatalog(projectId, "races", "Расы", "Народы, виды и происхождение персонажей.", true, "entries", cancellationToken);
             await EnsureCatalog(projectId, "cultures", "Культуры", "Культуры, традиции и сообщества мира.", true, "entries", cancellationToken);
             await EnsureCatalog(projectId, "factions", "Фракции", "Политические силы, объединения и группы влияния.", true, "entries", cancellationToken);
             await EnsureCatalog(projectId, "artifacts", "Артефакты", "Важные предметы, реликвии и уникальные вещи.", false, "entries", cancellationToken);

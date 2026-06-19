@@ -1,11 +1,16 @@
 .git
 .vs
 .github
+data
+tmp
 
 **/bin
 **/obj
 **/node_modules
 **/dist
+storydb.client/src/legacy-app
+StoryDB.Api/uploads
+StoryDB.Api/storydb.sqlite*
 
 *.log
 *.pid

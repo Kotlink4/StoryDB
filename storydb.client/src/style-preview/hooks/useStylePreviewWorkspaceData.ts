@@ -3,18 +3,10 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import {
   fetchAttributeDefinitions,
   fetchAttributeGroups,
-  fetchCatalogEntries,
-  fetchCatalogEntryGroups,
-  fetchCatalogFieldDefinitions,
   fetchCatalogs,
   fetchObject,
   fetchObjectSummaries,
-  fetchRelationGraph,
   fetchRelationGraphLayout,
-  fetchStructure,
-  fetchStructureAssignments,
-  fetchStructures,
-  fetchStructureUsages,
   fetchTimelineEventLinks,
   fetchTimelineEvents,
   fetchTimelineInfo,
@@ -25,6 +17,12 @@ import { readProjectClientCache, writeProjectClientCachePatch } from '../domain/
 import { storyObjectSummariesToListItems } from '../domain/storyObjectSummaries'
 import { isObjectSection, isPreviewObjectSection } from '../domain/stylePreviewConfig'
 import type { PreviewSection } from '../domain/stylePreviewRouting'
+import {
+  loadCatalogWorkspaceData,
+  loadObjectEditorWorkspaceData,
+  loadRelationWorkspaceData,
+  loadTextLinkTargetsData,
+} from './workspaceDataLoaders'
 import type {
   AttributeDefinition,
   AttributeGroup,
@@ -236,7 +234,7 @@ export function useStylePreviewWorkspaceData({
   useEffect(() => {
     let isActive = true
 
-    if (selectedProjectId === null) {
+  if (selectedProjectId === null) {
       setRelationGraph({ nodes: [], edges: [] })
       setRelationGraphLayout(null)
       setStructureAssignments([])
@@ -246,34 +244,26 @@ export function useStylePreviewWorkspaceData({
     }
 
     const loadRelationGraphData = async () => {
-      const [graphResult, assignmentsResult, structuresResult, usagesResult] = await Promise.allSettled([
-        fetchRelationGraph(selectedProjectId),
-        fetchStructureAssignments(selectedProjectId),
-        fetchStructures(selectedProjectId).then((structureSummaries) =>
-          Promise.all(structureSummaries.map((structure) => fetchStructure(selectedProjectId, structure.id))),
-        ),
-        fetchStructureUsages(selectedProjectId),
-      ])
+      const projectId = selectedProjectId
+      const loadedWorkspace = await loadRelationWorkspaceData(projectId)
 
       if (!isActive) {
         return
       }
 
-      if (graphResult.status === 'fulfilled') {
-        setRelationGraph(graphResult.value)
-      } else {
-          setRelationGraph({ nodes: [], edges: [] })
-          showErrorMessage(messages.graphLoadFailed)
+      setRelationGraph(loadedWorkspace.relationGraph)
+      if (!loadedWorkspace.graphLoaded) {
+        showErrorMessage(messages.graphLoadFailed)
       }
 
-      setStructureAssignments(assignmentsResult.status === 'fulfilled' ? assignmentsResult.value : [])
-      setStructures(structuresResult.status === 'fulfilled' ? structuresResult.value : [])
-      setStructureUsages(usagesResult.status === 'fulfilled' ? usagesResult.value : [])
-      void writeProjectClientCachePatch(selectedProjectId, {
-        ...(graphResult.status === 'fulfilled' ? { relationGraph: graphResult.value } : {}),
-        ...(assignmentsResult.status === 'fulfilled' ? { structureAssignments: assignmentsResult.value } : {}),
-        ...(structuresResult.status === 'fulfilled' ? { structures: structuresResult.value } : {}),
-        ...(usagesResult.status === 'fulfilled' ? { structureUsages: usagesResult.value } : {}),
+      setStructureAssignments(loadedWorkspace.structureAssignments)
+      setStructures(loadedWorkspace.structures)
+      setStructureUsages(loadedWorkspace.structureUsages)
+      void writeProjectClientCachePatch(projectId, {
+        ...(loadedWorkspace.graphLoaded ? { relationGraph: loadedWorkspace.relationGraph } : {}),
+        structureAssignments: loadedWorkspace.structureAssignments,
+        structures: loadedWorkspace.structures,
+        structureUsages: loadedWorkspace.structureUsages,
       })
     }
 
@@ -297,14 +287,7 @@ export function useStylePreviewWorkspaceData({
 
     const loadTextLinkTargets = async () => {
       const projectId = selectedProjectId
-      const [charactersResult, itemsResult, placesResult, organizationsResult, catalogsResult] =
-        await Promise.allSettled([
-          fetchObjectSummaries(projectId, 'characters'),
-          fetchObjectSummaries(projectId, 'items'),
-          fetchObjectSummaries(projectId, 'places'),
-          fetchObjectSummaries(projectId, 'organizations'),
-          fetchCatalogs(projectId),
-        ])
+      const loadedTargets = await loadTextLinkTargetsData(projectId)
 
       if (!isActive) {
         return
@@ -312,65 +295,23 @@ export function useStylePreviewWorkspaceData({
 
       setObjectsByType((currentObjectsByType) => ({
         ...currentObjectsByType,
-        characters:
-          charactersResult.status === 'fulfilled'
-            ? storyObjectSummariesToListItems(charactersResult.value)
-            : currentObjectsByType.characters,
-        items:
-          itemsResult.status === 'fulfilled'
-            ? storyObjectSummariesToListItems(itemsResult.value)
-            : currentObjectsByType.items,
-        places:
-          placesResult.status === 'fulfilled'
-            ? storyObjectSummariesToListItems(placesResult.value)
-            : currentObjectsByType.places,
-        organizations:
-          organizationsResult.status === 'fulfilled'
-            ? storyObjectSummariesToListItems(organizationsResult.value)
-            : currentObjectsByType.organizations,
+        ...loadedTargets.objectsByTypePatch,
       }))
       void writeProjectClientCachePatch(projectId, {
-        objectsByType: {
-          ...(charactersResult.status === 'fulfilled'
-            ? { characters: storyObjectSummariesToListItems(charactersResult.value) }
-            : {}),
-          ...(itemsResult.status === 'fulfilled' ? { items: storyObjectSummariesToListItems(itemsResult.value) } : {}),
-          ...(placesResult.status === 'fulfilled'
-            ? { places: storyObjectSummariesToListItems(placesResult.value) }
-            : {}),
-          ...(organizationsResult.status === 'fulfilled'
-            ? { organizations: storyObjectSummariesToListItems(organizationsResult.value) }
-            : {}),
-        },
-        ...(catalogsResult.status === 'fulfilled' ? { catalogs: catalogsResult.value } : {}),
+        objectsByType: loadedTargets.objectsByTypePatch,
+        ...(loadedTargets.catalogs !== null ? { catalogs: loadedTargets.catalogs } : {}),
       })
 
-      if (catalogsResult.status !== 'fulfilled') {
-        return
-      }
-
-      const entriesByCatalogResults = await Promise.allSettled(
-        catalogsResult.value.map(async (catalog) => [catalog.id, await fetchCatalogEntries(projectId, catalog.id)] as const),
-      )
-
-      if (!isActive) {
+      if (loadedTargets.catalogs === null) {
         return
       }
 
       setCatalogEntriesByCatalogId((currentEntriesByCatalogId) => ({
         ...currentEntriesByCatalogId,
-        ...Object.fromEntries(
-          entriesByCatalogResults
-            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntry[]]> => result.status === 'fulfilled')
-            .map((result) => result.value),
-        ),
+        ...loadedTargets.catalogEntriesByCatalogId,
       }))
       void writeProjectClientCachePatch(projectId, {
-        catalogEntriesByCatalogId: Object.fromEntries(
-          entriesByCatalogResults
-            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntry[]]> => result.status === 'fulfilled')
-            .map((result) => result.value),
-        ),
+        catalogEntriesByCatalogId: loadedTargets.catalogEntriesByCatalogId,
       })
     }
 
@@ -596,28 +537,26 @@ export function useStylePreviewWorkspaceData({
     }
 
     const loadCatalogWorkspace = async () => {
-      const [loadedEntries, loadedGroups, loadedFields] = await Promise.all([
-        fetchCatalogEntries(selectedProjectId, selectedCatalogId),
-        fetchCatalogEntryGroups(selectedProjectId, selectedCatalogId),
-        fetchCatalogFieldDefinitions(selectedProjectId, selectedCatalogId),
-      ])
+      const projectId = selectedProjectId
+      const catalogId = selectedCatalogId
+      const loadedWorkspace = await loadCatalogWorkspaceData(projectId, catalogId)
 
       if (isActive) {
-        setCatalogEntries(loadedEntries)
-        setCatalogGroups(loadedGroups)
+        setCatalogEntries(loadedWorkspace.catalogEntries)
+        setCatalogGroups(loadedWorkspace.catalogGroups)
         setCatalogFieldsByCatalogId((currentFieldsByCatalogId) => ({
           ...currentFieldsByCatalogId,
-          [selectedCatalogId]: loadedFields,
+          [catalogId]: loadedWorkspace.catalogFields,
         }))
-        void writeProjectClientCachePatch(selectedProjectId, {
+        void writeProjectClientCachePatch(projectId, {
           catalogEntriesByCatalogId: {
-            [selectedCatalogId]: loadedEntries,
+            [catalogId]: loadedWorkspace.catalogEntries,
           },
           catalogGroupsByCatalogId: {
-            [selectedCatalogId]: loadedGroups,
+            [catalogId]: loadedWorkspace.catalogGroups,
           },
           catalogFieldsByCatalogId: {
-            [selectedCatalogId]: loadedFields,
+            [catalogId]: loadedWorkspace.catalogFields,
           },
         })
       }
@@ -641,94 +580,27 @@ export function useStylePreviewWorkspaceData({
       }
 
       const projectId = selectedProjectId
-      const [
-        definitionsResult,
-        groupsResult,
-        catalogsResult,
-        charactersResult,
-        itemsResult,
-        placesResult,
-        organizationsResult,
-      ] = await Promise.allSettled([
-        fetchAttributeDefinitions(projectId, typeKey),
-        fetchAttributeGroups(projectId, typeKey),
-        fetchCatalogs(projectId),
-        fetchObjectSummaries(projectId, 'characters'),
-        fetchObjectSummaries(projectId, 'items'),
-        fetchObjectSummaries(projectId, 'places'),
-        fetchObjectSummaries(projectId, 'organizations'),
-      ])
+      const loadedWorkspace = await loadObjectEditorWorkspaceData(projectId, typeKey)
 
-      const loadedCatalogs = catalogsResult.status === 'fulfilled' ? catalogsResult.value : []
-
-      const [entriesByCatalogResults, groupsByCatalogResults] = await Promise.all([
-        Promise.allSettled(
-          loadedCatalogs.map(async (catalog) => [catalog.id, await fetchCatalogEntries(projectId, catalog.id)] as const),
-        ),
-        Promise.allSettled(
-          loadedCatalogs.map(async (catalog) => [catalog.id, await fetchCatalogEntryGroups(projectId, catalog.id)] as const),
-        ),
-      ])
-
-      setAttributeDefinitions(definitionsResult.status === 'fulfilled' ? definitionsResult.value : [])
-      setAttributeGroups(groupsResult.status === 'fulfilled' ? groupsResult.value : [])
-      setCatalogs(loadedCatalogs)
+      setAttributeDefinitions(loadedWorkspace.attributeDefinitions)
+      setAttributeGroups(loadedWorkspace.attributeGroups)
+      setCatalogs(loadedWorkspace.catalogs)
       setHierarchyGroups([])
-      setObjectsByType({
-        characters:
-          charactersResult.status === 'fulfilled' ? storyObjectSummariesToListItems(charactersResult.value) : [],
-        items: itemsResult.status === 'fulfilled' ? storyObjectSummariesToListItems(itemsResult.value) : [],
-        places: placesResult.status === 'fulfilled' ? storyObjectSummariesToListItems(placesResult.value) : [],
-        organizations:
-          organizationsResult.status === 'fulfilled'
-            ? storyObjectSummariesToListItems(organizationsResult.value)
-            : [],
-        hierarchy: [],
-      })
-      setCatalogEntriesByCatalogId(
-        Object.fromEntries(
-          entriesByCatalogResults
-            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntry[]]> => result.status === 'fulfilled')
-            .map((result) => result.value),
-        ),
-      )
-      setCatalogGroupsByCatalogId(
-        Object.fromEntries(
-          groupsByCatalogResults
-            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntryGroup[]]> => result.status === 'fulfilled')
-            .map((result) => result.value),
-        ),
-      )
+      setObjectsByType(loadedWorkspace.objectsByType)
+      setCatalogEntriesByCatalogId(loadedWorkspace.catalogEntriesByCatalogId)
+      setCatalogGroupsByCatalogId(loadedWorkspace.catalogGroupsByCatalogId)
       setHierarchyNodesByGroupId({})
       void writeProjectClientCachePatch(projectId, {
         attributeDefinitionsByType: {
-          [typeKey]: definitionsResult.status === 'fulfilled' ? definitionsResult.value : [],
+          [typeKey]: loadedWorkspace.attributeDefinitions,
         },
         attributeGroupsByType: {
-          [typeKey]: groupsResult.status === 'fulfilled' ? groupsResult.value : [],
+          [typeKey]: loadedWorkspace.attributeGroups,
         },
-        catalogs: loadedCatalogs,
-        objectsByType: {
-          characters:
-            charactersResult.status === 'fulfilled' ? storyObjectSummariesToListItems(charactersResult.value) : [],
-          items: itemsResult.status === 'fulfilled' ? storyObjectSummariesToListItems(itemsResult.value) : [],
-          places: placesResult.status === 'fulfilled' ? storyObjectSummariesToListItems(placesResult.value) : [],
-          organizations:
-            organizationsResult.status === 'fulfilled'
-              ? storyObjectSummariesToListItems(organizationsResult.value)
-              : [],
-          hierarchy: [],
-        },
-        catalogEntriesByCatalogId: Object.fromEntries(
-          entriesByCatalogResults
-            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntry[]]> => result.status === 'fulfilled')
-            .map((result) => result.value),
-        ),
-        catalogGroupsByCatalogId: Object.fromEntries(
-          groupsByCatalogResults
-            .filter((result): result is PromiseFulfilledResult<readonly [number, CatalogEntryGroup[]]> => result.status === 'fulfilled')
-            .map((result) => result.value),
-        ),
+        catalogs: loadedWorkspace.catalogs,
+        objectsByType: loadedWorkspace.objectsByType,
+        catalogEntriesByCatalogId: loadedWorkspace.catalogEntriesByCatalogId,
+        catalogGroupsByCatalogId: loadedWorkspace.catalogGroupsByCatalogId,
       })
     },
     [selectedProjectId],

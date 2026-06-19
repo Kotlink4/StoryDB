@@ -10,7 +10,6 @@ namespace StoryDB.Api.Services.Timelines;
 public partial class TimelineService
 {
     private const string DefaultTimelineName = "Основной таймлайн";
-    private const string LegacyDefaultTimelineName = "РћСЃРЅРѕРІРЅРѕР№ С‚Р°Р№РјР»Р°Р№РЅ";
 
     private async Task<Timeline?> EnsureDefaultTimeline(int projectId)
     {
@@ -54,8 +53,7 @@ public partial class TimelineService
             .FirstOrDefaultAsync(currentTimeline =>
                 currentTimeline.ProjectId == projectId &&
                 (currentTimeline.IsDefault ||
-                 currentTimeline.Name == DefaultTimelineName ||
-                 currentTimeline.Name == LegacyDefaultTimelineName));
+                 currentTimeline.Name == DefaultTimelineName));
     }
 
     private async Task<TimelineEventDto?> GetTimelineEventDto(int projectId, int eventId)

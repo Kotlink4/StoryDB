@@ -656,13 +656,6 @@ namespace StoryDB.Api.Migrations
                     b.Property<int>("Height")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("IsMigrated")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("LegacyPath")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
                     b.Property<string>("OriginalFileName")
                         .IsRequired()
                         .HasMaxLength(260)
@@ -710,8 +703,6 @@ namespace StoryDB.Api.Migrations
                     b.HasIndex("Sha256");
 
                     b.HasIndex("ProjectId", "CreatedAt");
-
-                    b.HasIndex("ProjectId", "LegacyPath");
 
                     b.ToTable("MediaAssets");
                 });
@@ -919,90 +910,6 @@ namespace StoryDB.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("ObjectTypes");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureLevel", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<int>("OrganizationObjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizationObjectId", "SortOrder");
-
-                    b.ToTable("OrganizationStructureLevels");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureSlot", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Color")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("IconKey")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<int>("OrganizationStructureLevelId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SlotType")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizationStructureLevelId", "SortOrder");
-
-                    b.ToTable("OrganizationStructureSlots");
                 });
 
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Project", b =>
@@ -1348,6 +1255,10 @@ namespace StoryDB.Api.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("ApplicationScope")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("CatalogSyncMode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1430,7 +1341,7 @@ namespace StoryDB.Api.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
-                    b.Property<int>("StoryObjectId")
+                    b.Property<int?>("StoryObjectId")
                         .HasColumnType("integer");
 
                     b.Property<int>("StructureNodeId")
@@ -1438,6 +1349,14 @@ namespace StoryDB.Api.Migrations
 
                     b.Property<int>("StructureUsageId")
                         .HasColumnType("integer");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1448,16 +1367,16 @@ namespace StoryDB.Api.Migrations
 
                     b.HasIndex("StructureNodeId");
 
-                    b.HasIndex("ProjectId", "StoryObjectId");
-
-                    b.HasIndex("ProjectId", "StoryObjectId", "StructureUsageId");
+                    b.HasIndex("ProjectId", "TargetKind", "TargetId");
 
                     b.HasIndex("StructureUsageId", "StructureNodeId", "SortOrder");
 
-                    b.HasIndex("StructureUsageId", "StructureNodeId", "StoryObjectId")
-                        .IsUnique();
-
                     b.HasIndex("ProjectId", "StructureUsageId", "StructureNodeId", "SortOrder");
+
+                    b.HasIndex("ProjectId", "TargetKind", "TargetId", "StructureUsageId");
+
+                    b.HasIndex("StructureUsageId", "StructureNodeId", "TargetKind", "TargetId")
+                        .IsUnique();
 
                     b.ToTable("StructureAssignments");
                 });
@@ -2398,28 +2317,6 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureLevel", b =>
-                {
-                    b.HasOne("StoryDB.Api.Data.Entities.StoryObject", "OrganizationObject")
-                        .WithMany("OrganizationStructureLevels")
-                        .HasForeignKey("OrganizationObjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("OrganizationObject");
-                });
-
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureSlot", b =>
-                {
-                    b.HasOne("StoryDB.Api.Data.Entities.OrganizationStructureLevel", "OrganizationStructureLevel")
-                        .WithMany("Slots")
-                        .HasForeignKey("OrganizationStructureLevelId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("OrganizationStructureLevel");
-                });
-
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Project", b =>
                 {
                     b.HasOne("StoryDB.Api.Data.Entities.AppUser", "OwnerUser")
@@ -2605,8 +2502,7 @@ namespace StoryDB.Api.Migrations
                     b.HasOne("StoryDB.Api.Data.Entities.StoryObject", "StoryObject")
                         .WithMany("StructureAssignments")
                         .HasForeignKey("StoryObjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("StoryDB.Api.Data.Entities.StructureNode", "StructureNode")
                         .WithMany("Assignments")
@@ -2917,11 +2813,6 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("Objects");
                 });
 
-            modelBuilder.Entity("StoryDB.Api.Data.Entities.OrganizationStructureLevel", b =>
-                {
-                    b.Navigation("Slots");
-                });
-
             modelBuilder.Entity("StoryDB.Api.Data.Entities.Project", b =>
                 {
                     b.Navigation("ObjectTypes");
@@ -2956,8 +2847,6 @@ namespace StoryDB.Api.Migrations
                     b.Navigation("IncomingCharacterRelationships");
 
                     b.Navigation("IncomingRelations");
-
-                    b.Navigation("OrganizationStructureLevels");
 
                     b.Navigation("OutgoingCharacterRelationships");
 

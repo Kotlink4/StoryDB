@@ -40,7 +40,6 @@ const addMaxLengthIssue = (
 const isUploadedImagePath = (value: string) => {
   const normalizedValue = value.toLowerCase()
   return (
-    normalizedValue.startsWith('/uploads/images/') ||
     normalizedValue.startsWith('/uploads/projects/') ||
     normalizedValue.startsWith('/uploads/global/images/')
   )
@@ -195,14 +194,7 @@ export const validateProfileDraft = (email: string, displayName: string, avatarI
     return 'Введите корректный email.'
   }
 
-  const normalizedAvatarPath = avatarImagePath?.trim()
-  if (normalizedAvatarPath && normalizedAvatarPath.length > 512) {
-    return 'Путь к аватару слишком длинный.'
-  }
-
-  return normalizedAvatarPath && !normalizedAvatarPath.startsWith('/uploads/')
-    ? 'Аватар должен быть загруженным файлом.'
-    : null
+  return validateOptionalImagePath(avatarImagePath, 'Аватар')
 }
 
 export const validateObjectDraft = (

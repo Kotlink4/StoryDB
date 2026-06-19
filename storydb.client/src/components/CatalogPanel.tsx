@@ -5,7 +5,6 @@ import type {
   CatalogEntry,
   CatalogEntryDraft,
   CatalogEntryGroup,
-  CatalogFieldDataType,
   CatalogFieldDefinition,
   CatalogFieldDraft,
   CatalogHierarchyMode,
@@ -13,19 +12,12 @@ import type {
   InlineNameEdit,
   LayoutMode,
 } from '../types'
-import { resolveAssetUrl } from '../api'
 import { buildCatalogGroupTree, formatCatalogGroupTreeLabel } from '../domain/catalogGroupTree'
+import { CatalogEntryDetailsPanel } from './catalog/CatalogEntryDetailsPanel'
+import { CatalogEntryFieldInput } from './catalog/CatalogEntryFields'
+import { CatalogTemplatePanel } from './catalog/CatalogTemplatePanel'
 import { CatalogEntryCard } from './CatalogEntryCard'
 import { ImageDropzone } from './ImageDropzone'
-
-const fieldDataTypes: CatalogFieldDataType[] = [
-  'text',
-  'longText',
-  'number',
-  'select',
-  'entryReference',
-  'multipleEntryReference',
-]
 
 type CatalogPanelProps = {
   activeCatalogEntryMenuId: number | null
@@ -378,179 +370,18 @@ export function CatalogPanel({
           )}
 
           {page === 'template' && (
-            <section className="catalog-template-panel">
-            <header className="catalog-template-header">
-              <div>
-                <p className="panel-kicker">{t.catalogTemplate}</p>
-                <h3>{t.catalogTemplate}</h3>
-              </div>
-            </header>
-
-            <form
-              className="attribute-definition-form"
-              onSubmit={(event) => {
-                event.preventDefault()
-                onCreateCatalogField()
-              }}
-            >
-              <label className="project-name-field">
-                <span>{t.catalogFieldName}</span>
-                <input
-                  type="text"
-                  value={catalogFieldDraft.name}
-                  onChange={(event) =>
-                    onCatalogFieldDraftChange({ ...catalogFieldDraft, name: event.target.value })
-                  }
-                  placeholder={t.catalogFieldName}
-                />
-              </label>
-              <label className="project-name-field">
-                <span>{t.attributeDataType}</span>
-                <select
-                  value={catalogFieldDraft.dataType}
-                  onChange={(event) =>
-                    onCatalogFieldDraftChange({
-                      ...catalogFieldDraft,
-                      dataType: event.target.value as CatalogFieldDataType,
-                    })
-                  }
-                >
-                  {fieldDataTypes.map((dataType) => (
-                    <option key={dataType} value={dataType}>
-                      {t[`catalogFieldType${dataType}`]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="project-name-field checkbox-field">
-                <span>{t.catalogFieldRequired}</span>
-                <input
-                  type="checkbox"
-                  checked={catalogFieldDraft.isRequired}
-                  onChange={(event) =>
-                    onCatalogFieldDraftChange({
-                      ...catalogFieldDraft,
-                      isRequired: event.target.checked,
-                    })
-                  }
-                />
-              </label>
-              {catalogFieldDraft.dataType === 'number' && (
-                <>
-                  <label className="project-name-field">
-                    <span>{t.attributeMin}</span>
-                    <input
-                      type="number"
-                      value={catalogFieldDraft.minValue}
-                      onChange={(event) =>
-                        onCatalogFieldDraftChange({
-                          ...catalogFieldDraft,
-                          minValue: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="project-name-field">
-                    <span>{t.attributeMax}</span>
-                    <input
-                      type="number"
-                      value={catalogFieldDraft.maxValue}
-                      onChange={(event) =>
-                        onCatalogFieldDraftChange({
-                          ...catalogFieldDraft,
-                          maxValue: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                </>
-              )}
-              {catalogFieldDraft.dataType === 'select' && (
-                <label className="project-name-field attribute-definition-wide">
-                  <span>{t.attributeOptions}</span>
-                  <input
-                    type="text"
-                    value={catalogFieldDraft.optionsText}
-                    onChange={(event) =>
-                      onCatalogFieldDraftChange({
-                        ...catalogFieldDraft,
-                        optionsText: event.target.value,
-                      })
-                    }
-                    placeholder={t.attributeOptionsPlaceholder}
-                  />
-                </label>
-              )}
-              {(catalogFieldDraft.dataType === 'entryReference' ||
-                catalogFieldDraft.dataType === 'multipleEntryReference') && (
-                <label className="project-name-field">
-                  <span>{t.catalogFieldReference}</span>
-                  <select
-                    value={catalogFieldDraft.referenceCatalogId}
-                    onChange={(event) =>
-                      onCatalogFieldDraftChange({
-                        ...catalogFieldDraft,
-                        referenceCatalogId: event.target.value,
-                      })
-                    }
-                  >
-                    <option value="">{t.catalogFieldReference}</option>
-                    {catalogs.map((catalog) => (
-                      <option key={catalog.id} value={catalog.id}>
-                        {catalog.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <div className="attribute-definition-actions">
-                {editingCatalogFieldId !== null && (
-                  <button className="secondary-action compact" type="button" onClick={onCancelCatalogFieldEdit}>
-                    {t.cancel}
-                  </button>
-                )}
-                <button className="primary-action compact" type="submit">
-                  {editingCatalogFieldId === null ? t.addAttribute : t.save}
-                </button>
-              </div>
-            </form>
-
-            <table className="attribute-definition-table">
-              <thead>
-                <tr>
-                  <th>{t.catalogFieldName}</th>
-                  <th>{t.attributeDataType}</th>
-                  <th>{t.attributeValue}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {catalogFields.map((field) => (
-                  <tr key={field.id}>
-                    <td>{field.name}</td>
-                    <td>{t[`catalogFieldType${field.dataType}`]}</td>
-                    <td>{formatCatalogFieldValue(field, catalogs)}</td>
-                    <td>
-                      <div className="table-actions">
-                        <button type="button" onClick={() => onEditCatalogField(field)}>
-                          {t.edit}
-                        </button>
-                        <button type="button" onClick={() => onDeleteCatalogField(field)}>
-                          {t.delete}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {catalogFields.length === 0 && (
-              <section className="empty-state compact" aria-live="polite">
-                <h2>{t.noCatalogFields}</h2>
-              </section>
-            )}
-          </section>
+            <CatalogTemplatePanel
+              catalogFieldDraft={catalogFieldDraft}
+              catalogFields={catalogFields}
+              catalogs={catalogs}
+              editingCatalogFieldId={editingCatalogFieldId}
+              t={t}
+              onCancelCatalogFieldEdit={onCancelCatalogFieldEdit}
+              onCatalogFieldDraftChange={onCatalogFieldDraftChange}
+              onCreateCatalogField={onCreateCatalogField}
+              onDeleteCatalogField={onDeleteCatalogField}
+              onEditCatalogField={onEditCatalogField}
+            />
           )}
 
           {(page === 'catalog' || page === 'group') && (
@@ -714,238 +545,17 @@ export function CatalogPanel({
           )}
 
           {page === 'entry' && activeCatalogEntry !== null && (
-            <section className="catalog-entry-page">
-              <div className="catalog-entry-dossier">
-                {resolveAssetUrl(activeCatalogEntry.imagePath) !== null && (
-                  <img src={resolveAssetUrl(activeCatalogEntry.imagePath) ?? undefined} alt="" />
-                )}
-                <div>
-                  <p className="setting-label">
-                    {activeCatalogEntry.entryGroupName ?? t.primaryAttributeGroup}
-                  </p>
-                  {activeCatalogEntry.description === null || activeCatalogEntry.description.length === 0 ? (
-                    <section className="empty-state compact" aria-live="polite">
-                      <h2>{t.description}</h2>
-                    </section>
-                  ) : (
-                    <p>{activeCatalogEntry.description}</p>
-                  )}
-                </div>
-              </div>
-              <section className="catalog-template-panel">
-                <header className="catalog-template-header">
-                  <div>
-                    <p className="panel-kicker">{t.catalogTemplate}</p>
-                    <h3>{t.catalogTemplate}</h3>
-                  </div>
-                </header>
-                <table className="attribute-definition-table">
-                  <thead>
-                    <tr>
-                      <th>{t.catalogFieldName}</th>
-                      <th>{t.attributeDataType}</th>
-                      <th>{t.attributeValue}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {catalogFields.map((field) => (
-                      <tr key={field.id}>
-                        <td>{field.name}</td>
-                        <td>{t[`catalogFieldType${field.dataType}`]}</td>
-                        <td>
-                          <CatalogEntryFieldValueView
-                            catalogEntriesByCatalogId={catalogEntriesByCatalogId}
-                            entry={activeCatalogEntry}
-                            field={field}
-                            onOpenReferencedCatalogEntry={onOpenReferencedCatalogEntry}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {catalogFields.length === 0 && (
-                  <section className="empty-state compact" aria-live="polite">
-                    <h2>{t.noCatalogFields}</h2>
-                  </section>
-                )}
-              </section>
-            </section>
+            <CatalogEntryDetailsPanel
+              catalogEntriesByCatalogId={catalogEntriesByCatalogId}
+              catalogEntry={activeCatalogEntry}
+              catalogFields={catalogFields}
+              t={t}
+              onOpenReferencedCatalogEntry={onOpenReferencedCatalogEntry}
+            />
           )}
         </>
       )}
     </section>
   )
 }
-
-const formatCatalogFieldValue = (field: CatalogFieldDefinition, catalogs: Catalog[]) => {
-  if (field.dataType === 'number') {
-    const bounds = [field.minValue ?? '', field.maxValue ?? ''].join(' - ').trim()
-    return bounds || '-'
-  }
-
-  if (field.dataType === 'select') {
-    return field.options.join(', ') || '-'
-  }
-
-  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
-    return catalogs.find((catalog) => catalog.id === field.referenceCatalogId)?.name ?? '-'
-  }
-
-  return field.isRequired ? '*' : '-'
-}
-
-type CatalogEntryFieldInputProps = {
-  catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
-  field: CatalogFieldDefinition
-  t: Record<string, string>
-  value: string
-  onChange: (value: string) => void
-}
-
-function CatalogEntryFieldInput({
-  catalogEntriesByCatalogId,
-  field,
-  t,
-  value,
-  onChange,
-}: CatalogEntryFieldInputProps) {
-  if (field.dataType === 'longText') {
-    return (
-      <label className="project-name-field hierarchy-node-description">
-        <span>{field.name}</span>
-        <textarea value={value} onChange={(event) => onChange(event.target.value)} />
-      </label>
-    )
-  }
-
-  if (field.dataType === 'select') {
-    return (
-      <label className="project-name-field">
-        <span>{field.name}</span>
-        <select value={value} onChange={(event) => onChange(event.target.value)}>
-          <option value="">{field.isRequired ? t.catalogFieldRequired : '-'}</option>
-          {field.options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </label>
-    )
-  }
-
-  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
-    const referenceEntries =
-      field.referenceCatalogId === null ? [] : catalogEntriesByCatalogId[field.referenceCatalogId] ?? []
-    const selectedIds = value
-      .split(',')
-      .map((entryId) => Number(entryId))
-      .filter((entryId) => Number.isInteger(entryId) && entryId > 0)
-
-    if (field.dataType === 'multipleEntryReference') {
-      return (
-        <label className="project-name-field">
-          <span>{field.name}</span>
-          <select
-            multiple
-            value={selectedIds.map(String)}
-            onChange={(event) =>
-              onChange(
-                Array.from(event.target.selectedOptions)
-                  .map((option) => option.value)
-                  .join(','),
-              )
-            }
-          >
-            {referenceEntries.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )
-    }
-
-    return (
-      <label className="project-name-field">
-        <span>{field.name}</span>
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          <option value="">{field.isRequired ? t.catalogFieldRequired : '-'}</option>
-          {referenceEntries.map((entry) => (
-            <option key={entry.id} value={entry.id}>
-              {entry.name}
-            </option>
-          ))}
-        </select>
-      </label>
-    )
-  }
-
-  return (
-    <label className="project-name-field">
-      <span>{field.name}</span>
-      <input
-        type={field.dataType === 'number' ? 'number' : 'text'}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
-  )
-}
-
-type CatalogEntryFieldValueViewProps = {
-  catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
-  entry: CatalogEntry
-  field: CatalogFieldDefinition
-  onOpenReferencedCatalogEntry: (catalogId: number, entryId: number) => void
-}
-
-function CatalogEntryFieldValueView({
-  catalogEntriesByCatalogId,
-  entry,
-  field,
-  onOpenReferencedCatalogEntry,
-}: CatalogEntryFieldValueViewProps) {
-  const entryValue = entry.fieldValues.find((value) => value.fieldDefinitionId === field.id)
-
-  if (entryValue === undefined) {
-    return <>-</>
-  }
-
-  if (field.dataType === 'entryReference' || field.dataType === 'multipleEntryReference') {
-    if (field.referenceCatalogId === null || entryValue.referencedEntryIds.length === 0) {
-      return <>-</>
-    }
-
-    const referenceEntries = catalogEntriesByCatalogId[field.referenceCatalogId] ?? []
-
-    return (
-      <div className="catalog-reference-values">
-        {entryValue.referencedEntryIds.map((entryId) => {
-          const referencedEntry = referenceEntries.find((currentEntry) => currentEntry.id === entryId)
-
-          return (
-            <button
-              className="inline-link-button"
-              key={entryId}
-              type="button"
-              onClick={() => onOpenReferencedCatalogEntry(field.referenceCatalogId as number, entryId)}
-            >
-              {referencedEntry?.name ?? `#${entryId}`}
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-
-  return <>{entryValue.value !== null && entryValue.value.length > 0 ? entryValue.value : '-'}</>
-}
-
-
 

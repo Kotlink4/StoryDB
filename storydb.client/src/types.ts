@@ -96,7 +96,6 @@ export type StoryObject = {
   ownedTerritories: ObjectReference[]
   hierarchyParents: ObjectReference[]
   hierarchyChildren: ObjectReference[]
-  organizationStructureLevels: OrganizationStructureLevel[]
   galleryImages: ObjectGalleryImage[]
   outgoingCharacterRelationships: CharacterRelationship[]
   incomingCharacterRelationships: CharacterRelationship[]
@@ -117,42 +116,11 @@ export type StoryObjectSummary = Pick<
   | 'attributes'
 >
 
-export type OrganizationStructureLevel = {
-  id: number
-  name: string
-  description: string | null
-  sortOrder: number
-  slots: OrganizationStructureSlot[]
-}
-
-export type OrganizationStructureSlot = {
-  id: number
-  name: string
-  description: string | null
-  slotType: string | null
-  color: string | null
-  iconKey: string | null
-  sortOrder: number
-}
-
-export type OrganizationStructureLevelDraft = {
-  name: string
-  description: string
-  slots: OrganizationStructureSlotDraft[]
-}
-
-export type OrganizationStructureSlotDraft = {
-  name: string
-  description: string
-  slotType: string
-  color: string
-  iconKey: string
-}
-
 export type StructureOwnerKind = 'project' | 'catalog' | 'object'
+export type StructureApplicationScope = 'characters' | 'items' | 'locations' | 'organizations' | 'catalogEntries'
 export type StructureLayoutKind = 'levels' | 'tree' | 'graph'
-export type StructureNodeBindingMode = 'none' | 'catalogEntry' | 'catalogEntryGroup' | 'mixed'
-export type StructureCatalogSyncMode = 'manual' | 'catalogEntries' | 'catalogGroups' | 'catalogTree'
+export type StructureNodeBindingMode = 'none'
+export type StructureCatalogSyncMode = 'manual'
 
 export type Structure = {
   id: number
@@ -161,6 +129,7 @@ export type Structure = {
   description: string | null
   ownerKind: StructureOwnerKind
   ownerId: number | null
+  applicationScope: StructureApplicationScope
   layoutKind: StructureLayoutKind
   nodeBindingMode: StructureNodeBindingMode
   catalogSyncMode: StructureCatalogSyncMode
@@ -219,9 +188,13 @@ export type StructureAssignment = {
   structureName: string
   structureNodeId: number
   structureNodeName: string
-  storyObjectId: number
-  storyObjectName: string
-  storyObjectTypeKey: ObjectTypeKey
+  targetKind: 'storyObject' | 'catalogEntry'
+  targetId: number
+  targetName: string
+  targetTypeKey: ObjectTypeKey | 'catalogEntry'
+  storyObjectId: number | null
+  storyObjectName: string | null
+  storyObjectTypeKey: ObjectTypeKey | null
   roleLabel: string | null
   notes: string | null
   sortOrder: number
@@ -232,6 +205,7 @@ export type StructureDraft = {
   description: string
   ownerKind: StructureOwnerKind
   ownerId: number | null
+  applicationScope: StructureApplicationScope
   layoutKind: StructureLayoutKind
   nodeBindingMode: StructureNodeBindingMode
   catalogSyncMode: StructureCatalogSyncMode
@@ -241,60 +215,6 @@ export type StructureDraft = {
 }
 
 export type StructureDetailsDraft = Pick<StructureDraft, 'name' | 'description'>
-
-export type StructureCatalogSyncNode = {
-  sourceKind: 'entry' | 'group'
-  sourceId: number
-  name: string
-  description: string | null
-  parentSourceId: number | null
-  parentSourceKind: 'entry' | 'group' | null
-  existingNodeId: number | null
-  parentNodeId: number | null
-  levelIndex: number
-  sortOrder: number
-  action: 'exists' | 'create'
-}
-
-export type StructureCatalogSyncPreview = {
-  structureId: number
-  linkedCatalogId: number | null
-  catalogSyncMode: StructureCatalogSyncMode
-  existingNodeCount: number
-  missingNodeCount: number
-  nodes: StructureCatalogSyncNode[]
-}
-
-export type StructureCatalogSyncResult = {
-  structureId: number
-  createdNodeCount: number
-  structure: Structure
-}
-
-export type StructureCatalogAssignmentSyncItem = {
-  storyObjectId: number
-  storyObjectName: string
-  structureNodeId: number
-  structureNodeName: string
-  sourceKind: 'entry' | 'group'
-  sourceId: number
-  action: 'exists' | 'create'
-}
-
-export type StructureCatalogAssignmentSyncPreview = {
-  structureUsageId: number
-  structureId: number
-  linkedCatalogId: number
-  existingAssignmentCount: number
-  missingAssignmentCount: number
-  items: StructureCatalogAssignmentSyncItem[]
-}
-
-export type StructureCatalogAssignmentSyncResult = {
-  structureUsageId: number
-  createdAssignmentCount: number
-  assignments: StructureAssignment[]
-}
 
 export type StructureUsageDraft = {
   targetKind: StructureOwnerKind
@@ -306,7 +226,9 @@ export type StructureUsageDraft = {
 
 export type StructureAssignmentDraft = {
   structureNodeId: number
-  storyObjectId: number
+  storyObjectId?: number | null
+  targetKind?: 'storyObject' | 'catalogEntry'
+  targetId?: number | null
   roleLabel: string
   notes: string
   sortOrder: number

@@ -16,13 +16,6 @@ public interface IObjectService
 
     Task<ObjectServiceResult> DeleteObjectAsync(int projectId, int objectId);
 
-    Task<ObjectServiceResult<IReadOnlyList<OrganizationStructureLevelDto>>> GetOrganizationStructureAsync(int projectId, int objectId);
-
-    Task<ObjectServiceResult<StoryObjectDto>> UpdateOrganizationStructureAsync(
-        int projectId,
-        int objectId,
-        OrganizationStructureRequest request);
-
     Task<ObjectServiceResult<IReadOnlyList<ObjectGalleryImageDto>>> GetGalleryImagesAsync(int projectId, int objectId);
 
     Task<ObjectServiceResult<StoryObjectDto>> AddGalleryImageAsync(int projectId, int objectId, ObjectGalleryImageRequest request);

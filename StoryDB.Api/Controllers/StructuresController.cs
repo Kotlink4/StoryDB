@@ -81,20 +81,6 @@ public class StructuresController(IStructureService structureService) : Controll
         return ToNoContentResult(result);
     }
 
-    [HttpGet("{structureId:int}/catalog-sync")]
-    public async Task<ActionResult<StructureCatalogSyncPreviewDto>> PreviewCatalogSync(int projectId, int structureId)
-    {
-        var result = await structureService.PreviewCatalogSyncAsync(projectId, structureId);
-        return ToActionResult(result);
-    }
-
-    [HttpPost("{structureId:int}/catalog-sync")]
-    public async Task<ActionResult<StructureCatalogSyncResultDto>> ApplyCatalogSync(int projectId, int structureId)
-    {
-        var result = await structureService.ApplyCatalogSyncAsync(projectId, structureId);
-        return ToActionResult(result);
-    }
-
     [HttpGet("usages")]
     public async Task<ActionResult<IReadOnlyList<StructureUsageDto>>> GetStructureUsages(
         int projectId,
@@ -142,24 +128,6 @@ public class StructuresController(IStructureService structureService) : Controll
         return ToActionResult(result);
     }
 
-    [HttpGet("usages/{usageId:int}/catalog-assignment-sync")]
-    public async Task<ActionResult<StructureCatalogAssignmentSyncPreviewDto>> PreviewCatalogAssignmentSync(
-        int projectId,
-        int usageId)
-    {
-        var result = await structureService.PreviewCatalogAssignmentSyncAsync(projectId, usageId);
-        return ToActionResult(result);
-    }
-
-    [HttpPost("usages/{usageId:int}/catalog-assignment-sync")]
-    public async Task<ActionResult<StructureCatalogAssignmentSyncResultDto>> ApplyCatalogAssignmentSync(
-        int projectId,
-        int usageId)
-    {
-        var result = await structureService.ApplyCatalogAssignmentSyncAsync(projectId, usageId);
-        return ToActionResult(result);
-    }
-
     [HttpDelete("usages/{usageId:int}")]
     public async Task<IActionResult> DeleteStructureUsage(int projectId, int usageId)
     {
@@ -173,14 +141,18 @@ public class StructuresController(IStructureService structureService) : Controll
         [FromQuery] int? structureUsageId,
         [FromQuery] int? structureId,
         [FromQuery] int? structureNodeId,
-        [FromQuery] int? storyObjectId)
+        [FromQuery] int? storyObjectId,
+        [FromQuery] string? targetKind,
+        [FromQuery] int? targetId)
     {
         var result = await structureService.GetStructureAssignmentsAsync(
             projectId,
             structureUsageId,
             structureId,
             structureNodeId,
-            storyObjectId);
+            storyObjectId,
+            targetKind,
+            targetId);
         return ToActionResult(result);
     }
 

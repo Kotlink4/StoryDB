@@ -1,0 +1,638 @@
+﻿
+.style-preview {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--sp-app-background);
+  color: var(--sp-ink);
+}
+
+.style-preview.tab-timeline:not(.is-utility-page) {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding: 0;
+}
+
+.style-preview.tab-relations:not(.is-utility-page) {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding: 0;
+}
+
+@media (min-width: 761px) {
+  .style-preview.tab-database {
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .style-preview.tab-database .sp-shell {
+    height: calc(100dvh - 48px);
+    min-height: 0;
+  }
+
+  .style-preview.tab-database .sp-workspace {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .style-preview.tab-database .sp-sidebar,
+  .style-preview.tab-database .sp-content,
+  .style-preview.tab-database .sp-detail {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-shell,
+.style-preview:is(.theme-dark, .theme-black) .sp-card,
+.style-preview:is(.theme-dark, .theme-black) .sp-detail-card,
+.style-preview:is(.theme-dark, .theme-black) .sp-empty,
+.style-preview:is(.theme-dark, .theme-black) .sp-graph,
+.style-preview:is(.theme-dark, .theme-black) .sp-timeline,
+.style-preview:is(.theme-dark, .theme-black) .sp-dialog,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-menu,
+.style-preview:is(.theme-dark, .theme-black) .sp-setting-card,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-card,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-pack-card,
+.style-preview:is(.theme-dark, .theme-black) .sp-catalog-list,
+.style-preview:is(.theme-dark, .theme-black) .sp-catalog-main,
+.style-preview:is(.theme-dark, .theme-black) .sp-relations-legend,
+.style-preview:is(.theme-dark, .theme-black) .sp-flow-node,
+.style-preview:is(.theme-dark, .theme-black) .sp-structure-flow-node,
+.style-preview:is(.theme-dark, .theme-black) .sp-timeline-overlay-head,
+.style-preview:is(.theme-dark, .theme-black) .sp-timeline-links-popover {
+  background: var(--sp-surface);
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-projectbar,
+.style-preview:is(.theme-dark, .theme-black) .sp-sidebar,
+.style-preview:is(.theme-dark, .theme-black) .sp-toolbar,
+.style-preview:is(.theme-dark, .theme-black) .sp-editor-row,
+.style-preview:is(.theme-dark, .theme-black) .sp-editor-block,
+.style-preview:is(.theme-dark, .theme-black) .sp-fields div,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-menu > button,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-settings,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-project-card,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-pack-card dl > div {
+  background: var(--sp-soft);
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-button,
+.style-preview:is(.theme-dark, .theme-black) .sp-pill,
+.style-preview:is(.theme-dark, .theme-black) .sp-icon-button,
+.style-preview:is(.theme-dark, .theme-black) .sp-card-menu > button,
+.style-preview:is(.theme-dark, .theme-black) input,
+.style-preview:is(.theme-dark, .theme-black) select,
+.style-preview:is(.theme-dark, .theme-black) textarea {
+  background: var(--sp-control);
+  color: var(--sp-ink);
+}
+
+.style-preview:is(.theme-dark, .theme-black) option {
+  background: var(--sp-control);
+  color: var(--sp-ink);
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-button.primary,
+.style-preview:is(.theme-dark, .theme-black) .sp-pill.active,
+.style-preview:is(.theme-dark, .theme-black) .sp-tabs button.active,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-tabs button.active,
+.style-preview:is(.theme-dark, .theme-black) .sp-profile-pack-toolbar button.active {
+  background: var(--sp-active-bg);
+  color: var(--sp-active-text);
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-card-dropdown {
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-card-dropdown button {
+  color: var(--sp-ink);
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-card-dropdown button:hover {
+  background: var(--sp-accent-soft);
+}
+
+.style-preview button,
+.style-preview input,
+.style-preview select,
+.style-preview textarea {
+  font: inherit;
+}
+
+.style-preview,
+.style-preview * {
+  scrollbar-color: var(--sp-line) var(--sp-control);
+  scrollbar-width: thin;
+}
+
+.style-preview::-webkit-scrollbar,
+.style-preview *::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.style-preview::-webkit-scrollbar-track,
+.style-preview *::-webkit-scrollbar-track {
+  background: var(--sp-control);
+}
+
+.style-preview::-webkit-scrollbar-thumb,
+.style-preview *::-webkit-scrollbar-thumb {
+  border: 3px solid var(--sp-control);
+  border-radius: 999px;
+  background: var(--sp-line);
+}
+
+.style-preview::-webkit-scrollbar-thumb:hover,
+.style-preview *::-webkit-scrollbar-thumb:hover {
+  background: var(--sp-muted);
+}
+
+.sp-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid var(--sp-line);
+  border-radius: 28px;
+  background: var(--sp-surface);
+  box-shadow: 0 24px 70px var(--sp-shadow);
+}
+
+.style-preview.tab-timeline:not(.is-utility-page) .sp-shell {
+  height: 100dvh;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.style-preview.tab-relations:not(.is-utility-page) .sp-shell {
+  height: 100dvh;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.sp-topbar,
+.sp-projectbar,
+.sp-brand,
+.sp-actions,
+.sp-search,
+.sp-content-head,
+.sp-toolbar,
+.sp-tabs,
+.sp-dossier-head,
+.sp-row,
+.sp-dialog-head {
+  display: flex;
+  align-items: center;
+}
+
+.sp-topbar,
+.sp-projectbar {
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--sp-line);
+  padding: 14px 22px;
+}
+
+.sp-projectbar {
+  background: var(--sp-control);
+}
+
+.sp-brand {
+  gap: 12px;
+  min-width: 220px;
+}
+
+.sp-brand h1,
+.sp-content-head h2,
+.sp-detail-card h2,
+.sp-dialog h2 {
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+
+.sp-brand span,
+.sp-projectbar span,
+.sp-content-head p,
+.sp-card-body span,
+.sp-detail-card p,
+.sp-panel p,
+.sp-toolbar,
+.sp-empty span {
+  color: var(--sp-muted);
+}
+
+.sp-text-link {
+  display: inline;
+  border: 0;
+  background: transparent;
+  color: var(--sp-accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 0 1px;
+  text-align: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.sp-text-link:hover {
+  color: var(--sp-link-hover);
+}
+
+.sp-logo,
+.sp-avatar-button,
+.sp-portrait {
+  display: grid;
+  place-items: center;
+}
+
+.sp-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background: var(--sp-active-bg);
+  color: var(--sp-active-text);
+  font-weight: 900;
+}
+
+.sp-search {
+  flex: 1;
+  max-width: 700px;
+  gap: 10px;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  background: var(--sp-soft);
+  padding: 0 14px;
+}
+
+.sp-search-svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--sp-muted);
+}
+
+.sp-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 12px 0;
+}
+
+.sp-actions,
+.sp-filters,
+.sp-switch,
+.sp-tags,
+.sp-dialog-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sp-actions {
+  position: relative;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: 0;
+}
+
+.sp-actions > .sp-button:not(.primary) {
+  display: none;
+}
+
+.sp-actions > .sp-button.primary {
+  order: 1;
+}
+
+.sp-profile {
+  position: relative;
+  order: 2;
+}
+
+.sp-button,
+.sp-pill,
+.sp-tabs button,
+.sp-segments button,
+.sp-switch button,
+.sp-icon-button {
+  border: 1px solid var(--sp-line);
+  border-radius: 16px;
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sp-button {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.sp-button.primary,
+.sp-tabs button.active,
+.sp-pill.active {
+  border-color: var(--sp-active-bg);
+  background: var(--sp-active-bg);
+  color: var(--sp-active-text);
+}
+
+.sp-pill:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sp-button.danger {
+  border-color: var(--sp-danger-border);
+  background: var(--sp-danger-bg);
+  color: var(--sp-danger-text);
+}
+
+.sp-avatar-button {
+  display: grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  overflow: hidden;
+  border: 1px solid var(--sp-line);
+  border-radius: 999px;
+  background: var(--sp-active-bg);
+  color: var(--sp-active-text);
+  font-weight: 900;
+}
+
+.sp-avatar-button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.sp-profile-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 12px);
+  right: 0;
+  display: grid;
+  width: 330px;
+  gap: 8px;
+  border: 1px solid var(--sp-line);
+  border-radius: 22px;
+  background: var(--sp-surface);
+  padding: 12px;
+  box-shadow: 0 24px 70px var(--sp-shadow);
+}
+
+.sp-profile-menu > button,
+.sp-profile-settings {
+  border: 1px solid var(--sp-line);
+  border-radius: 16px;
+  background: var(--sp-soft);
+  color: var(--sp-ink);
+  padding: 12px;
+}
+
+.sp-profile-menu > button {
+  text-align: left;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.sp-page-back-button {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+}
+
+.sp-profile-settings {
+  display: grid;
+  gap: 10px;
+}
+
+.sp-profile-settings label {
+  display: grid;
+  gap: 6px;
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sp-profile-settings select {
+  min-height: 38px;
+  border: 1px solid var(--sp-line);
+  border-radius: 13px;
+  background: var(--sp-control);
+  color: var(--sp-ink);
+  padding: 0 10px;
+}
+
+.sp-tabs {
+  gap: 6px;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  background: var(--sp-accent-soft);
+  padding: 5px;
+}
+
+.sp-main-tabs {
+  flex: 0 0 auto;
+}
+
+.sp-content-create {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.sp-top-create,
+.sp-projectbar,
+.sp-sidebar-tabs,
+.sp-content-head > .sp-filters {
+  display: none;
+}
+
+.sp-tabs button,
+.sp-segments button {
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--sp-ink);
+  padding: 0 14px;
+}
+
+.sp-settings {
+  min-width: 330px;
+  border: 1px solid var(--sp-line);
+  border-radius: 20px;
+  background: var(--sp-surface);
+  padding: 12px;
+  box-shadow: 0 14px 40px var(--sp-shadow-soft);
+}
+
+.sp-projectbar .sp-settings {
+  display: none;
+}
+
+.sp-segments {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+  border-radius: 15px;
+  background: var(--sp-accent-soft);
+  padding: 4px;
+}
+
+.sp-segments button.active,
+.sp-switch button.active {
+  background: var(--sp-active-bg);
+  color: var(--sp-active-text);
+  box-shadow: 0 6px 16px var(--sp-shadow-soft);
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-detail-card .sp-tabs button:not(.active),
+.style-preview:is(.theme-dark, .theme-black) .sp-dialog .sp-tabs button:not(.active),
+.style-preview:is(.theme-dark, .theme-black) .sp-segments button:not(.active),
+.style-preview:is(.theme-dark, .theme-black) .sp-switch button:not(.active) {
+  color: var(--sp-ink);
+}
+
+.style-preview:is(.theme-dark, .theme-black) .sp-detail-card .sp-tabs button.active,
+.style-preview:is(.theme-dark, .theme-black) .sp-dialog .sp-tabs button.active {
+  border-color: var(--sp-active-soft-bg);
+  background: var(--sp-active-soft-bg);
+  color: var(--sp-active-soft-text);
+}
+
+.sp-projectbar select {
+  display: block;
+  min-width: 180px;
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--sp-ink);
+  font-weight: 900;
+  outline: 0;
+}
+
+.sp-workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(360px, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.sp-workspace.utility-page {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sp-workspace.no-sidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.style-preview.tab-timeline:not(.is-utility-page) .sp-workspace {
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.style-preview.tab-relations:not(.is-utility-page) .sp-workspace {
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.sp-workspace.utility-page .sp-sidebar {
+  display: none;
+}
+
+.sp-workspace.with-detail {
+  grid-template-columns: 260px minmax(360px, 1fr) 390px;
+}
+
+.sp-workspace.no-sidebar.with-detail {
+  grid-template-columns: minmax(360px, 1fr) 390px;
+}
+
+.style-preview.tab-timeline:not(.is-utility-page) .sp-workspace.no-sidebar.with-detail {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.style-preview.tab-relations:not(.is-utility-page) .sp-workspace.with-detail {
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
+.sp-sidebar,
+.sp-detail {
+  background: var(--sp-soft);
+}
+
+.sp-sidebar {
+  border-right: 1px solid var(--sp-line);
+  min-height: 0;
+  padding: 10px;
+}
+
+.sp-detail {
+  border-left: 1px solid var(--sp-line);
+  padding: 18px;
+  overflow: auto;
+}
+
+.style-preview .sp-detail > .sp-detail-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.style-preview .sp-object-page > .sp-detail-card,
+.style-preview .sp-dialog > .sp-detail-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.style-preview.tab-timeline:not(.is-utility-page) .sp-detail {
+  position: absolute;
+  z-index: 220;
+  top: 86px;
+  right: 18px;
+  bottom: 18px;
+  width: min(420px, calc(100% - 36px));
+  border: 1px solid var(--sp-line);
+  border-radius: 24px;
+  background: var(--sp-overlay);
+  box-shadow: 0 28px 80px var(--sp-shadow);
+  backdrop-filter: blur(14px);
+}
+
+.style-preview.tab-relations:not(.is-utility-page) .sp-detail {
+  position: absolute;
+  z-index: 220;
+  top: 18px;
+  right: 18px;
+  bottom: 18px;
+  width: min(420px, calc(100% - 296px));
+  border: 1px solid var(--sp-line);
+  border-radius: 24px;
+  background: var(--sp-overlay);
+  box-shadow: 0 28px 80px var(--sp-shadow);
+  backdrop-filter: blur(14px);
+}
+

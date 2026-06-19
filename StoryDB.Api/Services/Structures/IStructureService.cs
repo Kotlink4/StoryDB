@@ -31,10 +31,6 @@ public interface IStructureService
 
     Task<StructureServiceResult> DeleteStructureAsync(int projectId, int structureId);
 
-    Task<StructureServiceResult<StructureCatalogSyncPreviewDto>> PreviewCatalogSyncAsync(int projectId, int structureId);
-
-    Task<StructureServiceResult<StructureCatalogSyncResultDto>> ApplyCatalogSyncAsync(int projectId, int structureId);
-
     Task<StructureServiceResult<IReadOnlyList<StructureUsageDto>>> GetStructureUsagesAsync(
         int projectId,
         string? targetKind,
@@ -53,14 +49,6 @@ public interface IStructureService
 
     Task<StructureServiceResult<StructureUsageDto>> MakeStructureUsageIndividualAsync(int projectId, int usageId);
 
-    Task<StructureServiceResult<StructureCatalogAssignmentSyncPreviewDto>> PreviewCatalogAssignmentSyncAsync(
-        int projectId,
-        int usageId);
-
-    Task<StructureServiceResult<StructureCatalogAssignmentSyncResultDto>> ApplyCatalogAssignmentSyncAsync(
-        int projectId,
-        int usageId);
-
     Task<StructureServiceResult> DeleteStructureUsageAsync(int projectId, int usageId);
 
     Task<StructureServiceResult<IReadOnlyList<StructureAssignmentDto>>> GetStructureAssignmentsAsync(
@@ -68,7 +56,9 @@ public interface IStructureService
         int? structureUsageId,
         int? structureId,
         int? structureNodeId,
-        int? storyObjectId);
+        int? storyObjectId,
+        string? targetKind,
+        int? targetId);
 
     Task<StructureServiceResult<StructureAssignmentDto>> AssignObjectToStructureAsync(
         int projectId,

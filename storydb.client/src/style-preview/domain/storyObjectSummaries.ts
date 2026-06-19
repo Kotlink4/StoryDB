@@ -12,7 +12,6 @@ export const storyObjectSummaryToListItem = (summary: StoryObjectSummary): Story
   ownedTerritories: [],
   hierarchyParents: [],
   hierarchyChildren: [],
-  organizationStructureLevels: [],
   galleryImages: [],
   outgoingCharacterRelationships: [],
   incomingCharacterRelationships: [],

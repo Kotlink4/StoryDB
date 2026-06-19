@@ -65,7 +65,7 @@ public class StructureEndpointTests(StoryDbApiFactory factory) : IClassFixture<S
     }
 
     [Fact]
-    public async Task UpdateLegacyOrganizationStructure_WithLevels_IsRejected()
+    public async Task LegacyOrganizationStructureEndpoint_IsRemoved()
     {
         using var client = factory.CreateClient();
         await TestUserSession.RegisterAsync(client);
@@ -74,28 +74,10 @@ public class StructureEndpointTests(StoryDbApiFactory factory) : IClassFixture<S
 
         var response = await client.PutAsJsonAsync($"/api/projects/{project.Id}/objects/{organization.Id}/structure", new
         {
-            levels = new[]
-            {
-                new
-                {
-                    name = "Leadership",
-                    description = (string?)null,
-                    slots = new[]
-                    {
-                        new
-                        {
-                            name = "Head",
-                            description = (string?)null,
-                            slotType = (string?)null,
-                            color = (string?)null,
-                            iconKey = (string?)null,
-                        },
-                    },
-                },
-            },
+            levels = Array.Empty<object>(),
         });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

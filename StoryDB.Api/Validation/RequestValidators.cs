@@ -283,16 +283,7 @@ public static class RequestValidators
             return "Valid email is required.";
         }
 
-        var normalizedAvatarPath = ValidationRules.NormalizeOptionalText(avatarImagePath);
-        if (normalizedAvatarPath?.Length > 512)
-        {
-            return "Avatar image path must be 512 characters or shorter.";
-        }
-
-        return normalizedAvatarPath is not null &&
-               !normalizedAvatarPath.StartsWith(FileStoragePaths.UploadsRequestPath, StringComparison.Ordinal)
-            ? "Avatar image path must point to an uploaded file."
-            : null;
+        return ValidateOptionalUploadedImagePath(avatarImagePath, "Avatar image path");
     }
 
     public static string? ValidateUploadImage(

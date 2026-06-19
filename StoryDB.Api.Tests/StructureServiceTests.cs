@@ -31,24 +31,7 @@ public sealed class StructureServiceTests
     }
 
     [Fact]
-    public async Task CreateStructureAsync_RejectsCatalogSyncWithoutCatalog()
-    {
-        await using var database = await StructureTestDatabase.CreateAsync();
-        var service = database.CreateService();
-
-        var result = await service.CreateStructureAsync(
-            database.ProjectId,
-            CreateStructureRequest(
-                catalogSyncMode: "catalogEntries",
-                linkedCatalogId: null,
-                nodeBindingMode: "catalogEntry"));
-
-        Assert.Equal(StructureServiceStatus.Invalid, result.Status);
-        Assert.Equal("Linked catalog is required when catalog synchronization is enabled.", result.Error);
-    }
-
-    [Fact]
-    public async Task CreateStructureAsync_RejectsDuplicateCatalogEntryNodeBindings()
+    public async Task CreateStructureAsync_RejectsLinkedCatalog()
     {
         await using var database = await StructureTestDatabase.CreateAsync();
         var catalog = await database.CreateRaceCatalogAsync();
@@ -59,27 +42,32 @@ public sealed class StructureServiceTests
             CreateStructureRequest(
                 catalogSyncMode: "manual",
                 linkedCatalogId: catalog.Id,
-                nodeBindingMode: "catalogEntry",
+                nodeBindingMode: "none"));
+
+        Assert.Equal(StructureServiceStatus.Invalid, result.Status);
+        Assert.Equal("Structures no longer support linked catalogs. Catalog entry scope applies to all project catalogs.", result.Error);
+    }
+
+    [Fact]
+    public async Task CreateStructureAsync_RejectsCatalogNodeBindings()
+    {
+        await using var database = await StructureTestDatabase.CreateAsync();
+        var service = database.CreateService();
+
+        var result = await service.CreateStructureAsync(
+            database.ProjectId,
+            CreateStructureRequest(
+                catalogSyncMode: "manual",
+                linkedCatalogId: null,
+                nodeBindingMode: "none",
                 nodes:
                 [
                     new StructureNodeRequest(
                         "node-a",
                         null,
-                        catalog.HighElfEntryId,
+                        100,
                         null,
-                        "High elves",
-                        null,
-                        null,
-                        null,
-                        null,
-                        0,
-                        0),
-                    new StructureNodeRequest(
-                        "node-b",
-                        null,
-                        catalog.HighElfEntryId,
-                        null,
-                        "High elf duplicate",
+                        "Legacy catalog-linked node",
                         null,
                         null,
                         null,
@@ -89,7 +77,66 @@ public sealed class StructureServiceTests
                 ]));
 
         Assert.Equal(StructureServiceStatus.Invalid, result.Status);
-        Assert.Equal("Each linked catalog entry can be used by only one structure node.", result.Error);
+        Assert.Equal("Structure nodes no longer support catalog links. Store hierarchy data in structure nodes.", result.Error);
+    }
+
+    [Fact]
+    public async Task CreateStructureAsync_AddsProjectUsageForAnyOwnerKind()
+    {
+        await using var database = await StructureTestDatabase.CreateAsync();
+        var catalog = await database.CreateRaceCatalogAsync();
+        var service = database.CreateService();
+
+        var structureResult = await service.CreateStructureAsync(
+            database.ProjectId,
+            CreateStructureRequest(
+                ownerKind: "catalog",
+                ownerId: catalog.Id,
+                applicationScope: "characters",
+                catalogSyncMode: "manual",
+                linkedCatalogId: null,
+                nodeBindingMode: "none",
+                nodes:
+                [
+                    new StructureNodeRequest(
+                        "node-a",
+                        null,
+                        null,
+                        null,
+                        "Elf",
+                        null,
+                        "race",
+                        null,
+                        null,
+                        0,
+                        0),
+                ]));
+
+        Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
+        var usageResult = await service.GetStructureUsagesAsync(
+            database.ProjectId,
+            "project",
+            database.ProjectId,
+            structureResult.Value!.Id);
+        Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
+        var usage = Assert.Single(usageResult.Value!);
+
+        var storyObjectId = await database.CreateStoryObjectAsync("Aria");
+        var assignmentResult = await service.AssignObjectToStructureAsync(
+            database.ProjectId,
+            usage.Id,
+            new StructureAssignmentRequest(
+                structureResult.Value.Nodes.Single().Id,
+                storyObjectId,
+                "storyObject",
+                storyObjectId,
+                "race",
+                null,
+                0));
+
+        Assert.Equal(StructureServiceStatus.Success, assignmentResult.Status);
+        Assert.Equal("Elf", assignmentResult.Value!.StructureNodeName);
+        Assert.Equal(storyObjectId, assignmentResult.Value.TargetId);
     }
 
     [Fact]
@@ -129,222 +176,6 @@ public sealed class StructureServiceTests
     }
 
     [Fact]
-    public async Task ApplyCatalogSyncAsync_CreatesOnlyMissingCatalogTreeNodes()
-    {
-        await using var database = await StructureTestDatabase.CreateAsync();
-        var catalog = await database.CreateRaceCatalogAsync();
-        var service = database.CreateService();
-
-        var createResult = await service.CreateStructureAsync(
-            database.ProjectId,
-            CreateStructureRequest(
-                catalogSyncMode: "catalogTree",
-                linkedCatalogId: catalog.Id,
-                nodeBindingMode: "mixed"));
-
-        Assert.Equal(StructureServiceStatus.Success, createResult.Status);
-        var structureId = createResult.Value!.Id;
-
-        var firstPreview = await service.PreviewCatalogSyncAsync(database.ProjectId, structureId);
-        Assert.Equal(StructureServiceStatus.Success, firstPreview.Status);
-        Assert.Equal(4, firstPreview.Value!.MissingNodeCount);
-        Assert.Equal(0, firstPreview.Value.ExistingNodeCount);
-
-        var firstApply = await service.ApplyCatalogSyncAsync(database.ProjectId, structureId);
-        Assert.Equal(StructureServiceStatus.Success, firstApply.Status);
-        Assert.Equal(4, firstApply.Value!.CreatedNodeCount);
-
-        var secondApply = await service.ApplyCatalogSyncAsync(database.ProjectId, structureId);
-        Assert.Equal(StructureServiceStatus.Success, secondApply.Status);
-        Assert.Equal(0, secondApply.Value!.CreatedNodeCount);
-
-        var seaElfEntryId = await database.AddRaceEntryAsync(catalog.ElvesGroupId, "Sea elves", "A later catalog entry.");
-
-        var changedPreview = await service.PreviewCatalogSyncAsync(database.ProjectId, structureId);
-        Assert.Equal(StructureServiceStatus.Success, changedPreview.Status);
-        Assert.Equal(1, changedPreview.Value!.MissingNodeCount);
-        Assert.Equal(4, changedPreview.Value.ExistingNodeCount);
-
-        var secondSync = await service.ApplyCatalogSyncAsync(database.ProjectId, structureId);
-        Assert.Equal(StructureServiceStatus.Success, secondSync.Status);
-        Assert.Equal(1, secondSync.Value!.CreatedNodeCount);
-        Assert.Equal(5, secondSync.Value.Structure.Nodes.Count);
-
-        var seaElfNode = secondSync.Value.Structure.Nodes.Single(node => node.Name == "Sea elves");
-        var elvesGroupNode = secondSync.Value.Structure.Nodes.Single(node => node.Name == "Elves");
-        Assert.Equal(elvesGroupNode.Id, seaElfNode.ParentNodeId);
-        Assert.Equal(seaElfEntryId, seaElfNode.LinkedCatalogEntryId);
-    }
-
-    [Fact]
-    public async Task ApplyCatalogAssignmentSyncAsync_CreatesAssignmentsFromObjectCatalogSelections()
-    {
-        await using var database = await StructureTestDatabase.CreateAsync();
-        var catalog = await database.CreateRaceCatalogAsync();
-        var service = database.CreateService();
-
-        var structureResult = await service.CreateStructureAsync(
-            database.ProjectId,
-            CreateStructureRequest(
-                catalogSyncMode: "catalogTree",
-                linkedCatalogId: catalog.Id,
-                nodeBindingMode: "mixed"));
-        Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
-        var structureId = structureResult.Value!.Id;
-
-        var nodeSync = await service.ApplyCatalogSyncAsync(database.ProjectId, structureId);
-        Assert.Equal(StructureServiceStatus.Success, nodeSync.Status);
-
-        var highElfObjectId = await database.CreateStoryObjectWithCatalogSelectionAsync(
-            "Aria",
-            catalog.Id,
-            "entry",
-            null,
-            catalog.HighElfEntryId);
-        var elfGroupObjectId = await database.CreateStoryObjectWithCatalogSelectionAsync(
-            "House Silverleaf",
-            catalog.Id,
-            "group",
-            catalog.ElvesGroupId,
-            null);
-
-        var usageResult = await service.AssignStructureAsync(
-            database.ProjectId,
-            structureId,
-            new StructureUsageRequest("project", database.ProjectId, null, null, true));
-        Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
-
-        var preview = await service.PreviewCatalogAssignmentSyncAsync(database.ProjectId, usageResult.Value!.Id);
-        Assert.Equal(StructureServiceStatus.Success, preview.Status);
-        Assert.Equal(2, preview.Value!.MissingAssignmentCount);
-        Assert.Equal(0, preview.Value.ExistingAssignmentCount);
-
-        var sync = await service.ApplyCatalogAssignmentSyncAsync(database.ProjectId, usageResult.Value.Id);
-        Assert.Equal(StructureServiceStatus.Success, sync.Status);
-        Assert.Equal(2, sync.Value!.CreatedAssignmentCount);
-        Assert.Contains(sync.Value.Assignments, assignment =>
-            assignment.StoryObjectId == highElfObjectId &&
-            assignment.StructureNodeName == "High elves");
-        Assert.Contains(sync.Value.Assignments, assignment =>
-            assignment.StoryObjectId == elfGroupObjectId &&
-            assignment.StructureNodeName == "Elves");
-
-        var secondSync = await service.ApplyCatalogAssignmentSyncAsync(database.ProjectId, usageResult.Value.Id);
-        Assert.Equal(StructureServiceStatus.Success, secondSync.Status);
-        Assert.Equal(0, secondSync.Value!.CreatedAssignmentCount);
-        Assert.Equal(2, secondSync.Value.Assignments.Count);
-    }
-
-    [Fact]
-    public async Task ApplyCatalogAssignmentSyncAsync_UsesEntryGroupNodeWhenEntryNodeIsMissing()
-    {
-        await using var database = await StructureTestDatabase.CreateAsync();
-        var catalog = await database.CreateRaceCatalogAsync();
-        var service = database.CreateService();
-
-        var structureResult = await service.CreateStructureAsync(
-            database.ProjectId,
-            CreateStructureRequest(
-                catalogSyncMode: "catalogGroups",
-                linkedCatalogId: catalog.Id,
-                nodeBindingMode: "catalogEntryGroup"));
-        Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
-
-        var nodeSync = await service.ApplyCatalogSyncAsync(database.ProjectId, structureResult.Value!.Id);
-        Assert.Equal(StructureServiceStatus.Success, nodeSync.Status);
-        Assert.Equal(2, nodeSync.Value!.CreatedNodeCount);
-
-        var highElfObjectId = await database.CreateStoryObjectWithCatalogSelectionAsync(
-            "Aria",
-            catalog.Id,
-            "entry",
-            null,
-            catalog.HighElfEntryId);
-
-        var usageResult = await service.AssignStructureAsync(
-            database.ProjectId,
-            structureResult.Value.Id,
-            new StructureUsageRequest("project", database.ProjectId, null, null, true));
-        Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
-
-        var preview = await service.PreviewCatalogAssignmentSyncAsync(database.ProjectId, usageResult.Value!.Id);
-        Assert.Equal(StructureServiceStatus.Success, preview.Status);
-        Assert.Equal(1, preview.Value!.MissingAssignmentCount);
-        Assert.Contains(preview.Value.Items, item =>
-            item.StoryObjectId == highElfObjectId &&
-            item.StructureNodeName == "Elves" &&
-            item.SourceKind == "group" &&
-            item.SourceId == catalog.ElvesGroupId);
-
-        var sync = await service.ApplyCatalogAssignmentSyncAsync(database.ProjectId, usageResult.Value.Id);
-        Assert.Equal(StructureServiceStatus.Success, sync.Status);
-        Assert.Equal(1, sync.Value!.CreatedAssignmentCount);
-        Assert.Contains(sync.Value.Assignments, assignment =>
-            assignment.StoryObjectId == highElfObjectId &&
-            assignment.StructureNodeName == "Elves");
-    }
-
-    [Fact]
-    public async Task ApplyCatalogAssignmentSyncAsync_UsesNearestLinkedAncestorGroupNode()
-    {
-        await using var database = await StructureTestDatabase.CreateAsync();
-        var catalog = await database.CreateRaceCatalogAsync();
-        var service = database.CreateService();
-
-        var structureResult = await service.CreateStructureAsync(
-            database.ProjectId,
-            CreateStructureRequest(
-                catalogSyncMode: "manual",
-                linkedCatalogId: catalog.Id,
-                nodeBindingMode: "catalogEntryGroup",
-                nodes:
-                [
-                    new StructureNodeRequest(
-                        "humanoids",
-                        null,
-                        null,
-                        catalog.HumanoidsGroupId,
-                        "Humanoids",
-                        null,
-                        "group",
-                        null,
-                        null,
-                        0,
-                        0),
-                ]));
-        Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
-
-        var highElfObjectId = await database.CreateStoryObjectWithCatalogSelectionAsync(
-            "Aria",
-            catalog.Id,
-            "entry",
-            null,
-            catalog.HighElfEntryId);
-
-        var usageResult = await service.AssignStructureAsync(
-            database.ProjectId,
-            structureResult.Value!.Id,
-            new StructureUsageRequest("project", database.ProjectId, null, null, true));
-        Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
-
-        var preview = await service.PreviewCatalogAssignmentSyncAsync(database.ProjectId, usageResult.Value!.Id);
-        Assert.Equal(StructureServiceStatus.Success, preview.Status);
-        Assert.Equal(1, preview.Value!.MissingAssignmentCount);
-        Assert.Contains(preview.Value.Items, item =>
-            item.StoryObjectId == highElfObjectId &&
-            item.StructureNodeName == "Humanoids" &&
-            item.SourceKind == "group" &&
-            item.SourceId == catalog.HumanoidsGroupId);
-
-        var sync = await service.ApplyCatalogAssignmentSyncAsync(database.ProjectId, usageResult.Value.Id);
-        Assert.Equal(StructureServiceStatus.Success, sync.Status);
-        Assert.Equal(1, sync.Value!.CreatedAssignmentCount);
-        Assert.Contains(sync.Value.Assignments, assignment =>
-            assignment.StoryObjectId == highElfObjectId &&
-            assignment.StructureNodeName == "Humanoids");
-    }
-
-    [Fact]
     public async Task UpdateStructureNodeDetailsAsync_AllowsDossierEditWhenStructureHasAssignments()
     {
         await using var database = await StructureTestDatabase.CreateAsync();
@@ -375,16 +206,18 @@ public sealed class StructureServiceTests
 
         var nodeId = structureResult.Value!.Nodes.Single().Id;
         var storyObjectId = await database.CreateStoryObjectAsync("Aria");
-        var usageResult = await service.AssignStructureAsync(
+        var usageResult = await service.GetStructureUsagesAsync(
             database.ProjectId,
-            structureResult.Value.Id,
-            new StructureUsageRequest("project", database.ProjectId, null, null, true));
+            "project",
+            database.ProjectId,
+            structureResult.Value.Id);
         Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
+        var usage = Assert.Single(usageResult.Value!);
 
         var assignmentResult = await service.AssignObjectToStructureAsync(
             database.ProjectId,
-            usageResult.Value!.Id,
-            new StructureAssignmentRequest(nodeId, storyObjectId, "leader", null, 0));
+            usage.Id,
+            new StructureAssignmentRequest(nodeId, storyObjectId, "storyObject", storyObjectId, "leader", null, 0));
         Assert.Equal(StructureServiceStatus.Success, assignmentResult.Status);
 
         var fullUpdate = await service.UpdateStructureAsync(
@@ -480,7 +313,7 @@ public sealed class StructureServiceTests
 
         var delete = await service.DeleteStructureAsync(database.ProjectId, structureResult.Value.Id);
         Assert.Equal(StructureServiceStatus.Invalid, delete.Status);
-        Assert.Equal("Structure is referenced by timeline events and cannot be deleted.", delete.Error);
+        Assert.Equal("Structure is used by one or more targets and cannot be deleted.", delete.Error);
 
         var nodeUpdate = await service.UpdateStructureNodeDetailsAsync(
             database.ProjectId,
@@ -504,15 +337,17 @@ public sealed class StructureServiceTests
                 nodeBindingMode: "none"));
         Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
 
-        var usageResult = await service.AssignStructureAsync(
+        var usageResult = await service.GetStructureUsagesAsync(
             database.ProjectId,
-            structureResult.Value!.Id,
-            new StructureUsageRequest("project", database.ProjectId, null, null, true));
+            "project",
+            database.ProjectId,
+            structureResult.Value!.Id);
         Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
+        var usage = Assert.Single(usageResult.Value!);
 
-        await database.CreateTimelineTargetReferenceAsync("structureUsage", usageResult.Value!.Id, asChange: true);
+        await database.CreateTimelineTargetReferenceAsync("structureUsage", usage.Id, asChange: true);
 
-        var delete = await service.DeleteStructureUsageAsync(database.ProjectId, usageResult.Value.Id);
+        var delete = await service.DeleteStructureUsageAsync(database.ProjectId, usage.Id);
         Assert.Equal(StructureServiceStatus.Invalid, delete.Status);
         Assert.Equal("Structure usage is referenced by timeline events and cannot be disconnected.", delete.Error);
     }
@@ -539,16 +374,18 @@ public sealed class StructureServiceTests
         var firstNodeId = structureResult.Value!.Nodes.Single(node => node.Name == "House").Id;
         var secondNodeId = structureResult.Value.Nodes.Single(node => node.Name == "Council").Id;
         var storyObjectId = await database.CreateStoryObjectAsync("Aria");
-        var usageResult = await service.AssignStructureAsync(
+        var usageResult = await service.GetStructureUsagesAsync(
             database.ProjectId,
-            structureResult.Value.Id,
-            new StructureUsageRequest("project", database.ProjectId, null, null, true));
+            "project",
+            database.ProjectId,
+            structureResult.Value.Id);
         Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
+        var usage = Assert.Single(usageResult.Value!);
 
         var assignmentResult = await service.AssignObjectToStructureAsync(
             database.ProjectId,
-            usageResult.Value!.Id,
-            new StructureAssignmentRequest(firstNodeId, storyObjectId, "member", null, 0));
+            usage.Id,
+            new StructureAssignmentRequest(firstNodeId, storyObjectId, "storyObject", storyObjectId, "member", null, 0));
         Assert.Equal(StructureServiceStatus.Success, assignmentResult.Status);
 
         await database.CreateTimelineTargetReferenceAsync("structureAssignment", assignmentResult.Value!.Id, asChange: false);
@@ -560,16 +397,16 @@ public sealed class StructureServiceTests
         var retarget = await service.UpdateStructureAssignmentAsync(
             database.ProjectId,
             assignmentResult.Value.Id,
-            new StructureAssignmentRequest(secondNodeId, storyObjectId, "member", null, 0));
+            new StructureAssignmentRequest(secondNodeId, storyObjectId, "storyObject", storyObjectId, "member", null, 0));
         Assert.Equal(StructureServiceStatus.Invalid, retarget.Status);
         Assert.Equal(
-            "Structure assignment is referenced by timeline events. Remove timeline references before changing its object or node.",
+            "Structure assignment is referenced by timeline events. Remove timeline references before changing its target or node.",
             retarget.Error);
 
         var metadataUpdate = await service.UpdateStructureAssignmentAsync(
             database.ProjectId,
             assignmentResult.Value.Id,
-            new StructureAssignmentRequest(firstNodeId, storyObjectId, "heir", "Changed label only.", 1));
+            new StructureAssignmentRequest(firstNodeId, storyObjectId, "storyObject", storyObjectId, "heir", "Changed label only.", 1));
         Assert.Equal(StructureServiceStatus.Success, metadataUpdate.Status);
         Assert.Equal("heir", metadataUpdate.Value!.RoleLabel);
         Assert.Equal("Changed label only.", metadataUpdate.Value.Notes);
@@ -615,13 +452,17 @@ public sealed class StructureServiceTests
         string? catalogSyncMode,
         int? linkedCatalogId,
         string nodeBindingMode,
+        string ownerKind = "project",
+        int? ownerId = null,
+        string applicationScope = "characters",
         IReadOnlyList<StructureNodeRequest>? nodes = null,
         IReadOnlyList<StructureEdgeRequest>? edges = null) =>
         new(
             "Race system",
             "Reusable world structure.",
-            "project",
-            null,
+            ownerKind,
+            ownerId,
+            applicationScope,
             "tree",
             nodeBindingMode,
             catalogSyncMode,

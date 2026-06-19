@@ -4,7 +4,7 @@ export type GroupDisplayMode = 'blocks' | 'subtabs'
 
 export type ObjectDossierTab = 'main' | 'relations' | 'structure' | 'timeline' | 'gallery'
 
-export type ObjectEditorTab = 'main' | 'attributes' | 'catalogs' | 'hierarchy' | 'relations' | 'timeline'
+export type ObjectEditorTab = 'main' | 'attributes' | 'catalogs' | 'hierarchy' | 'relations' | 'structure' | 'timeline'
 
 export type DraftTimelineParticipation = {
   timelineEventId: string

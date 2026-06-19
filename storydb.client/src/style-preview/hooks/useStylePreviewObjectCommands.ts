@@ -496,29 +496,10 @@ export function useStylePreviewObjectCommands({
       return
     }
 
-    const temporaryObjectId = objectId === null ? -Date.now() : objectId
     const optimisticObject =
-      objectId === null || (previousObject !== null && previousObject.id === objectId)
+      previousObject !== null && previousObject.id === objectId
         ? {
-            ...(previousObject ?? {
-              id: temporaryObjectId,
-              typeKey: section,
-              hierarchySelections: [],
-              catalogSelections: [],
-              ownedItems: [],
-              owners: [],
-              territoryPlaces: [],
-              organizationsOnTerritory: [],
-              ownerOrganizations: [],
-              ownedTerritories: [],
-              hierarchyParents: [],
-              hierarchyChildren: [],
-              organizationStructureLevels: [],
-              galleryImages: [],
-              outgoingCharacterRelationships: [],
-              incomingCharacterRelationships: [],
-            }),
-            id: temporaryObjectId,
+            ...previousObject,
             name: objectName.trim(),
             surname: objectSurname.trim() || null,
             surnameForm: section === 'organizations' ? objectSurnameForm.trim() || null : null,
@@ -551,9 +532,7 @@ export function useStylePreviewObjectCommands({
     setIsObjectSaving(true)
     if (optimisticObject !== null) {
       setObjects((currentObjects) =>
-        objectId === null
-          ? [optimisticObject, ...currentObjects]
-          : currentObjects.map((storyObject) => (storyObject.id === optimisticObject.id ? optimisticObject : storyObject)),
+        currentObjects.map((storyObject) => (storyObject.id === optimisticObject.id ? optimisticObject : storyObject)),
       )
       if (shouldSelectSavedObject) {
         setSelectedObjectId(optimisticObject.id)
@@ -625,7 +604,7 @@ export function useStylePreviewObjectCommands({
 
       setObjects((currentObjects) =>
         objectId === null
-          ? currentObjects.map((storyObject) => (storyObject.id === temporaryObjectId ? mergeSavedSummary(storyObject) : storyObject))
+          ? [saved, ...currentObjects.filter((storyObject) => storyObject.id !== saved.id)]
           : currentObjects.map((storyObject) => (storyObject.id === saved.id ? mergeSavedSummary(storyObject) : storyObject)),
       )
       if (shouldSelectSavedObject) {
@@ -666,9 +645,6 @@ export function useStylePreviewObjectCommands({
           currentObjects.map((storyObject) => (storyObject.id === previousObject.id ? previousObject : storyObject)),
         )
         setSelectedObjectId(previousObject.id)
-      } else if (optimisticObject !== null) {
-        setObjects((currentObjects) => currentObjects.filter((storyObject) => storyObject.id !== optimisticObject.id))
-        setSelectedObjectId(null)
       }
       showErrorMessage(messages.objectSaveFailed)
     } finally {

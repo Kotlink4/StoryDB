@@ -166,7 +166,6 @@ export function useStylePreviewCatalogCommands({
       showErrorMessage(validationMessage)
       return
     }
-
     try {
       const saved =
         editingCatalogId === null

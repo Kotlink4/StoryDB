@@ -208,7 +208,8 @@ describe('object filters', () => {
 describe('frontend validation', () => {
   it('validates object current status and image paths', () => {
     expect(validateObjectDraft('Lilia', '', '', '', '', '', 'x'.repeat(121), null)).toContain('Текущий статус')
-    expect(validateObjectDraft('Lilia', '', '', '', '', '', 'Active', '/uploads/images/lilia.png')).toBeNull()
+    expect(validateObjectDraft('Lilia', '', '', '', '', '', 'Active', '/uploads/projects/3/images/2026/06/lilia/gallery.webp')).toBeNull()
+    expect(validateObjectDraft('Lilia', '', '', '', '', '', 'Active', '/uploads/images/lilia.png')).toContain('Обложка')
     expect(validateObjectDraft('Lilia', '', '', '', '', '', 'Active', '/external/lilia.png')).toContain('Обложка')
   })
 

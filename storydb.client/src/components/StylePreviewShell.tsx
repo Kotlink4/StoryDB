@@ -260,6 +260,64 @@ export function StylePreviewSidebar({
   onSelectCatalogGroup: (groupId: number | null) => void
 }) {
   const catalogGroupTree = buildCatalogGroupTree(catalogGroups)
+  const renderCatalog = (catalog: Catalog) => {
+    const isSelected = activeSection === 'catalogs' && activeTab === 'database' && selectedCatalog?.id === catalog.id
+
+    return (
+      <div className="sp-sidebar-catalog" key={catalog.id}>
+        <div className="sp-sidebar-catalog-row">
+          <button
+            className={isSelected ? 'active' : ''}
+            type="button"
+            onClick={() => {
+              onSelectCatalogGroup(null)
+              onNavigateWorkspace('database', 'catalogs', null, catalog.id)
+            }}
+          >
+            <SectionIcon name="catalogs" />
+            {catalog.name}
+          </button>
+          <KebabMenu
+            ui={ui}
+            onDelete={() => onDeleteCatalog(catalog)}
+            onEdit={() => onEditCatalog(catalog)}
+          />
+        </div>
+        {groupDisplayMode === 'subtabs' &&
+          isSelected && (
+            <div className="sp-sidebar-subtabs">
+              <button
+                className={selectedCatalogGroupId === null ? 'active' : ''}
+                type="button"
+                onClick={() => onSelectCatalogGroup(null)}
+              >
+                {ui.all}
+              </button>
+              {catalogGroupTree.map(({ group, depth }) => (
+                <div className="sp-sidebar-subtab-row" key={group.id}>
+                  <button
+                    className={selectedCatalogGroupId === group.id ? 'active' : ''}
+                    style={{ '--catalog-group-indent': `${depth * 14}px` } as CSSProperties}
+                    type="button"
+                    onClick={() => onSelectCatalogGroup(group.id)}
+                  >
+                    {group.name}
+                  </button>
+                  <KebabMenu
+                    ui={ui}
+                    onDelete={() => onDeleteCatalogGroup(group)}
+                    onEdit={() => onEditCatalogGroup(group)}
+                  />
+                </div>
+              ))}
+              <button className="sp-sidebar-create" type="button" onClick={onCreateCatalogGroup}>
+                + {ui.newGroup}
+              </button>
+            </div>
+          )}
+      </div>
+    )
+  }
 
   return (
     <aside className="sp-sidebar">
@@ -345,66 +403,8 @@ export function StylePreviewSidebar({
             ))}
           </div>
         )}
-        {visibleCatalogs.map((catalog) => (
-          <div className="sp-sidebar-catalog" key={catalog.id}>
-            <div className="sp-sidebar-catalog-row">
-              <button
-                className={
-                  activeSection === 'catalogs' && activeTab === 'database' && selectedCatalog?.id === catalog.id
-                    ? 'active'
-                    : ''
-                }
-                type="button"
-                onClick={() => {
-                  onSelectCatalogGroup(null)
-                  onNavigateWorkspace('database', 'catalogs', null, catalog.id)
-                }}
-              >
-                <SectionIcon name="catalogs" />
-                {catalog.name}
-              </button>
-              <KebabMenu
-                ui={ui}
-                onDelete={() => onDeleteCatalog(catalog)}
-                onEdit={() => onEditCatalog(catalog)}
-              />
-            </div>
-            {groupDisplayMode === 'subtabs' &&
-              activeSection === 'catalogs' &&
-              activeTab === 'database' &&
-              selectedCatalog?.id === catalog.id && (
-                <div className="sp-sidebar-subtabs">
-                  <button
-                    className={selectedCatalogGroupId === null ? 'active' : ''}
-                    type="button"
-                    onClick={() => onSelectCatalogGroup(null)}
-                  >
-                    {ui.all}
-                  </button>
-                  {catalogGroupTree.map(({ group, depth }) => (
-                    <div className="sp-sidebar-subtab-row" key={group.id}>
-                      <button
-                        className={selectedCatalogGroupId === group.id ? 'active' : ''}
-                        style={{ '--catalog-group-indent': `${depth * 14}px` } as CSSProperties}
-                        type="button"
-                        onClick={() => onSelectCatalogGroup(group.id)}
-                      >
-                        {group.name}
-                      </button>
-                      <KebabMenu
-                        ui={ui}
-                        onDelete={() => onDeleteCatalogGroup(group)}
-                        onEdit={() => onEditCatalogGroup(group)}
-                      />
-                    </div>
-                  ))}
-                  <button className="sp-sidebar-create" type="button" onClick={onCreateCatalogGroup}>
-                    + {ui.newGroup}
-                  </button>
-                </div>
-              )}
-          </div>
-        ))}
+        {visibleCatalogs.length > 0 && <p>{ui.normalCatalogs}</p>}
+        {visibleCatalogs.map(renderCatalog)}
         {currentUser !== null && (
           <button className="sp-sidebar-create" type="button" onClick={onCreateCatalog}>
             + {ui.newCatalog}

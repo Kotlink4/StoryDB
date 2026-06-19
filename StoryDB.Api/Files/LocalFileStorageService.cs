@@ -75,43 +75,6 @@ public sealed class LocalFileStorageService : IFileStorageService
             cancellationToken);
     }
 
-    public async Task<StoredFile?> MigrateImageAsync(
-        string requestPath,
-        int? projectId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedPath = requestPath.Trim();
-        if (!normalizedPath.StartsWith(FileStoragePaths.LegacyImageRequestPath, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var localPath = GetLocalUploadedFilePath(normalizedPath);
-        if (localPath is null || !File.Exists(localPath))
-        {
-            logger.LogWarning("Legacy uploaded image {Path} was not found during media migration.", normalizedPath);
-            return null;
-        }
-
-        var extension = Path.GetExtension(localPath).ToLowerInvariant();
-        var contentType = ImageContentTypes.FirstOrDefault(pair => pair.Value.Equals(extension, StringComparison.OrdinalIgnoreCase)).Key;
-        if (string.IsNullOrWhiteSpace(contentType))
-        {
-            logger.LogWarning("Legacy uploaded image {Path} has unsupported extension {Extension}.", normalizedPath, extension);
-            return null;
-        }
-
-        await using var sourceStream = File.OpenRead(localPath);
-        return await SaveImageCoreAsync(
-            sourceStream,
-            Path.GetFileName(localPath),
-            extension,
-            contentType,
-            new FileInfo(localPath).Length,
-            projectId,
-            cancellationToken);
-    }
-
     public bool IsUploadedImagePath(string? path) => FileStoragePaths.IsUploadedImagePath(path);
 
     public Task<bool> DeleteUploadedFileAsync(string? path, CancellationToken cancellationToken = default)

@@ -12,7 +12,6 @@ namespace StoryDB.Api.IntegrationTests;
 public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixture<StoryDbApiFactory>
 {
     private const int StructureNodeLayoutIdBase = 1_000_000_000;
-    private const int CatalogEntryLayoutIdBase = 1_200_000_000;
 
     [Fact]
     public async Task PublicReadProject_IsVisibleButNotWritableToAnotherUser()
@@ -97,7 +96,8 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
         var catalogs = await readerClient.GetFromJsonAsync<IReadOnlyList<CatalogDto>>(
             $"/api/projects/{targetProject.Id}/catalogs");
         Assert.NotNull(catalogs);
-        Assert.Contains(catalogs, catalog => catalog.Name == "Расы");
+        Assert.Contains(catalogs, catalog => catalog.Name == "Культуры");
+        Assert.DoesNotContain(catalogs, catalog => catalog.Name == "Расы");
 
         var attributes = await readerClient.GetFromJsonAsync<IReadOnlyList<AttributeDefinitionDto>>(
             $"/api/projects/{targetProject.Id}/attribute-definitions?typeKey=characters");
@@ -113,7 +113,8 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
         var existingProjectCatalogs = await readerClient.GetFromJsonAsync<IReadOnlyList<CatalogDto>>(
             $"/api/projects/{existingProject.Id}/catalogs");
         Assert.NotNull(existingProjectCatalogs);
-        Assert.Contains(existingProjectCatalogs, catalog => catalog.Name == "Расы");
+        Assert.Contains(existingProjectCatalogs, catalog => catalog.Name == "Культуры");
+        Assert.DoesNotContain(existingProjectCatalogs, catalog => catalog.Name == "Расы");
     }
 
     [Fact]
@@ -162,7 +163,7 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
     }
 
     [Fact]
-    public async Task TemplatePack_PreservesStructureCatalogLinks()
+    public async Task TemplatePack_PreservesIndependentStructureNodes()
     {
         using var client = factory.CreateClient();
         await TestUserSession.RegisterAsync(client);
@@ -205,11 +206,12 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
         {
             name = "Классификация рас",
             description = "Race tree",
-            ownerKind = "catalog",
-            ownerId = catalog.Id,
+            ownerKind = "project",
+            ownerId = (int?)null,
             layoutKind = "tree",
-            nodeBindingMode = "mixed",
-            linkedCatalogId = catalog.Id,
+            nodeBindingMode = "none",
+            catalogSyncMode = "manual",
+            linkedCatalogId = (int?)null,
             nodes = new[]
             {
                 new
@@ -217,7 +219,7 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
                     clientId = "natural",
                     parentClientId = (string?)null,
                     linkedCatalogEntryId = (int?)null,
-                    linkedCatalogEntryGroupId = (int?)group.Id,
+                    linkedCatalogEntryGroupId = (int?)null,
                     name = "Естественные",
                     description = "Natural races",
                     nodeType = "branch",
@@ -230,7 +232,7 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
                 {
                     clientId = "elves",
                     parentClientId = (string?)"natural",
-                    linkedCatalogEntryId = (int?)entry.Id,
+                    linkedCatalogEntryId = (int?)null,
                     linkedCatalogEntryGroupId = (int?)null,
                     name = "Эльфы",
                     description = "Elf race node",
@@ -284,14 +286,14 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
             $"/api/projects/{targetProject.Id}/structures");
         Assert.NotNull(structures);
         var structureSummary = Assert.Single(structures, structure => structure.Name == "Классификация рас");
-        Assert.Equal(targetCatalog.Id, structureSummary.LinkedCatalogId);
+        Assert.Null(structureSummary.LinkedCatalogId);
 
         var structure = await client.GetFromJsonAsync<StructureDto>(
             $"/api/projects/{targetProject.Id}/structures/{structureSummary.Id}");
         Assert.NotNull(structure);
-        Assert.Equal(targetCatalog.Id, structure.LinkedCatalogId);
-        Assert.Contains(structure.Nodes, node => node.Name == "Естественные" && node.LinkedCatalogEntryGroupId is not null);
-        var elfNode = Assert.Single(structure.Nodes, node => node.Name == "Эльфы" && node.LinkedCatalogEntryId is not null);
+        Assert.Null(structure.LinkedCatalogId);
+        Assert.Contains(structure.Nodes, node => node.Name == "Естественные" && node.LinkedCatalogEntryGroupId is null);
+        var elfNode = Assert.Single(structure.Nodes, node => node.Name == "Эльфы" && node.LinkedCatalogEntryId is null);
 
         var layoutResponse = await client.PutAsJsonAsync($"/api/projects/{targetProject.Id}/relations/layout", new
         {
@@ -307,15 +309,6 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
                     height = 76,
                     isPinned = true,
                 },
-                new
-                {
-                    storyObjectId = CatalogEntryLayoutIdBase + elfNode.LinkedCatalogEntryId!.Value,
-                    x = 420,
-                    y = 180,
-                    width = 230,
-                    height = 76,
-                    isPinned = true,
-                },
             },
         });
         Assert.Equal(HttpStatusCode.OK, layoutResponse.StatusCode);
@@ -323,7 +316,7 @@ public class TemplatePackEndpointTests(StoryDbApiFactory factory) : IClassFixtur
         var savedLayout = await client.GetFromJsonAsync<RelationGraphLayoutDto>(
             $"/api/projects/{targetProject.Id}/relations/layout?graphKey=structure:{structure.Id}");
         Assert.NotNull(savedLayout);
-        Assert.Equal(2, savedLayout.Items.Count);
+        Assert.Single(savedLayout.Items);
     }
 
     private static async Task<ProjectListItemDto> CreateProjectAsync(

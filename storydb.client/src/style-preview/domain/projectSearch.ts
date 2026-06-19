@@ -13,7 +13,7 @@ import type {
 } from '../../types'
 import type { ProjectSearchResultGroup } from '../../components/ProjectSearchResults'
 
-type ProjectSearchOptions = {
+export type ProjectSearchOptions = {
   attributeDefinitions: AttributeDefinition[]
   attributeGroups: AttributeGroup[]
   catalogEntriesByCatalogId: Record<number, CatalogEntry[]>

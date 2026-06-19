@@ -26,7 +26,6 @@ public class StoryObject
     public List<ObjectOwnership> Owners { get; set; } = [];
     public List<ObjectRelation> OutgoingRelations { get; set; } = [];
     public List<ObjectRelation> IncomingRelations { get; set; } = [];
-    public List<OrganizationStructureLevel> OrganizationStructureLevels { get; set; } = [];
     public List<CharacterRelationship> OutgoingCharacterRelationships { get; set; } = [];
     public List<CharacterRelationship> IncomingCharacterRelationships { get; set; } = [];
     public List<StructureAssignment> StructureAssignments { get; set; } = [];

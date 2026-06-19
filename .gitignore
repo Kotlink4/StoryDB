@@ -33,6 +33,7 @@ bld/
 [Ll]og/
 [Ll]ogs/
 data/
+tmp/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -285,7 +286,12 @@ FakesAssemblies/
 # Node.js Tools for Visual Studio
 .ntvs_analysis.dat
 node_modules/
+storydb.client/dist/
 .env
+
+# Local StoryDB runtime artifacts
+StoryDB.Api/uploads/
+StoryDB.Api/storydb.sqlite*
 
 # Local StoryDB image export artifacts
 tmp/storydb-image-export/*.tar

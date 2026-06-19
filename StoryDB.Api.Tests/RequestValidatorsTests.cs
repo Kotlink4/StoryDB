@@ -49,6 +49,15 @@ public class RequestValidatorsTests
             null,
             "Active",
             "/external/lilia.png");
+        var legacyImageError = RequestValidators.ValidateStoryObject(
+            "Lilia",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Active",
+            "/uploads/images/lilia.png");
         var valid = RequestValidators.ValidateStoryObject(
             "Lilia",
             "Crowell",
@@ -57,10 +66,11 @@ public class RequestValidatorsTests
             "17",
             "Hero",
             "Active",
-            "/uploads/images/lilia.png");
+            "/uploads/projects/3/images/2026/06/lilia/gallery.webp");
 
         Assert.Equal("Current status must be 120 characters or shorter.", statusError);
         Assert.Equal("Object image path must reference an uploaded image.", imageError);
+        Assert.Equal("Object image path must reference an uploaded image.", legacyImageError);
         Assert.Null(valid);
     }
 
@@ -167,6 +177,27 @@ public class RequestValidatorsTests
         Assert.Equal("Object type key is required.", missingType);
         Assert.Equal("Select attributes require at least one option.", selectError);
         Assert.Equal("Attribute group icon key must be 80 characters or shorter.", iconError);
+        Assert.Null(valid);
+    }
+
+    [Fact]
+    public void ValidateAuthProfile_ChecksUploadedAvatarImage()
+    {
+        var externalPathError = RequestValidators.ValidateAuthProfile(
+            "writer@example.com",
+            "Writer",
+            "/external/avatar.png");
+        var nonImageUploadError = RequestValidators.ValidateAuthProfile(
+            "writer@example.com",
+            "Writer",
+            "/uploads/documents/avatar.txt");
+        var valid = RequestValidators.ValidateAuthProfile(
+            "writer@example.com",
+            "Writer",
+            "/uploads/global/images/avatar.webp");
+
+        Assert.Equal("Avatar image path must reference an uploaded image.", externalPathError);
+        Assert.Equal("Avatar image path must reference an uploaded image.", nonImageUploadError);
         Assert.Null(valid);
     }
 }

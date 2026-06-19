@@ -154,7 +154,9 @@ export function useStylePreviewLayoutProps({
   const hasDetailPanel = !isUtilityPage &&
     detailMode === 'panel' &&
     ((activeTab === 'database' &&
-      (selectedObject !== null || (activeSection === 'catalogs' && selectedCatalogEntry !== null))) ||
+      (selectedObject !== null ||
+        (activeSection === 'catalogs' && selectedCatalogEntry !== null) ||
+        (activeSection === 'structures' && detailPanels.structureDetailPanel !== null))) ||
       (activeTab === 'relations' && (selectedRelationEdge !== null || selectedRelationObject !== null)) ||
       (activeTab === 'timeline' && selectedTimelineEvent !== null))
 

@@ -64,7 +64,6 @@ builder.Services.AddScoped<ProjectAccessFilter>();
 builder.Services.AddScoped<TimelineEventValidator>();
 builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddSingleton<IApiMetricsService, ApiMetricsService>();
-builder.Services.AddScoped<MediaMigrationService>();
 builder.Services.AddMemoryCache(options =>
 {
     options.SizeLimit = GetPositiveConfigurationValue(builder.Configuration, "MemoryCache:SizeLimit", 2048);
@@ -246,8 +245,6 @@ using (var scope = app.Services.CreateScope())
     var scopedFileStorageService = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
     scopedFileStorageService.EnsureUploadsRoot();
 
-    var mediaMigrationService = scope.ServiceProvider.GetRequiredService<MediaMigrationService>();
-    await mediaMigrationService.MigrateLegacyImagesAsync();
 }
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
