@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using StoryDB.Api.Contracts.Attributes;
 using StoryDB.Api.Contracts.Catalogs;
 using StoryDB.Api.Contracts.Projects;
@@ -21,9 +22,12 @@ public sealed class ProjectSnapshotService(
     ICatalogService catalogService,
     IRelationService relationService,
     IStructureService structureService,
-    ITimelineService timelineService) : IProjectSnapshotService
+    ITimelineService timelineService,
+    IConfiguration configuration) : IProjectSnapshotService
 {
     private const int SnapshotSchemaVersion = 1;
+    private const int DefaultRetainedCurrentRevisions = 5;
+    private const int DefaultRetainedPublishedRevisions = 1;
     private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
     private const ProjectSnapshotBuildSections FullSnapshotBuild =
         ProjectSnapshotBuildSections.Project |
@@ -162,8 +166,43 @@ public sealed class ProjectSnapshotService(
 
         dbContext.ProjectSnapshots.Add(snapshot);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await PruneOldSnapshotsAsync(projectId, scope, cancellationToken);
 
         return ProjectSnapshotServiceResult<ProjectSnapshotDto>.Success(ToDto(snapshot));
+    }
+
+    private async Task PruneOldSnapshotsAsync(
+        int projectId,
+        string scope,
+        CancellationToken cancellationToken)
+    {
+        var retainedRevisionCount = GetRetainedRevisionCount(scope);
+        var staleSnapshots = await dbContext.ProjectSnapshots
+            .Where(snapshot => snapshot.ProjectId == projectId && snapshot.Scope == scope)
+            .OrderByDescending(snapshot => snapshot.Revision)
+            .Skip(retainedRevisionCount)
+            .ToListAsync(cancellationToken);
+
+        if (staleSnapshots.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.ProjectSnapshots.RemoveRange(staleSnapshots);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private int GetRetainedRevisionCount(string scope)
+    {
+        var key = string.Equals(scope, ProjectSnapshotScope.Published, StringComparison.OrdinalIgnoreCase)
+            ? "ProjectSnapshots:RetainedPublishedRevisions"
+            : "ProjectSnapshots:RetainedCurrentRevisions";
+        var fallback = string.Equals(scope, ProjectSnapshotScope.Published, StringComparison.OrdinalIgnoreCase)
+            ? DefaultRetainedPublishedRevisions
+            : DefaultRetainedCurrentRevisions;
+        var configuredValue = configuration.GetValue(key, fallback);
+
+        return configuredValue > 0 ? configuredValue : fallback;
     }
 
     private async Task<ProjectSnapshotDataDto> BuildSnapshotDataAsync(

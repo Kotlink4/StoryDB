@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using StoryDB.Api.Contracts.Objects;
 using StoryDB.Api.Contracts.Projects;
 using StoryDB.Api.Data;
+using StoryDB.Api.Data.Entities;
 
 namespace StoryDB.Api.IntegrationTests;
 
@@ -169,6 +170,43 @@ public class ProjectSnapshotEndpointTests(StoryDbApiFactory factory) : IClassFix
             new ProjectSnapshotRebuildRequest(["objects", "unknown"]));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PublishSnapshot_PrunesOldRevisionsPerScope()
+    {
+        using var client = factory.CreateClient();
+        await TestUserSession.RegisterAsync(client);
+        var project = await CreateProjectAsync(client);
+        await CreateObjectAsync(client, project.Id);
+
+        for (var index = 0; index < 7; index++)
+        {
+            var publishResponse = await client.PostAsync($"/api/projects/{project.Id}/snapshot/publish", null);
+            Assert.Equal(HttpStatusCode.OK, publishResponse.StatusCode);
+        }
+
+        for (var index = 0; index < 3; index++)
+        {
+            var publishResponse = await client.PostAsync($"/api/projects/{project.Id}/snapshot/publish-public", null);
+            Assert.Equal(HttpStatusCode.OK, publishResponse.StatusCode);
+        }
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<StoryDbContext>();
+        var currentRevisions = dbContext.ProjectSnapshots
+            .Where(snapshot => snapshot.ProjectId == project.Id && snapshot.Scope == ProjectSnapshotScope.Current)
+            .OrderBy(snapshot => snapshot.Revision)
+            .Select(snapshot => snapshot.Revision)
+            .ToList();
+        var publishedRevisions = dbContext.ProjectSnapshots
+            .Where(snapshot => snapshot.ProjectId == project.Id && snapshot.Scope == ProjectSnapshotScope.Published)
+            .OrderBy(snapshot => snapshot.Revision)
+            .Select(snapshot => snapshot.Revision)
+            .ToList();
+
+        Assert.Equal([3, 4, 5, 6, 7], currentRevisions);
+        Assert.Equal([10], publishedRevisions);
     }
 
     [Fact]
