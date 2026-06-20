@@ -170,8 +170,8 @@ export function CatalogEntryDetail({
   entry: CatalogEntry
   textLinkTargets: TextLinkTarget[]
   ui: PreviewText
-  onDelete: () => void
-  onEdit: () => void
+  onDelete?: () => void
+  onEdit?: () => void
 }) {
   const imageUrl = resolveAssetUrl(entry.imagePath)
 

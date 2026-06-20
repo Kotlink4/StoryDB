@@ -105,9 +105,9 @@ export function buildStylePreviewCatalogEntryDetailPageProps({
   ui,
 }: {
   catalogEntryDetailProps: CatalogEntryDetailPageProps['catalogEntryDetailProps']
-  openEditCatalogEntry: (entry: CatalogEntry) => void
+  openEditCatalogEntry: ((entry: CatalogEntry) => void) | undefined
   setDialog: Dispatch<SetStateAction<PreviewDialogKind>>
-  setPendingDeleteCatalogEntryId: Dispatch<SetStateAction<number | null>>
+  setPendingDeleteCatalogEntryId: Dispatch<SetStateAction<number | null>> | undefined
   setSelectedCatalogEntryId: Dispatch<SetStateAction<number | null>>
   ui: PreviewText
 }): CatalogEntryDetailPageProps {
@@ -115,10 +115,12 @@ export function buildStylePreviewCatalogEntryDetailPageProps({
     catalogEntryDetailProps,
     ui,
     onBack: () => setSelectedCatalogEntryId(null),
-    onDelete: (entry) => {
-      setPendingDeleteCatalogEntryId(entry.id)
-      setDialog('confirmDeleteCatalogEntry')
-    },
+    onDelete: setPendingDeleteCatalogEntryId === undefined
+      ? undefined
+      : (entry) => {
+          setPendingDeleteCatalogEntryId(entry.id)
+          setDialog('confirmDeleteCatalogEntry')
+        },
     onEdit: openEditCatalogEntry,
   }
 }

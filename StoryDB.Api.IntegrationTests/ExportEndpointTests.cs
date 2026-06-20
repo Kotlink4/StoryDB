@@ -46,6 +46,50 @@ public sealed class ExportEndpointTests(StoryDbApiFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task DossierExport_UsesCurrentSnapshotInsteadOfLiveObjectData()
+    {
+        using var client = factory.CreateClient();
+        await TestUserSession.RegisterAsync(client);
+        var project = await CreateProjectAsync(client);
+        await CreateAttributeDefinitionAsync(client, project.Id);
+        var storyObject = await CreateObjectAsync(client, project.Id, "Сохраненная", "Версия", null, null);
+
+        var publishResponse = await client.PostAsync($"/api/projects/{project.Id}/snapshot/publish", null);
+        Assert.Equal(HttpStatusCode.OK, publishResponse.StatusCode);
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/projects/{project.Id}/objects/{storyObject.Id}", new
+        {
+            name = "Живая",
+            surname = "Правка",
+            surnameForm = storyObject.SurnameForm,
+            description = "Это изменение не должно попасть в экспорт до нового snapshot.",
+            age = storyObject.Age,
+            role = "Новая роль",
+            currentStatus = "Черновик",
+            imagePath = storyObject.ImagePath,
+            attributes = Array.Empty<object>(),
+            hierarchySelections = Array.Empty<object>(),
+            catalogSelections = Array.Empty<object>(),
+            ownedItemIds = Array.Empty<int>(),
+            ownerCharacterIds = Array.Empty<int>(),
+            territoryPlaceIds = Array.Empty<int>(),
+            ownerOrganizationIds = Array.Empty<int>(),
+            parentObjectIds = Array.Empty<int>(),
+            characterRelationships = Array.Empty<object>(),
+        });
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+
+        var response = await client.GetAsync($"/api/projects/{project.Id}/exports/dossiers.docx?objectIds={storyObject.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var documentText = ExtractDocxText(await response.Content.ReadAsByteArrayAsync());
+        Assert.Contains("Сохраненная Версия", documentText);
+        Assert.Contains("Активна", documentText);
+        Assert.DoesNotContain("Живая Правка", documentText);
+        Assert.DoesNotContain("Черновик", documentText);
+    }
+
+    [Fact]
     public async Task DossierExport_PrivateProjectForAnotherUser_ReturnsNotFound()
     {
         using var ownerClient = factory.CreateClient();

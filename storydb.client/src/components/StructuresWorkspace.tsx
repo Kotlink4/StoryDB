@@ -15,6 +15,7 @@ import {
 import type {
   Catalog,
   CatalogEntry,
+  Structure,
   StructureAssignment,
   StructureDraft,
   StructureEdgeDraft,
@@ -55,6 +56,8 @@ export function StructuresWorkspace({
   errorMessage,
   detailMode,
   selectedProject,
+  snapshotStructures,
+  snapshotStructureUsages,
   ui,
   onDetailPanelChange,
   onError,
@@ -65,6 +68,8 @@ export function StructuresWorkspace({
   errorMessage: string
   detailMode: DetailMode
   selectedProject: StoryProject
+  snapshotStructures: Structure[] | null
+  snapshotStructureUsages: StructureUsage[] | null
   ui: PreviewText
   onDetailPanelChange: (panel: ReactNode | null) => void
   onError: (message: string) => void
@@ -128,10 +133,25 @@ export function StructuresWorkspace({
   const canSaveStructure =
     draft.name.trim().length > 0 &&
     !isSaving
+  const snapshotStructureSummaries = useMemo(
+    () =>
+      snapshotStructures?.map((structure) => ({
+        ...structure,
+        edgeCount: structure.edges.length,
+        nodeCount: structure.nodes.length,
+        usageCount: snapshotStructureUsages?.filter((usage) => usage.structureId === structure.id).length ?? 0,
+      })) ?? null,
+    [snapshotStructureUsages, snapshotStructures],
+  )
 
   const loadStructures = useCallback(async () => {
+    if (snapshotStructureSummaries !== null) {
+      setStructures(snapshotStructureSummaries)
+      return
+    }
+
     setStructures(await fetchStructures(selectedProject.id))
-  }, [selectedProject.id])
+  }, [selectedProject.id, snapshotStructureSummaries])
 
   useEffect(() => {
     setDraft(emptyStructureDraft(selectedProject.id))

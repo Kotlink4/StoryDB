@@ -89,7 +89,7 @@ export function StylePreviewObjectDetailPage({
   selectedObject: StoryObject
   ui: PreviewText
   onBack: () => void
-  onEdit: (storyObject: StoryObject) => void
+  onEdit?: (storyObject: StoryObject) => void
 }) {
   return (
     <div className="sp-object-page">
@@ -105,7 +105,7 @@ export function StylePreviewObjectDetailPage({
       <ObjectDetail
         {...objectDetailProps}
         storyObject={selectedObject}
-        onEdit={() => onEdit(selectedObject)}
+        onEdit={onEdit === undefined ? undefined : () => onEdit(selectedObject)}
       />
     </div>
   )
@@ -123,8 +123,8 @@ export function StylePreviewCatalogEntryDetailPage({
   selectedCatalogEntry: CatalogEntry
   ui: PreviewText
   onBack: () => void
-  onDelete: (entry: CatalogEntry) => void
-  onEdit: (entry: CatalogEntry) => void
+  onDelete?: (entry: CatalogEntry) => void
+  onEdit?: (entry: CatalogEntry) => void
 }) {
   return (
     <div className="sp-object-page">
@@ -140,8 +140,8 @@ export function StylePreviewCatalogEntryDetailPage({
       <CatalogEntryDetail
         {...catalogEntryDetailProps}
         entry={selectedCatalogEntry}
-        onDelete={() => onDelete(selectedCatalogEntry)}
-        onEdit={() => onEdit(selectedCatalogEntry)}
+        onDelete={onDelete === undefined ? undefined : () => onDelete(selectedCatalogEntry)}
+        onEdit={onEdit === undefined ? undefined : () => onEdit(selectedCatalogEntry)}
       />
     </div>
   )

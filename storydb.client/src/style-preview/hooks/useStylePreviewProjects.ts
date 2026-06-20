@@ -36,7 +36,7 @@ export function useStylePreviewProjects({
     setCurrentUser(user)
     if (user === null) {
       setProjects([])
-      setSelectedProjectId(null)
+      setSelectedProjectId(routeProjectId)
       return
     }
 

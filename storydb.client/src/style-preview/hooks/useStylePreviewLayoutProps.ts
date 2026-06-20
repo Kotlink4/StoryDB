@@ -30,6 +30,8 @@ type ProjectbarHandlerKeys =
   | 'onCreateObject'
   | 'onNavigateProject'
   | 'onNavigateTab'
+  | 'onPublishPublicSnapshot'
+  | 'onPublishSnapshot'
   | 'showWorkspaceTabs'
 
 type SidebarHandlerKeys =
@@ -72,6 +74,7 @@ export function useStylePreviewLayoutProps({
   previewLanguage,
   previewTheme,
   projectbar,
+  projectbarHandlers,
   selectedCatalogEntry,
   selectedCatalogId,
   selectedObject,
@@ -111,6 +114,7 @@ export function useStylePreviewLayoutProps({
   previewLanguage: LayoutChromeProps['previewLanguage']
   previewTheme: LayoutChromeProps['previewTheme']
   projectbar: Omit<ProjectbarProps, ProjectbarHandlerKeys>
+  projectbarHandlers: Pick<ProjectbarProps, 'onPublishPublicSnapshot' | 'onPublishSnapshot'>
   selectedCatalogEntry: DetailPanelsProps['selectedCatalogEntry']
   selectedCatalogId: number | null
   selectedObject: DetailPanelsProps['selectedObject']
@@ -191,6 +195,8 @@ export function useStylePreviewLayoutProps({
       onCreateObject: topbarHandlers.openCreateObjectDialog,
       onNavigateProject: (projectId) => navigateToPreview(projectId, 'database', 'characters', null, null),
       onNavigateTab: (tab) => navigateToWorkspace(tab, activeSection, null, selectedCatalogId),
+      onPublishPublicSnapshot: projectbarHandlers.onPublishPublicSnapshot,
+      onPublishSnapshot: projectbarHandlers.onPublishSnapshot,
     },
     showSidebar: !isUtilityPage && activeTab !== 'timeline',
     sidebarProps: {

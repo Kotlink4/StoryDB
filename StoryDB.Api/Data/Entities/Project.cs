@@ -15,6 +15,7 @@ public class Project
     public List<StoryObject> Objects { get; set; } = [];
     public List<Timeline> Timelines { get; set; } = [];
     public List<ProjectTemplatePack> TemplatePacks { get; set; } = [];
+    public List<ProjectSnapshot> Snapshots { get; set; } = [];
 }
 
 public static class ProjectVisibility

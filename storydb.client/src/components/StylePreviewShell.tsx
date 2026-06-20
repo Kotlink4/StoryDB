@@ -12,6 +12,7 @@ import type {
   Catalog,
   CatalogEntryGroup,
   ObjectTypeKey,
+  ProjectSnapshotStatus,
   StoryProject,
 } from '../types'
 import type { GroupDisplayMode } from '../style-preview/domain/stylePreviewUiTypes'
@@ -140,24 +141,67 @@ export function StylePreviewTopbar({
 export function StylePreviewProjectbar({
   activeTab,
   currentUser,
+  canPublishPublicSnapshot,
+  isPublicSnapshotPublishing,
+  isSnapshotPublishing,
   projects,
   selectedProjectId,
   showWorkspaceTabs,
+  snapshotBuiltAt,
+  snapshotDirtySections,
+  snapshotRevision,
+  snapshotStatus,
   ui,
   onCreateObject,
   onNavigateProject,
   onNavigateTab,
+  onPublishPublicSnapshot,
+  onPublishSnapshot,
 }: {
   activeTab: PreviewTab
   currentUser: AuthUser | null
+  canPublishPublicSnapshot: boolean
+  isPublicSnapshotPublishing: boolean
+  isSnapshotPublishing: boolean
   projects: StoryProject[]
   selectedProjectId: number | null
   showWorkspaceTabs: boolean
+  snapshotBuiltAt: string | null
+  snapshotDirtySections: string[]
+  snapshotRevision: number | null
+  snapshotStatus: ProjectSnapshotStatus | null
   ui: PreviewText
   onCreateObject: () => void
   onNavigateProject: (projectId: number | null) => void
   onNavigateTab: (tab: PreviewTab) => void
+  onPublishPublicSnapshot: () => void
+  onPublishSnapshot: () => void
 }) {
+  const snapshotStatusLabel = snapshotStatus === 'ready'
+    ? ui.snapshotReady
+    : snapshotStatus === 'stale'
+      ? ui.snapshotStale
+      : snapshotStatus === 'failed'
+        ? ui.snapshotFailed
+        : ui.snapshotMissing
+  const snapshotDate = snapshotBuiltAt === null
+    ? null
+    : new Intl.DateTimeFormat(ui.locale, {
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        month: '2-digit',
+      }).format(new Date(snapshotBuiltAt))
+  const snapshotSectionLabels: Record<string, string> = {
+    catalogs: ui.snapshotSectionCatalogs,
+    objects: ui.snapshotSectionObjects,
+    project: ui.snapshotSectionProject,
+    relations: ui.snapshotSectionRelations,
+    structures: ui.snapshotSectionStructures,
+    timeline: ui.snapshotSectionTimeline,
+  }
+  const snapshotDirtySectionLabels = snapshotDirtySections.map((section) => snapshotSectionLabels[section] ?? section)
+
   return (
     <div className="sp-projectbar">
       <div>
@@ -192,9 +236,42 @@ export function StylePreviewProjectbar({
         </div>
       )}
       {currentUser !== null && (
-        <button className="sp-button primary sp-project-create" type="button" onClick={onCreateObject}>
-          + {ui.newObject}
-        </button>
+        <div className="sp-project-actions">
+          <div className={`sp-snapshot-state ${snapshotStatus === 'stale' ? 'is-stale' : ''}`}>
+            <span>{ui.snapshotView}</span>
+            <strong>{snapshotStatusLabel}</strong>
+            {snapshotRevision !== null && (
+              <small>
+                {ui.snapshotRevision} {snapshotRevision}
+                {snapshotDate !== null ? ` · ${snapshotDate}` : ''}
+              </small>
+            )}
+            {snapshotDirtySectionLabels.length > 0 && (
+              <small>{ui.snapshotDirtySections}: {snapshotDirtySectionLabels.join(', ')}</small>
+            )}
+          </div>
+          <button
+            className="sp-button"
+            disabled={isSnapshotPublishing || selectedProjectId === null}
+            type="button"
+            onClick={onPublishSnapshot}
+          >
+            {isSnapshotPublishing ? ui.snapshotPublishing : ui.snapshotPublish}
+          </button>
+          {canPublishPublicSnapshot && (
+            <button
+              className="sp-button"
+              disabled={isPublicSnapshotPublishing || selectedProjectId === null}
+              type="button"
+              onClick={onPublishPublicSnapshot}
+            >
+              {isPublicSnapshotPublishing ? ui.snapshotPublishingPublic : ui.snapshotPublishPublic}
+            </button>
+          )}
+          <button className="sp-button primary sp-project-create" type="button" onClick={onCreateObject}>
+            + {ui.newObject}
+          </button>
+        </div>
       )}
     </div>
   )

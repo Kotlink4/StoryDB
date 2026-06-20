@@ -59,6 +59,7 @@ public static class StoryDbServiceCollectionExtensions
         services.AddHostedService(currentServices => currentServices.GetRequiredService<AuditLogQueue>());
         services.AddScoped<IObjectService, ObjectService>();
         services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<IProjectSnapshotService, ProjectSnapshotService>();
         services.AddScoped<ITemplatePackService, TemplatePackService>();
         services.AddScoped<IHierarchyService, HierarchyService>();
         services.AddScoped<IRelationService, RelationService>();

@@ -13,6 +13,7 @@ import { KebabMenu } from './StylePreviewPrimitives'
 import { LinkedText, type TextLinkTarget } from './LinkedText'
 
 export function CatalogsWorkspace({
+  canEdit = true,
   catalogEntries,
   catalogGroups,
   catalogs,
@@ -33,6 +34,7 @@ export function CatalogsWorkspace({
   onSelectCatalog,
   onSelectGroup,
 }: {
+  canEdit?: boolean
   catalogEntries: CatalogEntry[]
   catalogGroups: CatalogEntryGroup[]
   catalogs: Catalog[]
@@ -78,7 +80,7 @@ export function CatalogsWorkspace({
           )}
         </div>
         <div className="sp-filters">
-          {selectedCatalog !== null && (
+          {canEdit && selectedCatalog !== null && (
             <>
               <KebabMenu ui={ui} onDelete={onDeleteCatalog} onEdit={() => onEditCatalog(selectedCatalog)} />
               {groupDisplayMode === 'subtabs' && (
@@ -137,12 +139,16 @@ export function CatalogsWorkspace({
                         <strong>{group.name}</strong>
                         <span>{countCatalogEntriesInGroupTree(catalogEntries, catalogGroups, group.id)}</span>
                       </button>
-                      <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group.id)} onEdit={() => onEditGroup(group)} />
+                      {canEdit && (
+                        <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group.id)} onEdit={() => onEditGroup(group)} />
+                      )}
                     </div>
                   ))}
-                  <button className="create" type="button" onClick={onCreateGroup}>
-                    + {ui.newGroup}
-                  </button>
+                  {canEdit && (
+                    <button className="create" type="button" onClick={onCreateGroup}>
+                      + {ui.newGroup}
+                    </button>
+                  )}
                 </div>
               )}
               <div className={`sp-group-strip ${groupDisplayMode === 'blocks' || groupDisplayMode === 'subtabs' ? 'is-hidden' : ''}`}>
@@ -166,15 +172,19 @@ export function CatalogsWorkspace({
                     >
                       {group.name}
                     </button>
-                    <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group.id)} onEdit={() => onEditGroup(group)} />
+                    {canEdit && (
+                      <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group.id)} onEdit={() => onEditGroup(group)} />
+                    )}
                   </span>
                 ))}
               </div>
-              <div className="sp-catalog-entry-actions">
-                <button className="sp-button primary" type="button" onClick={onCreateEntry}>
-                  + {ui.newCatalogEntry}
-                </button>
-              </div>
+              {canEdit && (
+                <div className="sp-catalog-entry-actions">
+                  <button className="sp-button primary" type="button" onClick={onCreateEntry}>
+                    + {ui.newCatalogEntry}
+                  </button>
+                </div>
+              )}
               <div className="sp-cards">
                 {visibleEntries.map((entry) => {
                   const imageUrl = resolveAssetUrl(entry.imagePath)
@@ -193,13 +203,15 @@ export function CatalogsWorkspace({
                           <LinkedText emptyText={ui.unknownDescription} targets={textLinkTargets} text={entry.description} />
                         </p>
                       </div>
-                      <KebabMenu
-                        ariaLabel={`${entry.name}: ${ui.actions}`}
-                        className="sp-card-menu"
-                        ui={ui}
-                        onDelete={() => onDeleteEntry(entry)}
-                        onEdit={() => onEditEntry(entry)}
-                      />
+                      {canEdit && (
+                        <KebabMenu
+                          ariaLabel={`${entry.name}: ${ui.actions}`}
+                          className="sp-card-menu"
+                          ui={ui}
+                          onDelete={() => onDeleteEntry(entry)}
+                          onEdit={() => onEditEntry(entry)}
+                        />
+                      )}
                     </article>
                   )
                 })}

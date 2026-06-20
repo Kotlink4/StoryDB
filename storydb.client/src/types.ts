@@ -46,6 +46,54 @@ export type StoryProject = {
   objectTypes: ProjectObjectType[]
 }
 
+export type ProjectSnapshotStatus = 'ready' | 'stale' | 'failed'
+export type ProjectSnapshotScope = 'current' | 'published'
+
+export type ProjectSnapshot = {
+  id: number
+  projectId: number
+  revision: number
+  schemaVersion: number
+  status: ProjectSnapshotStatus
+  scope: ProjectSnapshotScope
+  dirtySections: string[]
+  builtAt: string
+  sourceUpdatedAt: string
+  error: string | null
+  data: ProjectSnapshotData
+}
+
+export type ProjectSnapshotData = {
+  project: ProjectSnapshotProject
+  objectTypes: ProjectObjectType[]
+  objectSummariesByType: Partial<Record<ObjectTypeKey, StoryObjectSummary[]>>
+  objectsByType: Partial<Record<ObjectTypeKey, StoryObject[]>>
+  attributeDefinitionsByType: Partial<Record<ObjectTypeKey, AttributeDefinition[]>>
+  attributeGroupsByType: Partial<Record<ObjectTypeKey, AttributeGroup[]>>
+  catalogs: Catalog[]
+  catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
+  catalogGroupsByCatalogId: Record<number, CatalogEntryGroup[]>
+  catalogFieldsByCatalogId: Record<number, CatalogFieldDefinition[]>
+  structures: Structure[]
+  structureUsages: StructureUsage[]
+  structureAssignments: StructureAssignment[]
+  relationGraph: RelationGraph
+  relationGraphLayout: RelationGraphLayout | null
+  timelineInfo: TimelineInfo | null
+  timelineEvents: TimelineEvent[]
+  timelineLinks: TimelineEventLink[]
+  timelineLayout: TimelineLayout | null
+  timelineLayoutRules: TimelineLayoutRules | null
+}
+
+export type ProjectSnapshotProject = {
+  id: number
+  name: string
+  coverImagePath: string | null
+  visibility: ProjectVisibility
+  updatedAt: string
+}
+
 export type TemplatePackScope = 'mine' | 'public' | 'favorites'
 
 export type TemplatePackSummary = {
