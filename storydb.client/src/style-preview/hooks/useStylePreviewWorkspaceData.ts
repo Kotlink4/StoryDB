@@ -13,16 +13,21 @@ import {
   fetchTimelineLayout,
   fetchTimelineLayoutRules,
 } from '../../api'
-import { readProjectClientCache, writeProjectClientCachePatch } from '../domain/projectClientCache'
+import { writeProjectClientCachePatch } from '../domain/projectClientCache'
 import { storyObjectSummariesToListItems } from '../domain/storyObjectSummaries'
 import { isObjectSection, isPreviewObjectSection } from '../domain/stylePreviewConfig'
 import type { PreviewSection } from '../domain/stylePreviewRouting'
 import {
   loadCatalogWorkspaceData,
   loadObjectEditorWorkspaceData,
-  loadRelationWorkspaceData,
-  loadTextLinkTargetsData,
 } from './workspaceDataLoaders'
+import { useStylePreviewClientCache } from './useStylePreviewClientCache'
+import { useStylePreviewCatalogListData } from './useStylePreviewCatalogListData'
+import { useStylePreviewRelationWorkspaceData } from './useStylePreviewRelationWorkspaceData'
+import {
+  emptyObjectsByType,
+  useStylePreviewTextLinkTargetsData,
+} from './useStylePreviewTextLinkTargetsData'
 import type {
   AttributeDefinition,
   AttributeGroup,
@@ -65,14 +70,6 @@ type UseStylePreviewWorkspaceDataOptions = {
   showMessage: (message: string) => void
 }
 
-const emptyObjectsByType: Record<ObjectTypeKey, StoryObject[]> = {
-  characters: [],
-  items: [],
-  places: [],
-  organizations: [],
-  hierarchy: [],
-}
-
 export function useStylePreviewWorkspaceData({
   activeSection,
   initialCatalogId,
@@ -109,100 +106,32 @@ export function useStylePreviewWorkspaceData({
   const [catalogGroups, setCatalogGroups] = useState<CatalogEntryGroup[]>([])
   const relationLayoutRequestId = useRef(0)
 
-  useEffect(() => {
-    let isActive = true
-
-    if (selectedProjectId === null) {
-      return undefined
-    }
-
-    readProjectClientCache(selectedProjectId).then((snapshot) => {
-      if (!isActive || snapshot === null) {
-        return
-      }
-
-      if (snapshot.objectsByType !== undefined) {
-        setObjectsByType((currentObjectsByType) => ({
-          ...currentObjectsByType,
-          ...snapshot.objectsByType,
-        }))
-
-        if (isObjectSection(activeSection)) {
-          setObjects(snapshot.objectsByType[activeSection] ?? [])
-        }
-      }
-
-      if (snapshot.catalogs !== undefined) {
-        setCatalogs(snapshot.catalogs)
-        setSelectedCatalogId((currentId) =>
-          currentId !== null && snapshot.catalogs?.some((catalog) => catalog.id === currentId)
-            ? currentId
-            : snapshot.catalogs?.[0]?.id ?? currentId,
-        )
-      }
-
-      if (snapshot.catalogEntriesByCatalogId !== undefined) {
-        setCatalogEntriesByCatalogId(snapshot.catalogEntriesByCatalogId)
-        if (selectedCatalogId !== null) {
-          setCatalogEntries(snapshot.catalogEntriesByCatalogId[selectedCatalogId] ?? [])
-        }
-      }
-
-      if (snapshot.catalogGroupsByCatalogId !== undefined) {
-        setCatalogGroupsByCatalogId(snapshot.catalogGroupsByCatalogId)
-        if (selectedCatalogId !== null) {
-          setCatalogGroups(snapshot.catalogGroupsByCatalogId[selectedCatalogId] ?? [])
-        }
-      }
-
-      if (snapshot.catalogFieldsByCatalogId !== undefined) {
-        setCatalogFieldsByCatalogId(snapshot.catalogFieldsByCatalogId)
-      }
-
-      const attributeType = isObjectSection(activeSection) ? activeSection : 'characters'
-      if (snapshot.attributeDefinitionsByType?.[attributeType] !== undefined) {
-        setAttributeDefinitions(snapshot.attributeDefinitionsByType[attributeType])
-      }
-      if (snapshot.attributeGroupsByType?.[attributeType] !== undefined) {
-        setAttributeGroups(snapshot.attributeGroupsByType[attributeType])
-      }
-
-      if (snapshot.relationGraph !== undefined) {
-        setRelationGraph(snapshot.relationGraph)
-      }
-      if (snapshot.relationGraphLayout !== undefined) {
-        setRelationGraphLayout(snapshot.relationGraphLayout)
-      }
-      if (snapshot.structureAssignments !== undefined) {
-        setStructureAssignments(snapshot.structureAssignments)
-      }
-      if (snapshot.structures !== undefined) {
-        setStructures(snapshot.structures)
-      }
-      if (snapshot.structureUsages !== undefined) {
-        setStructureUsages(snapshot.structureUsages)
-      }
-      if (snapshot.timelineEvents !== undefined) {
-        setTimelineEvents(snapshot.timelineEvents)
-      }
-      if (snapshot.timelineInfo !== undefined) {
-        setTimelineInfo(snapshot.timelineInfo)
-      }
-      if (snapshot.timelineLayout !== undefined) {
-        setTimelineLayout(snapshot.timelineLayout)
-      }
-      if (snapshot.timelineLayoutRules !== undefined) {
-        setTimelineLayoutRules(snapshot.timelineLayoutRules)
-      }
-      if (snapshot.timelineLinks !== undefined) {
-        setTimelineLinks(snapshot.timelineLinks)
-      }
-    })
-
-    return () => {
-      isActive = false
-    }
-  }, [activeSection, selectedCatalogId, selectedProjectId])
+  useStylePreviewClientCache({
+    activeSection,
+    selectedCatalogId,
+    selectedProjectId,
+    setAttributeDefinitions,
+    setAttributeGroups,
+    setCatalogEntries,
+    setCatalogEntriesByCatalogId,
+    setCatalogFieldsByCatalogId,
+    setCatalogGroups,
+    setCatalogGroupsByCatalogId,
+    setCatalogs,
+    setObjects,
+    setObjectsByType,
+    setRelationGraph,
+    setRelationGraphLayout,
+    setSelectedCatalogId,
+    setStructureAssignments,
+    setStructures,
+    setStructureUsages,
+    setTimelineEvents,
+    setTimelineInfo,
+    setTimelineLayout,
+    setTimelineLayoutRules,
+    setTimelineLinks,
+  })
 
   const loadRelationGraphLayout = useCallback(
     async (graphKey?: string | null) => {
@@ -231,129 +160,31 @@ export function useStylePreviewWorkspaceData({
     [messages.graphLayoutLoadMissing, selectedProjectId, showMessage],
   )
 
-  useEffect(() => {
-    let isActive = true
+  useStylePreviewRelationWorkspaceData({
+    graphLoadFailedMessage: messages.graphLoadFailed,
+    loadRelationGraphLayout,
+    selectedProjectId,
+    setRelationGraph,
+    setRelationGraphLayout,
+    setStructureAssignments,
+    setStructures,
+    setStructureUsages,
+    showErrorMessage,
+  })
 
-  if (selectedProjectId === null) {
-      setRelationGraph({ nodes: [], edges: [] })
-      setRelationGraphLayout(null)
-      setStructureAssignments([])
-      setStructures([])
-      setStructureUsages([])
-      return undefined
-    }
+  useStylePreviewTextLinkTargetsData({
+    selectedProjectId,
+    setCatalogEntriesByCatalogId,
+    setObjectsByType,
+  })
 
-    const loadRelationGraphData = async () => {
-      const projectId = selectedProjectId
-      const loadedWorkspace = await loadRelationWorkspaceData(projectId)
-
-      if (!isActive) {
-        return
-      }
-
-      setRelationGraph(loadedWorkspace.relationGraph)
-      if (!loadedWorkspace.graphLoaded) {
-        showErrorMessage(messages.graphLoadFailed)
-      }
-
-      setStructureAssignments(loadedWorkspace.structureAssignments)
-      setStructures(loadedWorkspace.structures)
-      setStructureUsages(loadedWorkspace.structureUsages)
-      void writeProjectClientCachePatch(projectId, {
-        ...(loadedWorkspace.graphLoaded ? { relationGraph: loadedWorkspace.relationGraph } : {}),
-        structureAssignments: loadedWorkspace.structureAssignments,
-        structures: loadedWorkspace.structures,
-        structureUsages: loadedWorkspace.structureUsages,
-      })
-    }
-
-    void loadRelationGraphData()
-
-    void loadRelationGraphLayout('relations:all')
-
-    return () => {
-      isActive = false
-    }
-  }, [loadRelationGraphLayout, messages.graphLoadFailed, selectedProjectId, showErrorMessage])
-
-  useEffect(() => {
-    let isActive = true
-
-    if (selectedProjectId === null) {
-      setObjectsByType(emptyObjectsByType)
-      setCatalogEntriesByCatalogId({})
-      return undefined
-    }
-
-    const loadTextLinkTargets = async () => {
-      const projectId = selectedProjectId
-      const loadedTargets = await loadTextLinkTargetsData(projectId)
-
-      if (!isActive) {
-        return
-      }
-
-      setObjectsByType((currentObjectsByType) => ({
-        ...currentObjectsByType,
-        ...loadedTargets.objectsByTypePatch,
-      }))
-      void writeProjectClientCachePatch(projectId, {
-        objectsByType: loadedTargets.objectsByTypePatch,
-        ...(loadedTargets.catalogs !== null ? { catalogs: loadedTargets.catalogs } : {}),
-      })
-
-      if (loadedTargets.catalogs === null) {
-        return
-      }
-
-      setCatalogEntriesByCatalogId((currentEntriesByCatalogId) => ({
-        ...currentEntriesByCatalogId,
-        ...loadedTargets.catalogEntriesByCatalogId,
-      }))
-      void writeProjectClientCachePatch(projectId, {
-        catalogEntriesByCatalogId: loadedTargets.catalogEntriesByCatalogId,
-      })
-    }
-
-    void loadTextLinkTargets()
-
-    return () => {
-      isActive = false
-    }
-  }, [selectedProjectId])
-
-  useEffect(() => {
-    let isActive = true
-
-    if (selectedProjectId === null) {
-      setCatalogs([])
-      return undefined
-    }
-
-    fetchCatalogs(selectedProjectId)
-      .then((loadedCatalogs) => {
-        if (!isActive) {
-          return
-        }
-
-        setCatalogs(loadedCatalogs)
-        void writeProjectClientCachePatch(selectedProjectId, { catalogs: loadedCatalogs })
-        setSelectedCatalogId((currentId) =>
-          currentId !== null && loadedCatalogs.some((catalog) => catalog.id === currentId)
-            ? currentId
-            : currentId,
-        )
-      })
-      .catch(() => {
-        if (isActive) {
-          showErrorMessage(messages.projectsCatalogsLoadFailed)
-        }
-      })
-
-    return () => {
-      isActive = false
-    }
-  }, [messages.projectsCatalogsLoadFailed, selectedProjectId, showErrorMessage])
+  useStylePreviewCatalogListData({
+    projectsCatalogsLoadFailedMessage: messages.projectsCatalogsLoadFailed,
+    selectedProjectId,
+    setCatalogs,
+    setSelectedCatalogId,
+    showErrorMessage,
+  })
 
   useEffect(() => {
     setSelectedAttributeGroupId((currentGroupId) =>

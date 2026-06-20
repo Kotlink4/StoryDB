@@ -11,7 +11,6 @@ import {
   getTimelineContextChangesForObject,
   resolveStoryObjectTemporalState,
 } from '../style-preview/domain/temporalState'
-import { getObjectFullName } from '../style-preview/domain/objectDisplay'
 import type {
   AttributeDefinition,
   AttributeGroup,
@@ -26,8 +25,10 @@ import type {
 } from '../types'
 import { LinkedText, type TextLinkTarget } from './LinkedText'
 import { GalleryPanel } from './GalleryPanel'
-import { CollapsibleDetailSection } from './CollapsibleDetailSection'
-import { AttributeIcon, DetailActionsMenu, ObjectPortrait } from './StylePreviewPrimitives'
+import { DetailActionsMenu, ObjectPortrait } from './StylePreviewPrimitives'
+import { ObjectDetailMainTab } from './object-detail/ObjectDetailMainTab'
+import { ObjectDetailRelationsTab } from './object-detail/ObjectDetailRelationsTab'
+import { ObjectDetailTimelineTab } from './object-detail/ObjectDetailTimelineTab'
 import { OrganizationStructureView } from './object-detail/OrganizationStructureView'
 import { StructureMembershipView } from './object-detail/StructureMembershipView'
 
@@ -234,174 +235,27 @@ export function ObjectDetail({
         </div>
       </section>
       {effectiveActiveTab === 'main' && (
-        <>
-          <section className="sp-panel">
-            <h3>{ui.attributes}</h3>
-            {displayStoryObject.attributes.length === 0 ? (
-              <p>{ui.noAttributeValues}</p>
-            ) : (
-              attributeGroups.map((group) => (
-                <article className="sp-attribute-group" key={group.name}>
-                  <div className="sp-attribute-group-head">
-                    <strong className="sp-label-with-icon">
-                      <AttributeIcon iconKey={attributeGroupDefinitions.find((item) => item.name === group.name)?.iconKey} />
-                      {group.name}
-                    </strong>
-                    <span>{group.attributes.length}</span>
-                  </div>
-                  {group.attributes.map((attribute) => {
-                    const definition = attributeDefinitions.find((item) => item.id === attribute.attributeDefinitionId)
-
-                    return (
-                      <div className="sp-row" key={attribute.id}>
-                        <span className="sp-label-with-icon">
-                          <AttributeIcon iconKey={definition?.iconKey} />
-                          {attribute.name}
-                        </span>
-                        <strong>
-                          <LinkedText emptyText="-" targets={textLinkTargets} text={attribute.value} />
-                        </strong>
-                      </div>
-                    )
-                  })}
-                </article>
-              ))
-            )}
-          </section>
-          <section className="sp-panel">
-            <h3>{ui.catalogs}</h3>
-            {displayStoryObject.catalogSelections.length === 0 ? (
-              <p>{ui.noCatalogValues}</p>
-            ) : (
-              displayStoryObject.catalogSelections.map((selection) => (
-                <div className="sp-row" key={`${selection.targetType}-${selection.catalogId}-${selection.catalogEntryGroupId}-${selection.catalogEntryId}`}>
-                  <span>{selection.catalogName}</span>
-                  <strong>
-                    <LinkedText
-                      targets={textLinkTargets}
-                      text={selection.catalogEntryName ?? selection.catalogEntryGroupName ?? selection.targetType}
-                    />
-                  </strong>
-                </div>
-              ))
-            )}
-          </section>
-          <section className="sp-panel">
-            <h3>{ui.hierarchyValues}</h3>
-            {displayStoryObject.hierarchySelections.length === 0 ? (
-              <p>{ui.noHierarchyValues}</p>
-            ) : (
-              displayStoryObject.hierarchySelections.map((selection) => (
-                <div className="sp-row" key={selection.groupId}>
-                  <span>{selection.groupName}</span>
-                  <strong>
-                    <LinkedText targets={textLinkTargets} text={selection.nodes.map((node) => node.name).join(', ')} />
-                  </strong>
-                </div>
-              ))
-            )}
-          </section>
-        </>
+        <ObjectDetailMainTab
+          attributeDefinitions={attributeDefinitions}
+          attributeGroupDefinitions={attributeGroupDefinitions}
+          attributeGroups={attributeGroups}
+          displayStoryObject={displayStoryObject}
+          textLinkTargets={textLinkTargets}
+          ui={ui}
+        />
       )}
       {effectiveActiveTab === 'relations' && (
-        <>
-          {isOrganization ? (
-            <>
-              <CollapsibleDetailSection count={organizationMembers.length} title={ui.organizationMembers}>
-                <p className="sp-editor-hint">{ui.organizationSurnameAutoAssignHint}</p>
-                {organizationMembers.length === 0 ? (
-                  <p>{ui.noOrganizationMembers}</p>
-                ) : (
-                  organizationMembers.map((member) => (
-                    <div className="sp-row" key={member.id}>
-                      <span>{member.typeKey}</span>
-                      <strong>
-                        <LinkedText targets={textLinkTargets} text={getObjectFullName(member)} />
-                      </strong>
-                    </div>
-                  ))
-                )}
-              </CollapsibleDetailSection>
-              <CollapsibleDetailSection count={organizationMemberItems.length} title={ui.organizationItems}>
-                {organizationMemberItems.length === 0 ? (
-                  <p>{ui.noOrganizationItems}</p>
-                ) : (
-                  organizationMemberItems.map((item) => (
-                    <div className="sp-row" key={item.id}>
-                      <span>{item.ownerName}</span>
-                      <strong>
-                        <LinkedText targets={textLinkTargets} text={item.name} />
-                      </strong>
-                    </div>
-                  ))
-                )}
-              </CollapsibleDetailSection>
-              <CollapsibleDetailSection count={displayStoryObject.territoryPlaces.length} title={ui.organizationTerritories}>
-                {displayStoryObject.territoryPlaces.length === 0 ? (
-                  <p>{ui.noOrganizationTerritories}</p>
-                ) : (
-                  displayStoryObject.territoryPlaces.map((reference) => (
-                    <div className="sp-row" key={`${reference.typeKey}-${reference.id}`}>
-                      <span>{reference.typeKey}</span>
-                      <strong>
-                        <LinkedText targets={textLinkTargets} text={reference.name} />
-                      </strong>
-                    </div>
-                  ))
-                )}
-              </CollapsibleDetailSection>
-            </>
-          ) : (
-            <>
-              {isCharacter && (
-                <CollapsibleDetailSection count={characterOrganizations.length} title={ui.organizations}>
-                  <p className="sp-editor-hint">{ui.organizationSurnameAutoAssignHint}</p>
-                  {characterOrganizations.length === 0 ? (
-                    <p>{ui.noCharacterOrganizations}</p>
-                  ) : (
-                    characterOrganizations.map((organization) => (
-                      <div className="sp-row" key={organization.id}>
-                        <span>{ui.organizationMembership}</span>
-                        <strong>
-                          <LinkedText targets={textLinkTargets} text={organization.name} />
-                        </strong>
-                      </div>
-                    ))
-                  )}
-                </CollapsibleDetailSection>
-              )}
-              <CollapsibleDetailSection count={characterRelationships.length} title={ui.relations}>
-                {characterRelationships.length === 0 ? (
-                  <p>{ui.noRelationships}</p>
-                ) : (
-                  characterRelationships.map((relationship) => (
-                    <div className="sp-row" key={`${relationship.direction}-${relationship.id}`}>
-                      <span>
-                        <LinkedText targets={textLinkTargets} text={relationship.character.name} />
-                      </span>
-                      <strong>{relationship.relationType}</strong>
-                    </div>
-                  ))
-                )}
-              </CollapsibleDetailSection>
-              <CollapsibleDetailSection
-                count={[displayStoryObject.ownedItems, displayStoryObject.owners, displayStoryObject.territoryPlaces, displayStoryObject.organizationsOnTerritory, displayStoryObject.ownerOrganizations, displayStoryObject.ownedTerritories].flat().length}
-                title={ui.linkedObjects}
-              >
-                {[displayStoryObject.ownedItems, displayStoryObject.owners, displayStoryObject.territoryPlaces, displayStoryObject.organizationsOnTerritory, displayStoryObject.ownerOrganizations, displayStoryObject.ownedTerritories]
-                  .flat()
-                  .map((reference) => (
-                    <div className="sp-row" key={`${reference.typeKey}-${reference.id}`}>
-                      <span>{reference.typeKey}</span>
-                      <strong>
-                        <LinkedText targets={textLinkTargets} text={reference.name} />
-                      </strong>
-                    </div>
-                  ))}
-              </CollapsibleDetailSection>
-            </>
-          )}
-        </>
+        <ObjectDetailRelationsTab
+          characterOrganizations={characterOrganizations}
+          characterRelationships={characterRelationships}
+          displayStoryObject={displayStoryObject}
+          isCharacter={isCharacter}
+          isOrganization={isOrganization}
+          organizationMemberItems={organizationMemberItems}
+          organizationMembers={organizationMembers}
+          textLinkTargets={textLinkTargets}
+          ui={ui}
+        />
       )}
       {effectiveActiveTab === 'structure' && (
         <>
@@ -427,27 +281,11 @@ export function ObjectDetail({
         </>
       )}
       {effectiveActiveTab === 'timeline' && (
-        <section className="sp-panel">
-          <h3>{ui.timeline}</h3>
-            {relatedTimelineEvents.length === 0 ? (
-            <p>{ui.noTimelineParticipation}</p>
-          ) : (
-            relatedTimelineEvents.map((event) => (
-              <div className="sp-row" key={event.id}>
-                <span>{event.startLabel ?? event.category ?? ui.timelineEvent}</span>
-                <strong>
-                  {onOpenTimelineEvent === undefined ? (
-                    event.title
-                  ) : (
-                    <button className="sp-link-button" type="button" onClick={() => onOpenTimelineEvent(event)}>
-                      {event.title}
-                    </button>
-                  )}
-                </strong>
-              </div>
-            ))
-          )}
-        </section>
+        <ObjectDetailTimelineTab
+          relatedTimelineEvents={relatedTimelineEvents}
+          ui={ui}
+          onOpenTimelineEvent={onOpenTimelineEvent}
+        />
       )}
       {effectiveActiveTab === 'gallery' && (
         <GalleryPanel

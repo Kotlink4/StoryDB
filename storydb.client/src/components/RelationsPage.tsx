@@ -11,7 +11,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { ArrowLeft } from 'lucide-react'
 
-import { getRelationCategoryLabel, getRelationLabel } from '../style-preview/domain/relationDisplay'
+import { getRelationLabel } from '../style-preview/domain/relationDisplay'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { DetailMode } from '../style-preview/domain/stylePreviewUiTypes'
 import type {
@@ -27,10 +27,10 @@ import {
   getRelationGraphKey,
   getVisibleRelationGraph,
   relationEdgeTypes,
-  relationGraphCategories,
   relationNodeTypes,
   type RelationGraphMode,
 } from './relations/RelationGraphFlow'
+import { RelationsPageControls, type RelationPageGraphKind } from './relations/RelationsPageControls'
 import { buildStructureFlow, getStructureGraphKey } from './relations/StructureGraphFlow'
 import { StructureGraphEdgeDetail, StructureGraphTargetDetail } from './relations/StructureGraphDetails'
 import type {
@@ -39,8 +39,6 @@ import type {
   StructureGraphTarget,
 } from './relations/RelationFlowTypes'
 import { PreviewDialog } from './StylePreviewPrimitives'
-
-type RelationPageGraphKind = 'relations' | 'structure'
 
 export type RelationsPageProps = {
   detailMode: DetailMode
@@ -160,13 +158,6 @@ export function RelationsPage({
   const relationTypes = Array.from(new Set(visibleGraph.edges.map((edge) => getRelationLabel(edge.relationType, ui)))).sort()
   const focusOptions = [...graph.nodes].sort((left, right) => left.name.localeCompare(right.name))
   const structureFocusOptions = structureFlow.allGraph.nodes.toSorted((left, right) => left.name.localeCompare(right.name))
-  const graphModeOptions: Array<{ label: string; value: RelationGraphMode }> = [
-    { label: ui.graphModeAll, value: 'all' },
-    ...relationGraphCategories.map((category) => ({
-      label: getRelationCategoryLabel(category, ui),
-      value: category,
-    })),
-  ]
   const layoutStatus =
     activeLayout === null
       ? ui.layoutNotGenerated
@@ -290,108 +281,31 @@ export function RelationsPage({
 
   return (
     <div className="sp-relations-page">
-      <div className="sp-relations-overlay-head">
-        <div>
-          <h2>{ui.relations}</h2>
-          <p>
-            {graphKind === 'structure'
-              ? `${activeGraph.nodes.length} ${ui.structureNodesCount} · ${activeGraph.edges.length} ${ui.relationsCount} · ${layoutStatus}`
-              : `${visibleGraph.nodes.length} ${ui.objectsCount} · ${visibleGraph.edges.length} ${ui.relationsCount} · ${layoutStatus}`}
-          </p>
-        </div>
-        <div className="sp-relations-overlay-actions">
-          <label className="sp-graph-control">
-            <span>{ui.graphMode}</span>
-            <select value={graphKind} onChange={(event) => setGraphKind(event.target.value as RelationPageGraphKind)}>
-              <option value="relations">{ui.graphModeRelations}</option>
-              <option value="structure">{ui.graphModeStructureDevice}</option>
-            </select>
-          </label>
-          {graphKind === 'relations' && (
-            <>
-              <label className="sp-graph-control">
-                <span>{ui.filteredGraphView}</span>
-                <select value={graphMode} onChange={(event) => setGraphMode(event.target.value as RelationGraphMode)}>
-                  {graphModeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="sp-graph-control">
-                <span>{ui.graphFocus}</span>
-                <select
-                  value={focusedObjectId ?? ''}
-                  onChange={(event) =>
-                    setFocusedObjectId(event.target.value.trim().length === 0 ? null : Number(event.target.value))
-                  }
-                >
-                  <option value="">{ui.graphFocusAll}</option>
-                  {focusOptions.map((node) => (
-                    <option key={node.id} value={node.id}>
-                      {node.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
-          {graphKind === 'structure' && (
-            <>
-              <label className="sp-graph-control">
-                <span>{ui.structure}</span>
-                <select
-                  value={selectedStructure?.id ?? ''}
-                  onChange={(event) =>
-                    setSelectedStructureId(event.target.value.trim().length === 0 ? null : Number(event.target.value))
-                  }
-                >
-                  {structures.length === 0 && <option value="">{ui.noStructures}</option>}
-                  {structures.map((structure) => (
-                    <option key={structure.id} value={structure.id}>
-                      {structure.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="sp-graph-control">
-                <span>{ui.graphFocus}</span>
-                <select
-                  value={focusedStructureNodeId ?? ''}
-                  onChange={(event) =>
-                    setFocusedStructureNodeId(event.target.value.trim().length === 0 ? null : Number(event.target.value))
-                  }
-                >
-                  <option value="">{ui.graphFocusAll}</option>
-                  {structureFocusOptions.map((node) => (
-                    <option key={node.id} value={node.id}>
-                      {node.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
-          <button
-            className="sp-button"
-            type="button"
-            hidden={graphKind === 'structure'}
-            disabled={objects.filter((storyObject) => storyObject.typeKey === 'characters').length < 2}
-            onClick={onCreateRelation}
-          >
-            {ui.linkCharacters}
-          </button>
-          <button
-            className="sp-button"
-            type="button"
-            disabled={isLayoutGenerating || activeGraph.nodes.length === 0}
-            onClick={() => onGenerateLayout(graphKey, activeGraph)}
-          >
-            {isLayoutGenerating ? ui.layoutGenerating : layoutButtonLabel}
-          </button>
-        </div>
-      </div>
+      <RelationsPageControls
+        activeGraph={activeGraph}
+        focusOptions={focusOptions}
+        focusedObjectId={focusedObjectId}
+        focusedStructureNodeId={focusedStructureNodeId}
+        graphKind={graphKind}
+        graphKey={graphKey}
+        graphMode={graphMode}
+        isLayoutGenerating={isLayoutGenerating}
+        layoutButtonLabel={layoutButtonLabel}
+        layoutStatus={layoutStatus}
+        objects={objects}
+        selectedStructure={selectedStructure}
+        structureFocusOptions={structureFocusOptions}
+        structures={structures}
+        ui={ui}
+        visibleGraph={visibleGraph}
+        onCreateRelation={onCreateRelation}
+        onFocusedObjectIdChange={setFocusedObjectId}
+        onFocusedStructureNodeIdChange={setFocusedStructureNodeId}
+        onGenerateLayout={onGenerateLayout}
+        onGraphKindChange={setGraphKind}
+        onGraphModeChange={setGraphMode}
+        onSelectedStructureIdChange={setSelectedStructureId}
+      />
       <div className="sp-relations-workspace">
         <aside className="sp-relations-legend">
           <strong>{ui.relations}</strong>

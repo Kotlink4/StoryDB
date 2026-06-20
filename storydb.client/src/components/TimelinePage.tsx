@@ -11,18 +11,13 @@ import {
 import {
   buildTimelineViewportModel,
   formatTimelineClusterCount,
-  getTimelineDetailLevel,
-  getTimelineEventEndValue,
-  getTimelineEventStartValue,
   type TimelineViewportModel,
-  type TimelineViewportModelRequest,
 } from '../timeline/timelineViewportModel'
 import type {
   TimelineEvent,
   TimelineEventLink,
   TimelineInfo,
   TimelineLayout,
-  TimelineLayoutItem,
   TimelineLayoutRules,
 } from '../types'
 import {
@@ -38,17 +33,17 @@ import {
 import {
   buildTimelineEventCounts,
   buildTimelineLinkLines,
+  buildRenderedTimelineLayoutItems,
+  buildTimelineViewportMetrics,
+  buildTimelineViewportRequest,
+  TIMELINE_AXIS_Y,
+  TIMELINE_MAX_ZOOM,
+  TIMELINE_MIN_ZOOM,
+  TIMELINE_ZOOM_STEP,
 } from './timeline/timelinePageModel'
 import { TimelinePageHeader } from './timeline/TimelinePageHeader'
 import { TimelineLinksPopover } from './timeline/TimelineLinksPopover'
 import TimelineViewportWorker from '../workers/timelineViewportWorker?worker'
-
-const TIMELINE_MIN_DURATION_WIDTH = 8
-const TIMELINE_MIN_ZOOM = 0.2
-const TIMELINE_MAX_ZOOM = 8192
-const TIMELINE_ZOOM_STEP = 1.35
-const TIMELINE_AXIS_Y = 640
-const TIMELINE_VIEWPORT_OVERSCAN = 420
 
 export type TimelinePageProps = {
   events: TimelineEvent[]
@@ -91,6 +86,7 @@ export function TimelinePage({
   const [isTimelinePanning, setIsTimelinePanning] = useState(false)
   const [isLinksPopoverOpen, setIsLinksPopoverOpen] = useState(false)
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null)
+  const selectedEventId = selectedEvent?.id ?? null
   const timelineZoom = timelineTransform.k
   const layoutItemsByEventId = useMemo(
     () => new Map(layout?.items.map((item) => [item.timelineEventId, item]) ?? []),
@@ -125,76 +121,31 @@ export function TimelinePage({
     () => timelineTransform.rescaleX(baseTimeScale),
     [baseTimeScale, timelineTransform],
   )
-  const effectiveViewportWidth = Math.max(timelineViewportWidth, 1)
-  const visibleMinX = -TIMELINE_VIEWPORT_OVERSCAN
-  const visibleMaxX = effectiveViewportWidth + TIMELINE_VIEWPORT_OVERSCAN
-  const pixelsPerYear = Math.abs(timelineTimeScale(1) - timelineTimeScale(0))
-  const timelineDetailLevel = getTimelineDetailLevel(pixelsPerYear)
+  const viewportMetrics = buildTimelineViewportMetrics({
+    timelineTimeScale,
+    viewportWidth: timelineViewportWidth,
+  })
+  const {
+    detailLevel: timelineDetailLevel,
+    pixelsPerYear,
+    visibleMaxX,
+    visibleMinX,
+  } = viewportMetrics
   const activeScalePresetKey = getActiveTimelineScalePresetKey(pixelsPerYear)
   const axisTicks = buildTimelineAxisTicks(timelineTimeScale, visibleMaxX, timelineZoom)
   const storyStartX = timelineTimeScale(0)
   const renderedLayoutItemsByEventId = useMemo(() => {
     if (layout === null) {
-      return new Map<number, TimelineLayoutItem>()
+      return new Map()
     }
 
-    const renderedItems = new Map<number, TimelineLayoutItem>(
-      events.flatMap((event) => {
-        const item = layoutItemsByEventId.get(event.id)
-        if (item === undefined) {
-          return []
-        }
-
-        const index = eventIndexesById.get(event.id) ?? 0
-        const startValue = getTimelineEventStartValue(event, index)
-        const endValue = getTimelineEventEndValue(event, index)
-        const startX = timelineTimeScale(startValue)
-        const endX = timelineTimeScale(endValue)
-        const width =
-          event.eventType === 'point' || event.eventType === 'chapter'
-            ? item.width
-            : Math.max(TIMELINE_MIN_DURATION_WIDTH, Math.abs(endX - startX))
-        const x = event.eventType === 'point'
-          ? startX - item.width / 2
-          : Math.min(startX, endX)
-
-        return [[
-          event.id,
-          {
-            ...item,
-            x,
-            width,
-          },
-        ]]
-      }),
-    )
-
-    return renderedItems
+    return buildRenderedTimelineLayoutItems({
+      eventIndexesById,
+      events,
+      layoutItemsByEventId,
+      timelineTimeScale,
+    })
   }, [eventIndexesById, events, layout, layoutItemsByEventId, timelineTimeScale])
-  const timelineViewportRequest = useMemo<TimelineViewportModelRequest>(() => ({
-    detailLevel: timelineDetailLevel,
-    events: events.map((event) => ({
-      category: event.category,
-      color: event.color,
-      endValue: event.endValue,
-      eventType: event.eventType,
-      id: event.id,
-      startLabel: event.startLabel,
-      startValue: event.startValue,
-      title: event.title,
-    })),
-    items: Array.from(renderedLayoutItemsByEventId.values()).map((item) => ({
-      height: item.height,
-      layer: item.layer,
-      timelineEventId: item.timelineEventId,
-      width: item.width,
-      x: item.x,
-      y: item.y,
-    })),
-    selectedEventId: selectedEvent?.id ?? null,
-    visibleMaxX,
-    visibleMinX,
-  }), [events, renderedLayoutItemsByEventId, selectedEvent, timelineDetailLevel, visibleMaxX, visibleMinX])
   const timelineClusters = useMemo(
     () => hydrateTimelineClusters(timelineViewportModel?.clusters ?? [], eventsById),
     [eventsById, timelineViewportModel],
@@ -268,6 +219,14 @@ export function TimelinePage({
       return
     }
 
+    const timelineViewportRequest = buildTimelineViewportRequest({
+      detailLevel: timelineDetailLevel,
+      events,
+      renderedLayoutItemsByEventId,
+      selectedEventId,
+      visibleMaxX,
+      visibleMinX,
+    })
     const worker = timelineWorkerRef.current
     if (worker === null) {
       setTimelineViewportModel(buildTimelineViewportModel(timelineViewportRequest))
@@ -280,7 +239,15 @@ export function TimelinePage({
       payload: timelineViewportRequest,
       requestId,
     })
-  }, [layout, timelineViewportRequest])
+  }, [
+    events,
+    layout,
+    renderedLayoutItemsByEventId,
+    selectedEventId,
+    timelineDetailLevel,
+    visibleMaxX,
+    visibleMinX,
+  ])
   useEffect(() => {
     if (activeClusterId !== null && !timelineClusters.some((cluster) => cluster.id === activeClusterId)) {
       setActiveClusterId(null)

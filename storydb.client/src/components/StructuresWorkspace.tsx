@@ -1,6 +1,4 @@
 ﻿import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft } from 'lucide-react'
-
 import {
   assignObjectToStructureRequest,
   createStructureRequest,
@@ -20,7 +18,6 @@ import type {
   StructureAssignment,
   StructureDraft,
   StructureEdgeDraft,
-  StructureNodeDraft,
   StructureSummary,
   StructureUsage,
   StoryProject,
@@ -33,20 +30,25 @@ import { StructureDetailEditor } from './structure-workspace/StructureDetailEdit
 import { StructureDossierPage } from './structure-workspace/StructureDossierPage'
 import { StructureEdgeDossier, StructureNodeDossier } from './structure-workspace/StructureDossierPanels'
 import { StructureOverviewList } from './structure-workspace/StructureOverviewList'
+import { StructureWorkspaceHeader } from './structure-workspace/StructureWorkspaceHeader'
 import {
-  addStructureDraftEdge,
-  addStructureDraftNode,
   clearNodeCatalogBindings,
   emptyStructureDraft,
   getStructureEdgeKey,
-  removeStructureDraftEdge,
-  removeStructureDraftNode,
   toStructureDraft,
-  updateStructureDraftEdge,
-  updateStructureDraftNode,
   type StructureWorkspacePage,
 } from './structure-workspace/structureDraftUtils'
+import {
+  buildStructureCatalogEntryOptions,
+  buildStructureWorkspacePages,
+  findSelectedStructureEdge,
+  findSelectedStructureNode,
+  getActiveStructurePageDescription,
+} from './structure-workspace/structureWorkspaceModel'
 import { useStructureAssignmentMaps } from './structure-workspace/useStructureAssignmentMaps'
+import { useStructureAssignmentSelection } from './structure-workspace/useStructureAssignmentSelection'
+import { useStructureDetailPanel } from './structure-workspace/useStructureDetailPanel'
+import { useStructureDraftMutators } from './structure-workspace/useStructureDraftMutators'
 
 export function StructuresWorkspace({
   catalogs,
@@ -84,18 +86,46 @@ export function StructuresWorkspace({
   const [selectedStructureAssignments, setSelectedStructureAssignments] = useState<StructureAssignment[]>([])
   const [selectedStructureUsages, setSelectedStructureUsages] = useState<StructureUsage[]>([])
   const [selectedStructureTimelineReferenceCount, setSelectedStructureTimelineReferenceCount] = useState(0)
-  const [assignmentUsageId, setAssignmentUsageId] = useState('')
-  const [assignmentNodeId, setAssignmentNodeId] = useState('')
-  const [assignmentCatalogEntryId, setAssignmentCatalogEntryId] = useState('')
-  const [assignmentRoleLabel, setAssignmentRoleLabel] = useState('')
   const availableCatalogs = catalogs
   const catalogEntryOptions = useMemo(
-    () =>
-      catalogs.flatMap((catalog) =>
-        (catalogEntriesByCatalogId[catalog.id] ?? []).map((entry) => ({ catalog, entry })),
-      ),
+    () => buildStructureCatalogEntryOptions(catalogs, catalogEntriesByCatalogId),
     [catalogEntriesByCatalogId, catalogs],
   )
+  const {
+    addDraftEdge,
+    addDraftNode,
+    addSelectedEdge,
+    addSelectedNode,
+    removeDraftEdge,
+    removeDraftNode,
+    removeSelectedEdge,
+    removeSelectedNode,
+    updateDraft,
+    updateDraftEdge,
+    updateDraftNode,
+    updateSelectedDraft,
+    updateSelectedEdge,
+    updateSelectedNode,
+  } = useStructureDraftMutators({
+    defaultEdgeType: ui.structureEdgeDefaultType,
+    setDraft,
+    setSelectedDraft,
+  })
+  const {
+    assignmentCatalogEntryId,
+    assignmentNodeId,
+    assignmentRoleLabel,
+    assignmentUsageId,
+    resetAssignmentSelection,
+    setAssignmentCatalogEntryId,
+    setAssignmentNodeId,
+    setAssignmentRoleLabel,
+    setAssignmentUsageId,
+  } = useStructureAssignmentSelection({
+    catalogEntryOptions,
+    selectedDraft,
+    usages: selectedStructureUsages,
+  })
   const canSaveStructure =
     draft.name.trim().length > 0 &&
     !isSaving
@@ -114,14 +144,11 @@ export function StructuresWorkspace({
     setSelectedStructureAssignments([])
     setSelectedStructureUsages([])
     setSelectedStructureTimelineReferenceCount(0)
-    setAssignmentUsageId('')
-    setAssignmentNodeId('')
-    setAssignmentCatalogEntryId('')
-    setAssignmentRoleLabel('')
+    resetAssignmentSelection()
     setSystemMode('view')
     setSchemaMode('view')
     void loadStructures().catch(() => onError(errorMessage))
-  }, [errorMessage, loadStructures, onError, selectedProject.id])
+  }, [errorMessage, loadStructures, onError, resetAssignmentSelection, selectedProject.id])
 
   const saveStructure = async () => {
     if (!canSaveStructure) {
@@ -174,26 +201,6 @@ export function StructuresWorkspace({
     }
   }
 
-  const updateDraft = (patch: Partial<StructureDraft>) => setDraft((currentDraft) => ({ ...currentDraft, ...patch }))
-
-  const updateDraftNode = (clientId: string, patch: Partial<StructureNodeDraft>) =>
-    setDraft((currentDraft) => updateStructureDraftNode(currentDraft, clientId, patch))
-
-  const addDraftNode = () =>
-    setDraft(addStructureDraftNode)
-
-  const updateDraftEdge = (edgeIndex: number, patch: Partial<StructureEdgeDraft>) =>
-    setDraft((currentDraft) => updateStructureDraftEdge(currentDraft, edgeIndex, patch))
-
-  const addDraftEdge = () =>
-    setDraft((currentDraft) => addStructureDraftEdge(currentDraft, ui.structureEdgeDefaultType))
-
-  const removeDraftEdge = (edgeIndex: number) =>
-    setDraft((currentDraft) => removeStructureDraftEdge(currentDraft, edgeIndex))
-
-  const removeDraftNode = (clientId: string) =>
-    setDraft((currentDraft) => removeStructureDraftNode(currentDraft, clientId))
-
   const openStructure = async (structureId: number) => {
     setSelectedStructureId(structureId)
     setIsDetailLoading(true)
@@ -216,51 +223,6 @@ export function StructuresWorkspace({
       setIsDetailLoading(false)
     }
   }
-
-  const updateSelectedDraft = (patch: Partial<StructureDraft>) =>
-    setSelectedDraft((currentDraft) => (currentDraft === null ? currentDraft : { ...currentDraft, ...patch }))
-
-  const updateSelectedNode = (clientId: string, patch: Partial<StructureNodeDraft>) =>
-    setSelectedDraft((currentDraft) =>
-      currentDraft === null
-        ? currentDraft
-        : updateStructureDraftNode(currentDraft, clientId, patch),
-    )
-
-  const addSelectedNode = () =>
-    setSelectedDraft((currentDraft) =>
-      currentDraft === null
-        ? currentDraft
-        : addStructureDraftNode(currentDraft),
-    )
-
-  const updateSelectedEdge = (edgeIndex: number, patch: Partial<StructureEdgeDraft>) =>
-    setSelectedDraft((currentDraft) =>
-      currentDraft === null
-        ? currentDraft
-        : updateStructureDraftEdge(currentDraft, edgeIndex, patch),
-    )
-
-  const addSelectedEdge = () =>
-    setSelectedDraft((currentDraft) =>
-      currentDraft === null
-        ? currentDraft
-        : addStructureDraftEdge(currentDraft, ui.structureEdgeDefaultType),
-    )
-
-  const removeSelectedEdge = (edgeIndex: number) =>
-    setSelectedDraft((currentDraft) =>
-      currentDraft === null
-        ? currentDraft
-        : removeStructureDraftEdge(currentDraft, edgeIndex),
-    )
-
-  const removeSelectedNode = (clientId: string) =>
-    setSelectedDraft((currentDraft) =>
-      currentDraft === null
-        ? currentDraft
-        : removeStructureDraftNode(currentDraft, clientId),
-    )
 
   const saveSelectedStructure = async () => {
     if (
@@ -412,38 +374,17 @@ export function StructuresWorkspace({
     countsByNodeId: selectedAssignmentCountsByNodeId,
     countsByUsageId: selectedAssignmentCountsByUsageId,
   } = useStructureAssignmentMaps(selectedStructureAssignments)
-  useEffect(() => {
-    setAssignmentUsageId((currentUsageId) =>
-      selectedStructureUsages.some((usage) => String(usage.id) === currentUsageId)
-        ? currentUsageId
-        : String(selectedStructureUsages[0]?.id ?? ''),
-    )
-  }, [selectedStructureUsages])
-
-  useEffect(() => {
-    const nodeIds = selectedDraft?.nodes
-      .map((node) => (/^\d+$/.test(node.clientId) ? node.clientId : ''))
-      .filter((nodeId) => nodeId.length > 0) ?? []
-    setAssignmentNodeId((currentNodeId) =>
-      nodeIds.includes(currentNodeId) ? currentNodeId : nodeIds[0] ?? '',
-    )
-  }, [selectedDraft])
-
-  useEffect(() => {
-    const entryIds = catalogEntryOptions.map(({ entry }) => String(entry.id))
-    setAssignmentCatalogEntryId((currentEntryId) =>
-      entryIds.includes(currentEntryId) ? currentEntryId : entryIds[0] ?? '',
-    )
-  }, [catalogEntryOptions])
-
   const hasSelectedStructureAssignments = selectedStructureAssignments.length > 0
   const hasSelectedStructureTimelineReferences = selectedStructureTimelineReferenceCount > 0
   const isSelectedTopologyLocked = hasSelectedStructureAssignments || hasSelectedStructureTimelineReferences
-  const selectedStructureNode =
-    selectedDraft === null || selectedStructureNodeClientId === null
-      ? null
-      : selectedDraft.nodes.find((node) => node.clientId === selectedStructureNodeClientId) ?? null
+  const selectedStructureNode = findSelectedStructureNode(selectedDraft, selectedStructureNodeClientId)
   const canRenderStructureNodeDossier = selectedDraft !== null && selectedStructureNode !== null
+  const closeSelectedStructureNode = useCallback(() => setSelectedStructureNodeClientId(null), [])
+  const closeSelectedStructureEdge = useCallback(() => setSelectedStructureEdgeKey(null), [])
+  const openSelectedStructureEdge = useCallback((edge: StructureEdgeDraft) => {
+    setSelectedStructureEdgeKey(getStructureEdgeKey(edge))
+    setSelectedStructureNodeClientId(null)
+  }, [])
   const renderSelectedStructureNodeDossier = (showCloseButton = true) =>
     canRenderStructureNodeDossier ? (
       <StructureNodeDossier
@@ -452,17 +393,11 @@ export function StructuresWorkspace({
         node={selectedStructureNode}
         showCloseButton={showCloseButton}
         ui={ui}
-        onOpenEdge={(edge) => {
-          setSelectedStructureEdgeKey(getStructureEdgeKey(edge))
-          setSelectedStructureNodeClientId(null)
-        }}
-        onClose={() => setSelectedStructureNodeClientId(null)}
+        onOpenEdge={openSelectedStructureEdge}
+        onClose={closeSelectedStructureNode}
       />
     ) : null
-  const selectedStructureEdge =
-    selectedDraft === null || selectedStructureEdgeKey === null
-      ? null
-      : selectedDraft.edges.find((edge) => getStructureEdgeKey(edge) === selectedStructureEdgeKey) ?? null
+  const selectedStructureEdge = findSelectedStructureEdge(selectedDraft, selectedStructureEdgeKey)
   const canRenderStructureEdgeDossier = selectedDraft !== null && selectedStructureEdge !== null
   const renderSelectedStructureEdgeDossier = (showCloseButton = true) =>
     canRenderStructureEdgeDossier ? (
@@ -471,72 +406,32 @@ export function StructuresWorkspace({
         edge={selectedStructureEdge}
         showCloseButton={showCloseButton}
         ui={ui}
-        onClose={() => setSelectedStructureEdgeKey(null)}
+        onClose={closeSelectedStructureEdge}
       />
     ) : null
 
-  useEffect(() => {
-    if (detailMode !== 'panel' || activeStructurePage !== 'schema' || selectedDraft === null) {
-      onDetailPanelChange(null)
-      return
-    }
-
-    if (selectedStructureNode !== null) {
-      onDetailPanelChange(
-        <StructureNodeDossier
-          assignmentsByNodeId={selectedAssignmentsByNodeId}
-          draft={selectedDraft}
-          node={selectedStructureNode}
-          showCloseButton
-          ui={ui}
-          onOpenEdge={(edge) => {
-            setSelectedStructureEdgeKey(getStructureEdgeKey(edge))
-            setSelectedStructureNodeClientId(null)
-          }}
-          onClose={() => setSelectedStructureNodeClientId(null)}
-        />,
-      )
-      return
-    }
-
-    if (selectedStructureEdge !== null) {
-      onDetailPanelChange(
-        <StructureEdgeDossier
-          draft={selectedDraft}
-          edge={selectedStructureEdge}
-          showCloseButton
-          ui={ui}
-          onClose={() => setSelectedStructureEdgeKey(null)}
-        />,
-      )
-      return
-    }
-
-    onDetailPanelChange(null)
-  }, [
-    activeStructurePage,
+  useStructureDetailPanel({
+    activePage: activeStructurePage,
+    assignmentsByNodeId: selectedAssignmentsByNodeId,
     detailMode,
+    onCloseEdge: closeSelectedStructureEdge,
+    onCloseNode: closeSelectedStructureNode,
     onDetailPanelChange,
-    selectedAssignmentsByNodeId,
+    onOpenEdge: openSelectedStructureEdge,
     selectedDraft,
-    selectedStructureEdge,
-    selectedStructureNode,
+    selectedEdge: selectedStructureEdge,
+    selectedNode: selectedStructureNode,
     ui,
-  ])
+  })
 
-  useEffect(() => () => onDetailPanelChange(null), [onDetailPanelChange])
-
-  const structurePages: Array<{ key: StructureWorkspacePage; label: string; description: string }> = [
-    { key: 'overview', label: ui.structurePageOverview, description: ui.structurePageOverviewHint },
-    { key: 'create', label: ui.structurePageCreate, description: ui.structurePageCreateHint },
-    { key: 'system', label: ui.structurePageSystem, description: ui.structurePageSystemHint },
-    { key: 'schema', label: ui.structurePageSchema, description: ui.structurePageSchemaHint },
-    { key: 'objects', label: ui.structurePageObjects, description: ui.structurePageObjectsHint },
-  ]
+  const structurePages = buildStructureWorkspacePages(ui)
   const selectedStructurePages = structurePages.filter((page) => page.key !== 'overview' && page.key !== 'create')
   const isSelectedStructurePage = selectedStructurePages.some((page) => page.key === activeStructurePage)
-  const activeStructurePageDescription =
-    structurePages.find((page) => page.key === activeStructurePage)?.description ?? ui.structuresDescription
+  const activeStructurePageDescription = getActiveStructurePageDescription(
+    structurePages,
+    activeStructurePage,
+    ui.structuresDescription,
+  )
   if (
     activeStructurePage === 'schema' &&
     detailMode === 'page' &&
@@ -575,48 +470,15 @@ export function StructuresWorkspace({
 
   return (
     <section className="sp-database-main sp-structures-workspace">
-      <div className="sp-workspace-head">
-        <div>
-          <h2>{ui.structures}</h2>
-          <p>{activeStructurePageDescription}</p>
-        </div>
-        {activeStructurePage === 'overview' && (
-          <button className="sp-button primary" type="button" onClick={() => setActiveStructurePage('create')}>
-            {ui.create}
-          </button>
-        )}
-        {activeStructurePage === 'create' && (
-          <button className="sp-button" type="button" onClick={() => setActiveStructurePage('overview')}>
-            {ui.back}
-          </button>
-        )}
-        {isSelectedStructurePage && (
-          <button
-            className="sp-icon-button sp-page-back-button"
-            type="button"
-            aria-label={ui.back}
-            title={ui.back}
-            onClick={() => setActiveStructurePage('overview')}
-          >
-            <ArrowLeft aria-hidden="true" size={18} />
-          </button>
-        )}
-      </div>
-
-      {isSelectedStructurePage && (
-      <div className="sp-tabs sp-structure-task-tabs" role="tablist" aria-label={ui.structures}>
-        {selectedStructurePages.map((page) => (
-          <button
-            className={activeStructurePage === page.key ? 'active' : ''}
-            key={page.key}
-            type="button"
-            onClick={() => setActiveStructurePage(page.key)}
-          >
-            {page.label}
-          </button>
-        ))}
-      </div>
-      )}
+      <StructureWorkspaceHeader
+        activePage={activeStructurePage}
+        activePageDescription={activeStructurePageDescription}
+        isSelectedStructurePage={isSelectedStructurePage}
+        selectedPages={selectedStructurePages}
+        ui={ui}
+        onCreate={() => setActiveStructurePage('create')}
+        onPageChange={setActiveStructurePage}
+      />
 
       {activeStructurePage === 'create' && (
         <StructureCreatePanel
