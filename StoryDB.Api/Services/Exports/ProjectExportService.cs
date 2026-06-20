@@ -1,12 +1,14 @@
-﻿using Microsoft.EntityFrameworkCore;
 using StoryDB.Api.Contracts.Exports;
-using StoryDB.Api.Data;
-using StoryDB.Api.Data.Entities;
+using StoryDB.Api.Contracts.Objects;
+using StoryDB.Api.Contracts.Projects;
 using StoryDB.Api.Files;
+using StoryDB.Api.Services.Projects;
 
 namespace StoryDB.Api.Services.Exports;
 
-public sealed partial class ProjectExportService(StoryDbContext dbContext, IFileStorageService fileStorageService) : IProjectExportService
+public sealed partial class ProjectExportService(
+    IProjectSnapshotService snapshotService,
+    IFileStorageService fileStorageService) : IProjectExportService
 {
     private const int MaxExportedObjects = 100;
     private const string DocxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -41,80 +43,60 @@ public sealed partial class ProjectExportService(StoryDbContext dbContext, IFile
                 $"A single Word export can include up to {MaxExportedObjects} objects.");
         }
 
-        var project = await dbContext.Projects
-            .AsNoTracking()
-            .FirstOrDefaultAsync(currentProject => currentProject.Id == projectId, cancellationToken);
-        if (project is null)
+        var snapshotResult = await snapshotService.GetLatestSnapshotAsync(projectId, "current", cancellationToken);
+        if (snapshotResult.Status == ProjectSnapshotServiceStatus.NotFound)
+        {
+            snapshotResult = await snapshotService.PublishCurrentSnapshotAsync(projectId, cancellationToken);
+        }
+
+        if (snapshotResult.Status == ProjectSnapshotServiceStatus.NotFound)
         {
             return ProjectExportServiceResult<ProjectDossierExportDocument>.NotFound();
         }
 
-        var objects = await LoadObjects(projectId, objectIds, cancellationToken);
+        if (snapshotResult.Status == ProjectSnapshotServiceStatus.Invalid)
+        {
+            return ProjectExportServiceResult<ProjectDossierExportDocument>.Invalid(
+                snapshotResult.Error ?? "Project snapshot is not ready for export.");
+        }
+
+        var snapshot = snapshotResult.Value!;
+        if (string.Equals(snapshot.Status, "failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return ProjectExportServiceResult<ProjectDossierExportDocument>.Invalid(
+                "Project snapshot is not ready for export.");
+        }
+
+        var objects = SelectSnapshotObjects(snapshot.Data, objectIds);
         if (objects.Count != objectIds.Length)
         {
             return ProjectExportServiceResult<ProjectDossierExportDocument>.NotFound();
         }
 
+        var typeOrder = snapshot.Data.ObjectTypes
+            .Select((type, index) => new { type.Key, type.Name, Index = index })
+            .ToDictionary(type => type.Key, type => type, StringComparer.OrdinalIgnoreCase);
         var orderedObjects = objects
-            .OrderBy(storyObject => storyObject.ObjectType?.SortOrder ?? int.MaxValue)
-            .ThenBy(storyObject => storyObject.ObjectType?.Name ?? storyObject.ObjectType?.Key ?? "")
+            .OrderBy(storyObject => typeOrder.TryGetValue(storyObject.TypeKey, out var type) ? type.Index : int.MaxValue)
+            .ThenBy(storyObject => typeOrder.TryGetValue(storyObject.TypeKey, out var type) ? type.Name : storyObject.TypeKey)
             .ThenBy(storyObject => GetObjectDisplayName(storyObject))
             .ToList();
 
-        var content = BuildDossierDocument(project, orderedObjects, request);
-        var fileName = $"{ToFileName(project.Name)}-dossiers-{DateTime.UtcNow:yyyyMMdd-HHmm}.docx";
+        var content = BuildDossierDocument(snapshot.Data, orderedObjects, request);
+        var fileName = $"{ToFileName(snapshot.Data.Project.Name)}-dossiers-{DateTime.UtcNow:yyyyMMdd-HHmm}.docx";
 
         return ProjectExportServiceResult<ProjectDossierExportDocument>.Success(
             new ProjectDossierExportDocument(fileName, DocxContentType, content));
     }
 
-    private async Task<List<StoryObject>> LoadObjects(
-        int projectId,
-        IReadOnlyCollection<int> objectIds,
-        CancellationToken cancellationToken)
-    {
-        return await dbContext.Objects
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Where(storyObject => storyObject.ProjectId == projectId && objectIds.Contains(storyObject.Id))
-            .Include(storyObject => storyObject.ObjectType)
-            .Include(storyObject => storyObject.Attributes)
-                .ThenInclude(attribute => attribute.AttributeDefinition)
-                .ThenInclude(definition => definition!.AttributeGroup)
-            .Include(storyObject => storyObject.CatalogSelections)
-                .ThenInclude(selection => selection.Catalog)
-            .Include(storyObject => storyObject.CatalogSelections)
-                .ThenInclude(selection => selection.CatalogEntryGroup)
-            .Include(storyObject => storyObject.CatalogSelections)
-                .ThenInclude(selection => selection.CatalogEntry)
-            .Include(storyObject => storyObject.HierarchySelections)
-                .ThenInclude(selection => selection.HierarchyGroup)
-            .Include(storyObject => storyObject.HierarchySelections)
-                .ThenInclude(selection => selection.HierarchyNode)
-            .Include(storyObject => storyObject.OwnedItems)
-                .ThenInclude(link => link.ItemObject)
-                .ThenInclude(item => item!.ObjectType)
-            .Include(storyObject => storyObject.Owners)
-                .ThenInclude(link => link.OwnerCharacter)
-                .ThenInclude(owner => owner!.ObjectType)
-            .Include(storyObject => storyObject.OutgoingRelations)
-                .ThenInclude(relation => relation.TargetObject)
-                .ThenInclude(target => target!.ObjectType)
-            .Include(storyObject => storyObject.IncomingRelations)
-                .ThenInclude(relation => relation.SourceObject)
-                .ThenInclude(source => source!.ObjectType)
-            .Include(storyObject => storyObject.OutgoingCharacterRelationships)
-                .ThenInclude(relation => relation.TargetCharacter)
-                .ThenInclude(target => target!.ObjectType)
-            .Include(storyObject => storyObject.IncomingCharacterRelationships)
-                .ThenInclude(relation => relation.SourceCharacter)
-                .ThenInclude(source => source!.ObjectType)
-            .Include(storyObject => storyObject.StructureAssignments)
-                .ThenInclude(assignment => assignment.StructureUsage)
-                .ThenInclude(usage => usage!.Structure)
-            .Include(storyObject => storyObject.StructureAssignments)
-                .ThenInclude(assignment => assignment.StructureNode)
-            .ToListAsync(cancellationToken);
-    }
+    private static List<StoryObjectDto> SelectSnapshotObjects(
+        ProjectSnapshotDataDto snapshotData,
+        IReadOnlyCollection<int> objectIds) =>
+        snapshotData.ObjectsByType
+            .Values
+            .SelectMany(objects => objects)
+            .Where(storyObject => objectIds.Contains(storyObject.Id))
+            .GroupBy(storyObject => storyObject.Id)
+            .Select(group => group.First())
+            .ToList();
 }
-

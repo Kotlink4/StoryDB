@@ -14,6 +14,7 @@ export function AttributesWorkspace({
   attributeGroupName,
   attributeGroupValidationErrors,
   attributeGroups,
+  canEdit = true,
   definitionValidationErrors,
   groupDisplayMode,
   editingAttributeDefinitionId,
@@ -38,6 +39,7 @@ export function AttributesWorkspace({
   attributeGroupName: string
   attributeGroupValidationErrors?: ValidationIssueMap
   attributeGroups: AttributeGroup[]
+  canEdit?: boolean
   definitionValidationErrors?: ValidationIssueMap
   groupDisplayMode: GroupDisplayMode
   editingAttributeDefinitionId: number | null
@@ -103,26 +105,28 @@ export function AttributesWorkspace({
               </strong>
               <span>{attributeDefinitions.filter((definition) => definition.groupName === group.name).length}</span>
             </button>
-            <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group)} onEdit={() => onEditGroup(group)} />
+            {canEdit && <KebabMenu ui={ui} onDelete={() => onDeleteGroup(group)} onEdit={() => onEditGroup(group)} />}
             </div>
           ))}
-          <div className="sp-inline-create">
-            <input
-              placeholder={ui.newGroup}
-              value={attributeGroupName}
-              onChange={(event) => onAttributeGroupNameChange(event.target.value)}
-              {...getFieldValidationProps('name', attributeGroupValidationErrors, 'attribute-group-inline-error')}
-            />
-            <button className="sp-button primary" type="button" onClick={onCreateGroup}>
-              +
-            </button>
-            <AttributeIconPicker language={language} value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
-            <FieldError id="attribute-group-inline-error" message={attributeGroupValidationErrors?.name} />
-          </div>
+          {canEdit && (
+            <div className="sp-inline-create">
+              <input
+                placeholder={ui.newGroup}
+                value={attributeGroupName}
+                onChange={(event) => onAttributeGroupNameChange(event.target.value)}
+                {...getFieldValidationProps('name', attributeGroupValidationErrors, 'attribute-group-inline-error')}
+              />
+              <button className="sp-button primary" type="button" onClick={onCreateGroup}>
+                +
+              </button>
+              <AttributeIconPicker language={language} value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
+              <FieldError id="attribute-group-inline-error" message={attributeGroupValidationErrors?.name} />
+            </div>
+          )}
         </aside>
         )}
         <section className="sp-catalog-main">
-          {groupDisplayMode === 'subtabs' && (
+          {canEdit && groupDisplayMode === 'subtabs' && (
             <div className="sp-inline-create sp-inline-create-wide">
               <input
                 placeholder={ui.newGroup}
@@ -137,8 +141,9 @@ export function AttributesWorkspace({
               <FieldError id="attribute-group-subtabs-error" message={attributeGroupValidationErrors?.name} />
             </div>
           )}
-          <div className="sp-attribute-definition-form" ref={definitionFormRef}>
-            <div className="sp-form-row">
+          {canEdit && (
+            <div className="sp-attribute-definition-form" ref={definitionFormRef}>
+              <div className="sp-form-row">
               <label>
                 {ui.firstName}
                 <input
@@ -241,8 +246,9 @@ export function AttributesWorkspace({
               <button className="sp-button primary" type="button" onClick={onCreateAttribute}>
                 {editingAttributeDefinitionId === null ? ui.addAttribute : ui.save}
               </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {visibleDefinitions.length === 0 ? (
             <div className="sp-empty">
@@ -269,7 +275,7 @@ export function AttributesWorkspace({
                         {attribute.name}
                       </span>
                       <strong>{attribute.value ?? '-'}</strong>
-                      {definition !== undefined && (
+                      {canEdit && definition !== undefined && (
                         <KebabMenu
                           ui={ui}
                           onDelete={() => onDeleteAttribute(definition)}

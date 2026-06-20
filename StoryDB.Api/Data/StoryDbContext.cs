@@ -10,6 +10,7 @@ public partial class StoryDbContext(DbContextOptions<StoryDbContext> options) : 
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
     public DbSet<MediaAssetVariant> MediaAssetVariants => Set<MediaAssetVariant>();
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectSnapshot> ProjectSnapshots => Set<ProjectSnapshot>();
     public DbSet<ProjectTemplatePack> ProjectTemplatePacks => Set<ProjectTemplatePack>();
     public DbSet<ProjectTemplatePackFavorite> ProjectTemplatePackFavorites => Set<ProjectTemplatePackFavorite>();
     public DbSet<ObjectType> ObjectTypes => Set<ObjectType>();
@@ -189,6 +190,35 @@ public partial class StoryDbContext(DbContextOptions<StoryDbContext> options) : 
 
         modelBuilder.Entity<Project>()
             .HasIndex(project => project.Visibility);
+
+        modelBuilder.Entity<ProjectSnapshot>()
+            .HasIndex(snapshot => new { snapshot.ProjectId, snapshot.Scope, snapshot.Revision });
+
+        modelBuilder.Entity<ProjectSnapshot>()
+            .Property(snapshot => snapshot.Scope)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<ProjectSnapshot>()
+            .Property(snapshot => snapshot.Status)
+            .HasMaxLength(40);
+
+        modelBuilder.Entity<ProjectSnapshot>()
+            .Property(snapshot => snapshot.DirtySections)
+            .HasMaxLength(200);
+
+        modelBuilder.Entity<ProjectSnapshot>()
+            .Property(snapshot => snapshot.DataJson)
+            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<ProjectSnapshot>()
+            .Property(snapshot => snapshot.Error)
+            .HasMaxLength(2000);
+
+        modelBuilder.Entity<ProjectSnapshot>()
+            .HasOne(snapshot => snapshot.Project)
+            .WithMany(project => project.Snapshots)
+            .HasForeignKey(snapshot => snapshot.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Project>()
             .Property(project => project.Visibility)

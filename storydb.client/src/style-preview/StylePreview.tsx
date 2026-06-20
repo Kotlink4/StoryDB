@@ -6,8 +6,10 @@
   useState,
 } from 'react'
 import {
+  publishPublishedProjectSnapshotRequest,
   resolveAssetVariantUrl,
 } from '../api'
+import type { StoryProject } from '../types'
 import { StylePreviewContent } from '../components/StylePreviewContent'
 import { StylePreviewLayout } from '../components/StylePreviewLayout'
 import {
@@ -23,6 +25,7 @@ import {
   isObjectSection,
 } from './domain/stylePreviewConfig'
 import { readPreviewState } from './domain/stylePreviewStateStorage'
+import { emptyObjectsByType } from './hooks/useStylePreviewTextLinkTargetsData'
 import { usePreviewToast } from './hooks/usePreviewToast'
 import { useStylePreviewAuthCommands } from './hooks/useStylePreviewAuthCommands'
 import { useStylePreviewAttributeCommands } from './hooks/useStylePreviewAttributeCommands'
@@ -58,6 +61,7 @@ import { useStylePreviewLayoutProps } from './hooks/useStylePreviewLayoutProps'
 import { useStylePreviewTemporalState } from './hooks/useStylePreviewTemporalState'
 import { useStylePreviewUiState } from './hooks/useStylePreviewUiState'
 import { useStylePreviewWorkspaceData } from './hooks/useStylePreviewWorkspaceData'
+import { useProjectSnapshot } from './hooks/useProjectSnapshot'
 import {
   buildStylePreviewCatalogEntryDetailProps,
   buildStylePreviewObjectDetailProps,
@@ -96,6 +100,7 @@ export function StylePreview() {
   const [objectValidationErrors, setObjectValidationErrors] = useState<ValidationIssueMap>({})
   const [profileValidationErrors, setProfileValidationErrors] = useState<ValidationIssueMap>({})
   const [projectValidationErrors, setProjectValidationErrors] = useState<ValidationIssueMap>({})
+  const [isPublishedSnapshotPublishing, setIsPublishedSnapshotPublishing] = useState(false)
   const [relationLinkValidationErrors, setRelationLinkValidationErrors] = useState<ValidationIssueMap>({})
   const [timelineEventValidationErrors, setTimelineEventValidationErrors] = useState<ValidationIssueMap>({})
   const [timelineLinkValidationErrors, setTimelineLinkValidationErrors] = useState<ValidationIssueMap>({})
@@ -417,8 +422,86 @@ export function StylePreview() {
     showErrorMessage,
     showMessage,
   })
+
+  const selectedProjectAccess = projects.find((project) => project.id === selectedProjectId) ?? null
+  const projectSnapshotScope =
+    currentUser === null || selectedProjectAccess?.canEdit === false ? 'published' : 'current'
+  const {
+    isPublishing: isProjectSnapshotPublishing,
+    publishSnapshot: publishProjectSnapshot,
+    rebuildSnapshot: rebuildProjectSnapshot,
+    snapshot: projectSnapshot,
+  } = useProjectSnapshot(
+    !isProfilePageOpen && !isSettingsPageOpen
+      ? selectedProjectId
+      : null,
+    messages.apiUnavailable,
+    projectSnapshotScope,
+  )
+  const handlePublishProjectSnapshot = useCallback(async () => {
+    const nextSnapshot = projectSnapshot === null
+      ? await publishProjectSnapshot()
+      : await rebuildProjectSnapshot()
+
+    if (nextSnapshot === null) {
+      showErrorMessage(messages.apiUnavailable)
+      return
+    }
+
+    showMessage(messages.projectSnapshotUpdated)
+  }, [
+    messages.apiUnavailable,
+    messages.projectSnapshotUpdated,
+    projectSnapshot,
+    publishProjectSnapshot,
+    rebuildProjectSnapshot,
+    showErrorMessage,
+    showMessage,
+  ])
+  const handlePublishPublishedProjectSnapshot = useCallback(async () => {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    setIsPublishedSnapshotPublishing(true)
+    try {
+      await publishPublishedProjectSnapshotRequest(selectedProjectId)
+      showMessage(messages.projectPublishedSnapshotUpdated)
+    } catch {
+      showErrorMessage(messages.apiUnavailable)
+    } finally {
+      setIsPublishedSnapshotPublishing(false)
+    }
+  }, [messages.apiUnavailable, messages.projectPublishedSnapshotUpdated, selectedProjectId, showErrorMessage, showMessage])
   const isLoading = !isProfilePageOpen && !isSettingsPageOpen && isLoadingProjects
   const currentUserAvatarUrl = resolveAssetVariantUrl(currentUser?.avatarImagePath ?? null, 'thumb')
+  const snapshotProject = useMemo<StoryProject | null>(() => {
+    if (projectSnapshot === null) {
+      return null
+    }
+
+    const objectCount = Object.values(projectSnapshot.data.objectsByType)
+      .reduce((count, typeObjects) => count + typeObjects.length, 0)
+
+    return {
+      id: projectSnapshot.data.project.id,
+      name: projectSnapshot.data.project.name,
+      coverImagePath: projectSnapshot.data.project.coverImagePath,
+      objectCount,
+      updatedAt: projectSnapshot.data.project.updatedAt,
+      visibility: projectSnapshot.data.project.visibility,
+      canEdit: currentUser !== null,
+      canManage: false,
+      objectTypes: projectSnapshot.data.objectTypes,
+    }
+  }, [currentUser, projectSnapshot])
+  const readProjects = useMemo(
+    () =>
+      snapshotProject === null || projects.some((project) => project.id === snapshotProject.id)
+        ? projects
+        : [snapshotProject],
+    [projects, snapshotProject],
+  )
   const {
     catalogDialogFields,
     enabledObjectTypes,
@@ -440,7 +523,7 @@ export function StylePreview() {
     editingCatalogId,
     editingTimelineEventId,
     objects,
-    projects,
+    projects: readProjects,
     relationGraph,
     selectedCatalogEntryId,
     selectedCatalogId,
@@ -450,13 +533,9 @@ export function StylePreview() {
     selectedTimelineEventId,
     timelineEvents,
   })
+  const canEditSelectedProject = currentUser !== null && selectedProject?.canEdit === true
   const {
-    selectedTemporalObject,
-    selectedTemporalRelationEdge,
     temporalObjectsByType,
-    temporalRelationGraph,
-    temporalSectionObjects,
-    temporalVisibleObjects,
   } = useStylePreviewTemporalState({
     activeSection,
     catalogEntriesByCatalogId,
@@ -473,6 +552,99 @@ export function StylePreview() {
     structureUsages,
     visibleCatalogs,
     visibleTimelineEvents,
+  })
+
+  const snapshotObjectsByType = useMemo(
+    () => ({
+      ...emptyObjectsByType,
+      ...(projectSnapshot?.data.objectsByType ?? {}),
+    }),
+    [projectSnapshot?.data.objectsByType],
+  )
+  const hasSnapshotObjects = useMemo(
+    () => Object.values(snapshotObjectsByType).some((typeObjects) => typeObjects.length > 0),
+    [snapshotObjectsByType],
+  )
+  const readBaseObjectsByType = hasSnapshotObjects ? snapshotObjectsByType : objectsByType
+  const readCatalogs = projectSnapshot?.data.catalogs ?? visibleCatalogs
+  const readCatalogEntriesByCatalogId = projectSnapshot?.data.catalogEntriesByCatalogId ?? catalogEntriesByCatalogId
+  const readCatalogGroupsByCatalogId = projectSnapshot?.data.catalogGroupsByCatalogId ?? catalogGroupsByCatalogId
+  const readCatalogFieldsByCatalogId = projectSnapshot?.data.catalogFieldsByCatalogId ?? catalogFieldsByCatalogId
+  const readSelectedCatalog = useMemo(
+    () => readCatalogs.find((catalog) => catalog.id === selectedCatalogId) ?? readCatalogs[0] ?? selectedCatalog,
+    [readCatalogs, selectedCatalog, selectedCatalogId],
+  )
+  const readCatalogEntries = readSelectedCatalog === null
+    ? catalogEntries
+    : readCatalogEntriesByCatalogId[readSelectedCatalog.id] ?? []
+  const readCatalogGroups = readSelectedCatalog === null
+    ? catalogGroups
+    : readCatalogGroupsByCatalogId[readSelectedCatalog.id] ?? []
+  const readSelectedCatalogFields = readSelectedCatalog === null
+    ? selectedCatalogFields
+    : readCatalogFieldsByCatalogId[readSelectedCatalog.id] ?? []
+  const readSelectedCatalogEntry = useMemo(
+    () =>
+      Object.values(readCatalogEntriesByCatalogId)
+        .flat()
+        .find((entry) => entry.id === selectedCatalogEntryId) ?? selectedCatalogEntry,
+    [readCatalogEntriesByCatalogId, selectedCatalogEntry, selectedCatalogEntryId],
+  )
+  const readAttributeDefinitions = isObjectSection(activeSection)
+    ? projectSnapshot?.data.attributeDefinitionsByType[activeSection] ?? attributeDefinitions
+    : attributeDefinitions
+  const readAttributeGroups = isObjectSection(activeSection)
+    ? projectSnapshot?.data.attributeGroupsByType[activeSection] ?? attributeGroups
+    : attributeGroups
+  const readTimelineEvents = projectSnapshot?.data.timelineEvents ?? visibleTimelineEvents
+  const readTimelineInfo = projectSnapshot?.data.timelineInfo ?? timelineInfo
+  const readTimelineLayout = projectSnapshot?.data.timelineLayout ?? timelineLayout
+  const readTimelineLayoutRules = projectSnapshot?.data.timelineLayoutRules ?? timelineLayoutRules
+  const readTimelineLinks = projectSnapshot?.data.timelineLinks ?? timelineLinks
+  const readRelationGraph = projectSnapshot?.data.relationGraph ?? relationGraph
+  const readRelationGraphLayout = projectSnapshot?.data.relationGraphLayout ?? relationGraphLayout
+  const readStructures = projectSnapshot?.data.structures ?? structures
+  const readStructureAssignments = projectSnapshot?.data.structureAssignments ?? structureAssignments
+  const readStructureUsages = projectSnapshot?.data.structureUsages ?? structureUsages
+  const readSelectedTimelineEvent = useMemo(
+    () =>
+      selectedTimelineEventId === null
+        ? null
+        : readTimelineEvents.find((event) => event.id === selectedTimelineEventId) ?? selectedTimelineEvent,
+    [readTimelineEvents, selectedTimelineEvent, selectedTimelineEventId],
+  )
+  const readSelectedObject = useMemo(
+    () =>
+      selectedObjectId === null
+        ? null
+        : Object.values(readBaseObjectsByType)
+            .flat()
+            .find((storyObject) => storyObject.id === selectedObjectId) ?? selectedObject,
+    [readBaseObjectsByType, selectedObject, selectedObjectId],
+  )
+  const {
+    selectedTemporalRelationEdge: readSelectedTemporalRelationEdge,
+    temporalRelationGraph: readTemporalRelationGraph,
+    selectedTemporalObject: readSelectedTemporalObject,
+    temporalObjectsByType: readTemporalObjectsByType,
+    temporalSectionObjects: readTemporalSectionObjects,
+    temporalVisibleObjects: readTemporalVisibleObjects,
+  } = useStylePreviewTemporalState({
+    activeSection,
+    catalogEntriesByCatalogId: readCatalogEntriesByCatalogId,
+    catalogGroupsByCatalogId: readCatalogGroupsByCatalogId,
+    dossierTimelineEventId,
+    hierarchyGroups,
+    hierarchyNodesByGroupId,
+    objectsByType: readBaseObjectsByType,
+    relationGraph: readRelationGraph,
+    selectedObject: readSelectedObject,
+    selectedObjectId,
+    selectedRelationEdgeId,
+    structureAssignments: readStructureAssignments,
+    structureUsages: readStructureUsages,
+    visibleCatalogs: readCatalogs,
+    visibleTimelineEvents: readTimelineEvents,
   })
 
   useStylePreviewRouteSync({
@@ -811,7 +983,7 @@ export function StylePreview() {
     activeSection,
     detailMode,
     navigateToPreview,
-    objectsByType: temporalObjectsByType,
+    objectsByType: readTemporalObjectsByType,
     selectedProjectId,
     setActiveSection,
     setActiveTab,
@@ -834,13 +1006,13 @@ export function StylePreview() {
     textLinkTargets,
   } = useStylePreviewLinkTargets({
     catalogEntries,
-    catalogEntriesByCatalogId,
-    objectsByType: temporalObjectsByType,
-    selectedCatalog,
-    selectedCatalogEntry,
-    selectedObject: selectedTemporalObject,
+    catalogEntriesByCatalogId: readCatalogEntriesByCatalogId,
+    objectsByType: readTemporalObjectsByType,
+    selectedCatalog: readSelectedCatalog,
+    selectedCatalogEntry: readSelectedCatalogEntry,
+    selectedObject: readSelectedTemporalObject,
     selectedRelationObjectId,
-    visibleObjects: temporalVisibleObjects,
+    visibleObjects: readTemporalVisibleObjects,
     onOpenCatalogEntry: openCatalogEntryDetail,
     onOpenObject: openObjectDetail,
   })
@@ -970,11 +1142,11 @@ export function StylePreview() {
   const objectDetailProps = buildStylePreviewObjectDetailProps({
     addGalleryImage,
     addObjectCoverToGallery,
-    attributeDefinitions,
-    attributeGroups,
-    catalogEntriesByCatalogId,
-    catalogGroupsByCatalogId,
-    catalogs: visibleCatalogs,
+    attributeDefinitions: readAttributeDefinitions,
+    attributeGroups: readAttributeGroups,
+    catalogEntriesByCatalogId: readCatalogEntriesByCatalogId,
+    catalogGroupsByCatalogId: readCatalogGroupsByCatalogId,
+    catalogs: readCatalogs,
     deleteGalleryImage,
     dossierTab,
     dossierTimelineEventId,
@@ -982,7 +1154,7 @@ export function StylePreview() {
     galleryImagePath,
     hierarchyGroups,
     hierarchyNodesByGroupId,
-    objectsByType,
+    objectsByType: readBaseObjectsByType,
     openTimelineEventFromDossier,
     selectedProjectId,
     setDialog,
@@ -992,13 +1164,13 @@ export function StylePreview() {
     setTimelineEvents,
     setTimelineLayout,
     textLinkTargets,
-    timelineEvents,
+    timelineEvents: readTimelineEvents,
     ui,
     uploadGalleryImage,
   })
 
   const relationDetailProps = buildStylePreviewRelationDetailProps({
-    graph: temporalRelationGraph,
+    graph: readTemporalRelationGraph,
     objects: linkableObjects,
     openRelationObjectDetail,
     ui,
@@ -1007,11 +1179,11 @@ export function StylePreview() {
   const timelineEventDetailProps = buildStylePreviewTimelineEventDetailProps({
     addTimelineGalleryImage,
     deleteTimelineGalleryImage,
-    events: visibleTimelineEvents,
+    events: readTimelineEvents,
     galleryImageCaption: timelineGalleryImageCaption,
     galleryImagePath: timelineGalleryImagePath,
     linkableObjects,
-    links: timelineLinks,
+    links: readTimelineLinks,
     openObjectDetail,
     openTimelineEventDetail,
     openTimelineEventEditor,
@@ -1024,9 +1196,9 @@ export function StylePreview() {
   })
 
   const catalogEntryDetailProps = buildStylePreviewCatalogEntryDetailProps({
-    catalog: selectedCatalog,
+    catalog: readSelectedCatalog,
     catalogEntryLinksById,
-    fieldDefinitions: selectedCatalogFields,
+    fieldDefinitions: readSelectedCatalogFields,
     textLinkTargets,
     ui,
   })
@@ -1129,13 +1301,13 @@ export function StylePreview() {
   })
 
   const relationsPageProps = buildStylePreviewRelationsPageProps({
-    graph: temporalRelationGraph,
+    graph: readTemporalRelationGraph,
     detailMode,
     isLayoutGenerating: isRelationLayoutGenerating,
-    layout: relationGraphLayout,
+    layout: readRelationGraphLayout,
     linkableObjects,
-    structureAssignments,
-    structures,
+    structureAssignments: readStructureAssignments,
+    structures: readStructures,
     selectedEdgeId: selectedRelationEdgeId,
     ui,
     generateRelationGraphLayout,
@@ -1153,13 +1325,13 @@ export function StylePreview() {
   })
 
   const timelinePageProps = buildStylePreviewTimelinePageProps({
-    timelineEvents: visibleTimelineEvents,
+    timelineEvents: readTimelineEvents,
     isGenerating: isTimelineGenerating,
-    layout: timelineLayout,
-    layoutRules: timelineLayoutRules,
-    links: timelineLinks,
-    selectedEvent: selectedTimelineEvent,
-    timeline: timelineInfo,
+    layout: readTimelineLayout,
+    layoutRules: readTimelineLayoutRules,
+    links: readTimelineLinks,
+    selectedEvent: readSelectedTimelineEvent,
+    timeline: readTimelineInfo,
     ui,
     deleteTimelineLink,
     generateTimelineLayout,
@@ -1169,16 +1341,16 @@ export function StylePreview() {
   })
 
   const projectSearchGroups = useStylePreviewProjectSearchGroups({
-    attributeDefinitions,
-    attributeGroups,
-    catalogEntriesByCatalogId,
-    catalogGroupsByCatalogId,
-    catalogs: visibleCatalogs,
+    attributeDefinitions: readAttributeDefinitions,
+    attributeGroups: readAttributeGroups,
+    catalogEntriesByCatalogId: readCatalogEntriesByCatalogId,
+    catalogGroupsByCatalogId: readCatalogGroupsByCatalogId,
+    catalogs: readCatalogs,
     getObjectSectionLabel,
-    objectsByType: temporalObjectsByType,
+    objectsByType: readTemporalObjectsByType,
     query: projectSearchQuery,
-    relationGraph: temporalRelationGraph,
-    timelineEvents,
+    relationGraph: readRelationGraph,
+    timelineEvents: readTimelineEvents,
     ui,
     onOpenAttributes: () => {
       setProjectSearchQuery('')
@@ -1198,7 +1370,7 @@ export function StylePreview() {
       openObjectDetail(storyObject)
     },
     onOpenRelation: (edgeId) => {
-      const edge = temporalRelationGraph.edges.find((relationEdge) => relationEdge.id === edgeId)
+      const edge = readTemporalRelationGraph.edges.find((relationEdge) => relationEdge.id === edgeId)
       if (edge === undefined) {
         return
       }
@@ -1215,23 +1387,24 @@ export function StylePreview() {
     objectDetailProps,
     ui,
     onBack: () => navigateToPreview(selectedProjectId, 'database', activeSection),
-    onEdit: openEditObjectDialog,
+    onEdit: canEditSelectedProject ? openEditObjectDialog : undefined,
   }
 
   const catalogEntryDetailPageProps = buildStylePreviewCatalogEntryDetailPageProps({
     catalogEntryDetailProps,
     ui,
-    openEditCatalogEntry,
+    openEditCatalogEntry: canEditSelectedProject ? openEditCatalogEntry : undefined,
     setDialog,
-    setPendingDeleteCatalogEntryId,
+    setPendingDeleteCatalogEntryId: canEditSelectedProject ? setPendingDeleteCatalogEntryId : undefined,
     setSelectedCatalogEntryId,
   })
 
   const catalogsWorkspaceProps = buildStylePreviewCatalogsWorkspaceProps({
-    catalogEntries,
-    catalogGroups,
+    canEdit: canEditSelectedProject,
+    catalogEntries: readCatalogEntries,
+    catalogGroups: readCatalogGroups,
     groupDisplayMode,
-    selectedCatalog,
+    selectedCatalog: readSelectedCatalog,
     selectedCatalogGroupId,
     textLinkTargets,
     ui,
@@ -1249,17 +1422,18 @@ export function StylePreview() {
     setPendingDeleteCatalogEntryId,
     setPendingDeleteCatalogId,
     setSelectedCatalogGroupId,
-    visibleCatalogs,
+    visibleCatalogs: readCatalogs,
   })
 
   const attributesWorkspaceProps = buildStylePreviewAttributesWorkspaceProps({
     attributeDefinitionDraft,
     attributeDefinitionValidationErrors,
-    attributeDefinitions,
+    attributeDefinitions: readAttributeDefinitions,
     attributeGroupIconKey,
     attributeGroupName,
     attributeGroupValidationErrors,
-    attributeGroups,
+    attributeGroups: readAttributeGroups,
+    canEdit: canEditSelectedProject,
     groupDisplayMode,
     editingAttributeDefinitionId,
     selectedAttributeGroupId,
@@ -1281,20 +1455,22 @@ export function StylePreview() {
   })
 
   const structuresWorkspaceProps = buildStylePreviewStructuresWorkspaceProps({
-    catalogEntriesByCatalogId,
+    catalogEntriesByCatalogId: readCatalogEntriesByCatalogId,
     detailMode,
     apiUnavailableMessage: messages.apiUnavailable,
+    snapshotStructures: projectSnapshot?.data.structures ?? null,
+    snapshotStructureUsages: projectSnapshot?.data.structureUsages ?? null,
     ui,
     setStructureDetailPanel,
     showErrorMessage,
     showMessage,
-    visibleCatalogs,
+    visibleCatalogs: readCatalogs,
   })
 
   const projectExportWorkspaceProps = buildStylePreviewProjectExportWorkspaceProps({
     enabledObjectTypes,
     apiUnavailableMessage: messages.apiUnavailable,
-    objectsByType: temporalObjectsByType,
+    objectsByType: projectSnapshot?.data.objectsByType ?? temporalObjectsByType,
     selectedProjectId: selectedProject?.id ?? selectedProjectId,
     selectedProjectRuntimeId: selectedProject?.id ?? selectedProjectId ?? 0,
     ui,
@@ -1313,9 +1489,9 @@ export function StylePreview() {
     currentUser,
     isObjectSectionActive: isObjectSection(activeSection),
     layoutMode,
-    selectedObjectId: selectedTemporalObject?.id ?? null,
+    selectedObjectId: readSelectedTemporalObject?.id ?? null,
     ui,
-    visibleObjects: temporalSectionObjects,
+    visibleObjects: readTemporalSectionObjects,
     objectSectionLabel,
     openCreateObjectDialog,
     openEditObjectDialog,
@@ -1347,11 +1523,11 @@ export function StylePreview() {
       projectSearchQuery={projectSearchQuery}
       relationDetailPageProps={relationDetailPageProps}
       relationsPageProps={relationsPageProps}
-      selectedCatalogEntry={selectedCatalogEntry}
-      selectedObject={selectedTemporalObject}
+      selectedCatalogEntry={readSelectedCatalogEntry}
+      selectedObject={readSelectedTemporalObject}
       selectedProject={selectedProject}
-      selectedRelationEdge={selectedTemporalRelationEdge}
-      selectedTimelineEvent={selectedTimelineEvent}
+      selectedRelationEdge={readSelectedTemporalRelationEdge}
+      selectedTimelineEvent={readSelectedTimelineEvent}
       settingsPageProps={settingsPageProps}
       structuresWorkspaceProps={structuresWorkspaceProps}
       timelineEventDetailPageProps={timelineEventDetailPageProps}
@@ -1372,12 +1548,12 @@ export function StylePreview() {
     navigateToWorkspace,
     previewLanguage,
     previewTheme,
-    selectedCatalogEntry,
+    selectedCatalogEntry: readSelectedCatalogEntry,
     selectedCatalogId,
-    selectedObject,
-    selectedRelationEdge: selectedTemporalRelationEdge,
+    selectedObject: readSelectedTemporalObject,
+    selectedRelationEdge: readSelectedTemporalRelationEdge,
     selectedRelationObject,
-    selectedTimelineEvent,
+    selectedTimelineEvent: readSelectedTimelineEvent,
     toastMessage: message,
     toastTone: messageTone,
     ui,
@@ -1401,27 +1577,38 @@ export function StylePreview() {
     },
     projectbar: {
       activeTab,
+      canPublishPublicSnapshot: selectedProject?.canManage === true,
       currentUser,
-      projects,
+      isPublicSnapshotPublishing: isPublishedSnapshotPublishing,
+      isSnapshotPublishing: isProjectSnapshotPublishing,
+      projects: readProjects,
       selectedProjectId,
+      snapshotBuiltAt: projectSnapshot?.builtAt ?? null,
+      snapshotDirtySections: projectSnapshot?.dirtySections ?? [],
+      snapshotRevision: projectSnapshot?.revision ?? null,
+      snapshotStatus: projectSnapshot?.status ?? null,
       ui,
+    },
+    projectbarHandlers: {
+      onPublishPublicSnapshot: handlePublishPublishedProjectSnapshot,
+      onPublishSnapshot: handlePublishProjectSnapshot,
     },
     sidebar: {
       activeSection,
       activeTab,
       attributeGroups,
-      catalogGroups,
+      catalogGroups: readCatalogGroups,
       currentUser,
       enabledObjectTypes,
       groupDisplayMode,
       selectedAttributeGroupId,
-      selectedCatalog,
+      selectedCatalog: readSelectedCatalog,
       selectedCatalogGroupId,
       selectedProject,
       ui,
-      visibleCatalogs,
+      visibleCatalogs: readCatalogs,
       visibleObjectsCount: visibleObjects.length,
-      visibleTimelineEventsCount: visibleTimelineEvents.length,
+      visibleTimelineEventsCount: readTimelineEvents.length,
     },
     sidebarHandlers: {
       onEditAttributeGroup: openEditAttributeGroup,
@@ -1455,11 +1642,11 @@ export function StylePreview() {
       isSettingsPageOpen,
       objectDetailProps,
       relationDetailProps,
-      selectedCatalogEntry,
-      selectedObject: selectedTemporalObject,
-      selectedRelationEdge: selectedTemporalRelationEdge,
+      selectedCatalogEntry: readSelectedCatalogEntry,
+      selectedObject: readSelectedTemporalObject,
+      selectedRelationEdge: readSelectedTemporalRelationEdge,
       selectedRelationObject,
-      selectedTimelineEvent,
+      selectedTimelineEvent: readSelectedTimelineEvent,
       structureDetailPanel,
       timelineEventDetailProps,
     },
@@ -1518,7 +1705,7 @@ export function StylePreview() {
       editingObjectId,
       objectDetailProps,
       objectEditorProps,
-      selectedObject: selectedTemporalObject,
+      selectedObject: readSelectedTemporalObject,
       ui,
     },
     objectHandlers: {
@@ -1528,8 +1715,8 @@ export function StylePreview() {
     detail: {
       dialog,
       relationDetailProps,
-      selectedRelationEdge: selectedTemporalRelationEdge,
-      selectedTimelineEvent,
+      selectedRelationEdge: readSelectedTemporalRelationEdge,
+      selectedTimelineEvent: readSelectedTimelineEvent,
       timelineEventDetailProps,
       ui,
     },
@@ -1585,7 +1772,7 @@ export function StylePreview() {
       pendingDeleteCatalogEntryId,
       pendingDeleteCatalogId,
       selectedCatalog,
-      selectedCatalogEntry,
+      selectedCatalogEntry: readSelectedCatalogEntry,
       selectedCatalogFields,
       selectedCatalogGroupId,
       selectedProjectId,

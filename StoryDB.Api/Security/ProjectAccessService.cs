@@ -11,6 +11,7 @@ public sealed class ProjectAccessService(
     private readonly Dictionary<int, bool> readAccessCache = [];
     private readonly Dictionary<int, bool> writeAccessCache = [];
     private readonly Dictionary<int, bool> manageAccessCache = [];
+    private readonly Dictionary<int, bool> publicReadAccessCache = [];
 
     public int? CurrentUserId => currentUserService.UserId;
 
@@ -43,6 +44,11 @@ public sealed class ProjectAccessService(
             : dbContext.Projects.Where(project => project.OwnerUserId == userId.Value);
     }
 
+    private IQueryable<Project> GetPublicReadableProjects() =>
+        dbContext.Projects.Where(project =>
+            project.Visibility == ProjectVisibility.PublicRead ||
+            project.Visibility == ProjectVisibility.PublicEdit);
+
     public Task<bool> HasProjectAccessAsync(int projectId, CancellationToken cancellationToken = default) =>
         GetCachedAccessAsync(
             readAccessCache,
@@ -61,6 +67,12 @@ public sealed class ProjectAccessService(
             projectId,
             () => GetOwnedProjects().AnyAsync(project => project.Id == projectId, cancellationToken));
 
+    public Task<bool> HasProjectPublicReadAccessAsync(int projectId, CancellationToken cancellationToken = default) =>
+        GetCachedAccessAsync(
+            publicReadAccessCache,
+            projectId,
+            () => GetPublicReadableProjects().AnyAsync(project => project.Id == projectId, cancellationToken));
+
     public Task<Project?> FindAccessibleProjectAsync(int projectId, CancellationToken cancellationToken = default) =>
         GetAccessibleProjects().FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
 
@@ -69,6 +81,9 @@ public sealed class ProjectAccessService(
 
     public Task<Project?> FindOwnedProjectAsync(int projectId, CancellationToken cancellationToken = default) =>
         GetOwnedProjects().FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
+
+    public Task<Project?> FindPublicReadableProjectAsync(int projectId, CancellationToken cancellationToken = default) =>
+        GetPublicReadableProjects().FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
 
     private static async Task<bool> GetCachedAccessAsync(
         Dictionary<int, bool> cache,

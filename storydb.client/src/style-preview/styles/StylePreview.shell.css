@@ -339,6 +339,11 @@
   padding: 0 14px;
 }
 
+.sp-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .sp-button.primary,
 .sp-tabs button.active,
 .sp-pill.active {
@@ -527,6 +532,43 @@
   color: var(--sp-ink);
   font-weight: 900;
   outline: 0;
+}
+
+.sp-project-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.sp-snapshot-state {
+  display: grid;
+  gap: 2px;
+  min-width: 170px;
+  border: 1px solid var(--sp-line);
+  border-radius: 8px;
+  background: var(--sp-surface);
+  padding: 7px 10px;
+}
+
+.sp-snapshot-state strong,
+.sp-snapshot-state small {
+  line-height: 1.2;
+}
+
+.sp-snapshot-state strong {
+  color: var(--sp-ink);
+  font-size: 0.85rem;
+}
+
+.sp-snapshot-state small {
+  color: var(--sp-muted);
+  font-size: 0.76rem;
+}
+
+.sp-snapshot-state.is-stale {
+  border-color: color-mix(in srgb, var(--sp-accent) 48%, var(--sp-line));
+  background: color-mix(in srgb, var(--sp-accent-soft) 72%, var(--sp-surface));
 }
 
 .sp-workspace {

@@ -18,9 +18,13 @@ public interface IProjectAccessService
 
     Task<bool> HasProjectManageAccessAsync(int projectId, CancellationToken cancellationToken = default);
 
+    Task<bool> HasProjectPublicReadAccessAsync(int projectId, CancellationToken cancellationToken = default);
+
     Task<Project?> FindAccessibleProjectAsync(int projectId, CancellationToken cancellationToken = default);
 
     Task<Project?> FindEditableProjectAsync(int projectId, CancellationToken cancellationToken = default);
 
     Task<Project?> FindOwnedProjectAsync(int projectId, CancellationToken cancellationToken = default);
+
+    Task<Project?> FindPublicReadableProjectAsync(int projectId, CancellationToken cancellationToken = default);
 }

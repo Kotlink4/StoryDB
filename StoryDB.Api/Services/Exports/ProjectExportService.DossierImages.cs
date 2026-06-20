@@ -60,7 +60,20 @@ public sealed partial class ProjectExportService
 
     private Wp.Paragraph? CreatePortraitParagraph(MainDocumentPart mainPart, StoryObject storyObject)
     {
-        var localPath = ResolveUploadedFilePath(storyObject.ImagePath);
+        return CreatePortraitParagraph(
+            mainPart,
+            storyObject.Id,
+            storyObject.ImagePath,
+            GetObjectDisplayName(storyObject));
+    }
+
+    private Wp.Paragraph? CreatePortraitParagraph(
+        MainDocumentPart mainPart,
+        int objectId,
+        string? imagePath,
+        string displayName)
+    {
+        var localPath = ResolveUploadedFilePath(imagePath);
         if (localPath is null || !File.Exists(localPath))
         {
             return null;
@@ -96,8 +109,8 @@ public sealed partial class ProjectExportService
             var paragraph = CreateParagraph(alignment: Wp.JustificationValues.Center);
             paragraph.Append(new Wp.Run(CreateImageDrawing(
                 relationshipId,
-                storyObject.Id,
-                GetObjectDisplayName(storyObject),
+                objectId,
+                displayName,
                 widthEmu,
                 heightEmu)));
             return paragraph;

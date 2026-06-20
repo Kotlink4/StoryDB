@@ -16,6 +16,7 @@ type ProjectExportWorkspaceProps = ComponentProps<typeof ProjectExportWorkspace>
 type ObjectCardsWorkspaceProps = ComponentProps<typeof ObjectCardsWorkspace>
 
 export function buildStylePreviewCatalogsWorkspaceProps({
+  canEdit,
   catalogEntries,
   catalogGroups,
   createCatalogEntryDraftForGroup,
@@ -39,6 +40,7 @@ export function buildStylePreviewCatalogsWorkspaceProps({
   ui,
   visibleCatalogs,
 }: {
+  canEdit: CatalogsWorkspaceProps['canEdit']
   catalogEntries: CatalogEntry[]
   catalogGroups: CatalogEntryGroup[]
   createCatalogEntryDraftForGroup: (groupId: number | null) => void
@@ -69,6 +71,7 @@ export function buildStylePreviewCatalogsWorkspaceProps({
   visibleCatalogs: Catalog[]
 }): CatalogsWorkspaceProps {
   return {
+    canEdit,
     catalogEntries,
     catalogGroups,
     catalogs: visibleCatalogs,
@@ -119,6 +122,7 @@ export function buildStylePreviewAttributesWorkspaceProps({
   attributeGroupName,
   attributeGroupValidationErrors,
   attributeGroups,
+  canEdit,
   editingAttributeDefinitionId,
   groupDisplayMode,
   openEditAttributeDefinition,
@@ -145,6 +149,7 @@ export function buildStylePreviewAttributesWorkspaceProps({
   attributeGroupName: string
   attributeGroupValidationErrors?: AttributesWorkspaceProps['attributeGroupValidationErrors']
   attributeGroups: AttributesWorkspaceProps['attributeGroups']
+  canEdit: AttributesWorkspaceProps['canEdit']
   editingAttributeDefinitionId: number | null
   groupDisplayMode: AttributesWorkspaceProps['groupDisplayMode']
   openEditAttributeDefinition: AttributesWorkspaceProps['onEditAttribute']
@@ -172,6 +177,7 @@ export function buildStylePreviewAttributesWorkspaceProps({
     attributeGroupName,
     attributeGroupValidationErrors,
     attributeGroups,
+    canEdit,
     groupDisplayMode,
     editingAttributeDefinitionId,
     language: previewLanguage,
@@ -208,6 +214,8 @@ export function buildStylePreviewStructuresWorkspaceProps({
   setStructureDetailPanel,
   showErrorMessage,
   showMessage,
+  snapshotStructures,
+  snapshotStructureUsages,
   ui,
   visibleCatalogs,
 }: {
@@ -217,6 +225,8 @@ export function buildStylePreviewStructuresWorkspaceProps({
   setStructureDetailPanel: StructuresWorkspaceProps['onDetailPanelChange']
   showErrorMessage: StructuresWorkspaceProps['onError']
   showMessage: StructuresWorkspaceProps['onMessage']
+  snapshotStructures: StructuresWorkspaceProps['snapshotStructures']
+  snapshotStructureUsages: StructuresWorkspaceProps['snapshotStructureUsages']
   ui: StructuresWorkspaceProps['ui']
   visibleCatalogs: Catalog[]
 }): StructuresWorkspaceProps {
@@ -225,6 +235,8 @@ export function buildStylePreviewStructuresWorkspaceProps({
     catalogs: visibleCatalogs,
     detailMode,
     errorMessage: apiUnavailableMessage,
+    snapshotStructures,
+    snapshotStructureUsages,
     ui,
     onDetailPanelChange: setStructureDetailPanel,
     onError: showErrorMessage,
