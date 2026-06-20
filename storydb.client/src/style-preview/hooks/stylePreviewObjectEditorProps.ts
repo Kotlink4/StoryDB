@@ -77,6 +77,7 @@ export function buildStylePreviewObjectEditorProps({
   timelineEvents,
   ui,
   uploadObjectImage,
+  validationErrors,
 }: {
   activeSection: PreviewSection
   attributeDefinitions: ObjectEditorProps['attributeDefinitions']
@@ -136,6 +137,7 @@ export function buildStylePreviewObjectEditorProps({
   timelineEvents: TimelineEvent[]
   ui: ObjectEditorProps['ui']
   uploadObjectImage: ObjectEditorProps['onImageUpload']
+  validationErrors?: ObjectEditorProps['validationErrors']
 }): ObjectEditorProps {
   const activeType: ObjectTypeKey = isObjectSection(activeSection) ? activeSection : 'characters'
 
@@ -173,6 +175,7 @@ export function buildStylePreviewObjectEditorProps({
     selectedProjectId,
     timelineEvents,
     territoryPlaceIds,
+    validationErrors,
     ui,
     onCancel: () => setDialog(null),
     onDraftAttributesChange: setDraftAttributes,

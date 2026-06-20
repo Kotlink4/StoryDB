@@ -15,10 +15,15 @@ import type {
   PreviewTab,
 } from '../domain/stylePreviewRouting'
 import type { StoryProject } from '../../types'
-import { validateProjectDraft } from '../../validation'
+import {
+  validateProjectDraftIssues,
+  validationIssuesToMap,
+} from '../../validation'
+import type { ValidationIssueMap } from '../../validation'
 
 type ProjectCommandMessages = {
   coverUploadFailed: string
+  fieldValidationFailed: string
   projectDeleteFailed: string
   projectSaveFailed: string
 }
@@ -48,6 +53,7 @@ type UseStylePreviewProjectCommandsOptions = {
   setDialog: Dispatch<SetStateAction<PreviewDialogKind>>
   setPendingDeleteProjectId: Dispatch<SetStateAction<number | null>>
   setProjectCoverImagePath: Dispatch<SetStateAction<string | null>>
+  setProjectValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setProjects: Dispatch<SetStateAction<StoryProject[]>>
   setSelectedProjectId: Dispatch<SetStateAction<number | null>>
   showErrorMessage: (message: string) => void
@@ -69,6 +75,7 @@ export function useStylePreviewProjectCommands({
   setDialog,
   setPendingDeleteProjectId,
   setProjectCoverImagePath,
+  setProjectValidationErrors,
   setProjects,
   setSelectedProjectId,
   showErrorMessage,
@@ -83,9 +90,10 @@ export function useStylePreviewProjectCommands({
   }
 
   const saveProject = async () => {
-    const validationMessage = validateProjectDraft(projectName.trim(), projectCoverImagePath)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateProjectDraftIssues(projectName.trim(), projectCoverImagePath)
+    if (validationIssues.length > 0) {
+      setProjectValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -121,6 +129,7 @@ export function useStylePreviewProjectCommands({
       setSelectedProjectId(saved.id)
       navigateToPreview(saved.id, 'database', 'characters')
       resetProjectForm()
+      setProjectValidationErrors({})
       setDialog(null)
     } catch {
       showErrorMessage(messages.projectSaveFailed)

@@ -1,7 +1,7 @@
 ﻿.sp-modal {
   position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 1000;
   display: grid;
   place-items: center;
   background: var(--sp-modal-backdrop);
@@ -9,6 +9,8 @@
 }
 
 .sp-dialog {
+  position: relative;
+  z-index: 1;
   width: min(680px, 100%);
   max-height: 90vh;
   overflow: auto;
@@ -70,6 +72,32 @@
   width: min(280px, 100%);
 }
 
+.sp-form .sp-cover-field.catalog-entry-image {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  justify-self: end;
+  width: min(168px, 100%);
+}
+
+.sp-form .catalog-entry-name-field,
+.sp-form .catalog-entry-group-field {
+  grid-column: 1;
+}
+
+.sp-form .catalog-entry-name-field {
+  grid-row: 1;
+}
+
+.sp-form .catalog-entry-group-field {
+  grid-row: 2;
+}
+
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-dropzone {
+  aspect-ratio: 1;
+  min-height: 0;
+}
+
 .sp-form .sp-cover-field.object-portrait .sp-cover-dropzone {
   aspect-ratio: 3 / 4;
   min-height: 0;
@@ -90,24 +118,28 @@
 .sp-form .sp-cover-field.object-square .sp-cover-dropzone img,
 .sp-form .sp-cover-field.object-landscape .sp-cover-dropzone img,
 .sp-form .sp-cover-field.event-landscape .sp-cover-dropzone img,
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-dropzone img,
 .sp-form .sp-cover-field.object-portrait .sp-cover-placeholder,
 .sp-form .sp-cover-field.object-square .sp-cover-placeholder,
 .sp-form .sp-cover-field.object-landscape .sp-cover-placeholder,
 .sp-form .sp-cover-field.event-landscape .sp-cover-placeholder,
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-placeholder,
 .sp-form .sp-cover-field.object-portrait .sp-cover-overlay {
   min-height: 0;
 }
 
 .sp-form .sp-cover-field.object-square .sp-cover-overlay,
 .sp-form .sp-cover-field.object-landscape .sp-cover-overlay,
-.sp-form .sp-cover-field.event-landscape .sp-cover-overlay {
+.sp-form .sp-cover-field.event-landscape .sp-cover-overlay,
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-overlay {
   min-height: 0;
 }
 
 .sp-form .sp-cover-field.object-portrait .sp-cover-dropzone img,
 .sp-form .sp-cover-field.object-square .sp-cover-dropzone img,
 .sp-form .sp-cover-field.object-landscape .sp-cover-dropzone img,
-.sp-form .sp-cover-field.event-landscape .sp-cover-dropzone img {
+.sp-form .sp-cover-field.event-landscape .sp-cover-dropzone img,
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-dropzone img {
   object-position: center top;
 }
 
@@ -249,5 +281,19 @@
   margin: -4px 0 0;
   color: var(--sp-muted);
   text-align: center;
+}
+
+@media (max-width: 760px) {
+  .sp-form .catalog-entry-name-field,
+  .sp-form .catalog-entry-group-field,
+  .sp-form .sp-cover-field.catalog-entry-image {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-self: start;
+  }
+
+  .sp-form .sp-cover-field.catalog-entry-image {
+    width: min(168px, 100%);
+  }
 }
 

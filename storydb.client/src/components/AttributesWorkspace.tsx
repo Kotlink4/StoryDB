@@ -2,6 +2,9 @@ import { attributeDataTypeLabels, groupAttributesByDefinition } from '../style-p
 import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { GroupDisplayMode } from '../style-preview/domain/stylePreviewUiTypes'
 import type { AttributeDataType, AttributeDefinition, AttributeDefinitionDraft, AttributeGroup } from '../types'
+import type { ValidationIssueMap } from '../validation'
+import { FieldError } from './FormValidation'
+import { getFieldValidationProps, useFirstInvalidFieldFocus } from './formValidationUtils'
 import { AttributeIcon, AttributeIconPicker, KebabMenu } from './StylePreviewPrimitives'
 
 export function AttributesWorkspace({
@@ -9,7 +12,9 @@ export function AttributesWorkspace({
   attributeDefinitions,
   attributeGroupIconKey,
   attributeGroupName,
+  attributeGroupValidationErrors,
   attributeGroups,
+  definitionValidationErrors,
   groupDisplayMode,
   editingAttributeDefinitionId,
   language,
@@ -31,7 +36,9 @@ export function AttributesWorkspace({
   attributeDefinitions: AttributeDefinition[]
   attributeGroupIconKey: string
   attributeGroupName: string
+  attributeGroupValidationErrors?: ValidationIssueMap
   attributeGroups: AttributeGroup[]
+  definitionValidationErrors?: ValidationIssueMap
   groupDisplayMode: GroupDisplayMode
   editingAttributeDefinitionId: number | null
   language: PreviewLanguage
@@ -67,13 +74,13 @@ export function AttributesWorkspace({
   const updateDraft = (patch: Partial<AttributeDefinitionDraft>) =>
     onAttributeDefinitionDraftChange({ ...attributeDefinitionDraft, ...patch })
   const groupNameForDraft = selectedGroup?.name ?? attributeDefinitionDraft.groupName
+  const definitionFormRef = useFirstInvalidFieldFocus<HTMLDivElement>(definitionValidationErrors)
 
   return (
     <>
       <div className="sp-content-head">
         <div>
           <h2>{ui.attributes}</h2>
-          <p>{ui.objectData}</p>
         </div>
       </div>
       <div className={`sp-attribute-catalog ${groupDisplayMode === 'subtabs' ? 'single' : ''}`}>
@@ -104,11 +111,13 @@ export function AttributesWorkspace({
               placeholder={ui.newGroup}
               value={attributeGroupName}
               onChange={(event) => onAttributeGroupNameChange(event.target.value)}
+              {...getFieldValidationProps('name', attributeGroupValidationErrors, 'attribute-group-inline-error')}
             />
             <button className="sp-button primary" type="button" onClick={onCreateGroup}>
               +
             </button>
             <AttributeIconPicker language={language} value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
+            <FieldError id="attribute-group-inline-error" message={attributeGroupValidationErrors?.name} />
           </div>
         </aside>
         )}
@@ -119,14 +128,16 @@ export function AttributesWorkspace({
                 placeholder={ui.newGroup}
                 value={attributeGroupName}
                 onChange={(event) => onAttributeGroupNameChange(event.target.value)}
+                {...getFieldValidationProps('name', attributeGroupValidationErrors, 'attribute-group-subtabs-error')}
               />
               <button className="sp-button primary" type="button" onClick={onCreateGroup}>
                 +
               </button>
               <AttributeIconPicker language={language} value={attributeGroupIconKey} onChange={onAttributeGroupIconChange} />
+              <FieldError id="attribute-group-subtabs-error" message={attributeGroupValidationErrors?.name} />
             </div>
           )}
-          <div className="sp-attribute-definition-form">
+          <div className="sp-attribute-definition-form" ref={definitionFormRef}>
             <div className="sp-form-row">
               <label>
                 {ui.firstName}
@@ -134,7 +145,9 @@ export function AttributesWorkspace({
                   list="sp-existing-attribute-definitions"
                   value={attributeDefinitionDraft.name}
                   onChange={(event) => updateDraft({ name: event.target.value })}
+                  {...getFieldValidationProps('name', definitionValidationErrors, 'attribute-definition-name-error')}
                 />
+                <FieldError id="attribute-definition-name-error" message={definitionValidationErrors?.name} />
               </label>
               <datalist id="sp-existing-attribute-definitions">
                 {attributeDefinitions.map((definition) => (
@@ -180,15 +193,30 @@ export function AttributesWorkspace({
               <div className="sp-form-row">
                 <label>
                   {ui.minShort}
-                  <input value={attributeDefinitionDraft.minValue} onChange={(event) => updateDraft({ minValue: event.target.value })} />
+                  <input
+                    value={attributeDefinitionDraft.minValue}
+                    onChange={(event) => updateDraft({ minValue: event.target.value })}
+                    {...getFieldValidationProps('minValue', definitionValidationErrors, 'attribute-definition-min-error')}
+                  />
+                  <FieldError id="attribute-definition-min-error" message={definitionValidationErrors?.minValue} />
                 </label>
                 <label>
                   {ui.maxShort}
-                  <input value={attributeDefinitionDraft.maxValue} onChange={(event) => updateDraft({ maxValue: event.target.value })} />
+                  <input
+                    value={attributeDefinitionDraft.maxValue}
+                    onChange={(event) => updateDraft({ maxValue: event.target.value })}
+                    {...getFieldValidationProps('maxValue', definitionValidationErrors, 'attribute-definition-max-error')}
+                  />
+                  <FieldError id="attribute-definition-max-error" message={definitionValidationErrors?.maxValue} />
                 </label>
                 <label>
                   {ui.unitShort}
-                  <input value={attributeDefinitionDraft.unit} onChange={(event) => updateDraft({ unit: event.target.value })} />
+                  <input
+                    value={attributeDefinitionDraft.unit}
+                    onChange={(event) => updateDraft({ unit: event.target.value })}
+                    {...getFieldValidationProps('unit', definitionValidationErrors, 'attribute-definition-unit-error')}
+                  />
+                  <FieldError id="attribute-definition-unit-error" message={definitionValidationErrors?.unit} />
                 </label>
               </div>
             )}
@@ -198,7 +226,9 @@ export function AttributesWorkspace({
                 <input
                   value={attributeDefinitionDraft.optionsText}
                   onChange={(event) => updateDraft({ optionsText: event.target.value })}
+                  {...getFieldValidationProps('optionsText', definitionValidationErrors, 'attribute-definition-options-error')}
                 />
+                <FieldError id="attribute-definition-options-error" message={definitionValidationErrors?.optionsText} />
               </label>
             )}
             {selectedGroup !== null && <span className="sp-muted-line">{ui.group}: {selectedGroup.name}</span>}

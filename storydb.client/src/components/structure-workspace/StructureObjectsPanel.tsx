@@ -81,7 +81,6 @@ export function StructureObjectsPanel({
       <div className="sp-structure-nodes-head">
         <div>
           <h3>{ui.structurePageObjects}</h3>
-          <p>{ui.structurePageObjectsHint}</p>
         </div>
       </div>
       {selectedStructureUsages.length > 0 && (

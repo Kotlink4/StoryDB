@@ -20,6 +20,7 @@ export function buildStylePreviewProfilePageProps({
   openCreateProjectDialog,
   openEditProjectDialog,
   profileAvatarImagePath,
+  profileValidationErrors,
   projects,
   saveProfile,
   selectedProjectId,
@@ -60,6 +61,7 @@ export function buildStylePreviewProfilePageProps({
   openCreateProjectDialog: () => void
   openEditProjectDialog: (project: StoryProject) => void
   profileAvatarImagePath: string | null
+  profileValidationErrors?: ProfilePageProps['validationErrors']
   projects: StoryProject[]
   saveProfile: () => Promise<void>
   selectedProjectId: number | null
@@ -91,6 +93,9 @@ export function buildStylePreviewProfilePageProps({
         className="avatar"
         imagePath={profileAvatarImagePath}
         label={ui.avatar}
+        validationErrorId="profile-avatar-error"
+        validationErrors={profileValidationErrors}
+        validationField="avatarImagePath"
         ui={ui}
         onFileSelected={(file) => void uploadProfileAvatar(file)}
       />
@@ -108,6 +113,7 @@ export function buildStylePreviewProfilePageProps({
     templatePackProjectId,
     templatePackScope,
     templatePacks,
+    validationErrors: profileValidationErrors,
     ui,
     onCreateTemplatePack: () => void createTemplatePack(),
     onCreateProject: () => {

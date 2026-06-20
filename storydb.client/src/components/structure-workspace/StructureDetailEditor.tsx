@@ -23,7 +23,6 @@ import {
 
 export function StructureDetailEditor({
   activeStructurePage,
-  activeStructurePageDescription,
   assignmentCatalogEntryId,
   assignmentNodeId,
   assignmentRoleLabel,
@@ -67,7 +66,6 @@ export function StructureDetailEditor({
   onSystemModeChange,
 }: {
   activeStructurePage: StructureWorkspacePage
-  activeStructurePageDescription: string
   assignmentCatalogEntryId: string
   assignmentNodeId: string
   assignmentRoleLabel: string
@@ -122,7 +120,6 @@ export function StructureDetailEditor({
           <div className="sp-workspace-head compact">
             <div>
               <h3>{selectedDraft.name || ui.structure}</h3>
-              <p>{activeStructurePageDescription}</p>
             </div>
             {activeStructurePage === 'system' && systemMode === 'view' && (
               <button className="sp-button primary" type="button" onClick={() => onSystemModeChange('edit')}>
@@ -168,7 +165,6 @@ export function StructureDetailEditor({
           {activeStructurePage === 'schema' && isSelectedTopologyLocked && (
             <div className="sp-note">
               <strong>{ui.structureTopologyLocked}</strong>
-              <span>{ui.structureTopologyLockedHint}</span>
               <div className="sp-tags">
                 {hasSelectedStructureAssignments && (
                   <span>{ui.structureAssignmentCount}: {selectedStructureAssignments.length}</span>

@@ -27,6 +27,7 @@ import {
   getTimelineScalePresetLabel,
   hydrateTimelineClusters,
   TIMELINE_CHAPTER_LANE_Y,
+  TIMELINE_DEFAULT_PIXELS_PER_YEAR,
   TIMELINE_ERA_LABEL_Y,
   TIMELINE_SCALE_PRESETS,
 } from './timeline/timelinePageGeometry'
@@ -80,6 +81,7 @@ export function TimelinePage({
   const timelineZoomBehaviorRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null)
   const timelineWorkerRef = useRef<Worker | null>(null)
   const timelineWorkerRequestIdRef = useRef(0)
+  const hasInitializedTimelineScaleRef = useRef(false)
   const [timelineTransform, setTimelineTransform] = useState<ZoomTransform>(zoomIdentity)
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0)
   const [timelineViewportModel, setTimelineViewportModel] = useState<TimelineViewportModel | null>(null)
@@ -131,6 +133,7 @@ export function TimelinePage({
     visibleMaxX,
     visibleMinX,
   } = viewportMetrics
+  const timelineScalePercent = Math.round((pixelsPerYear / TIMELINE_DEFAULT_PIXELS_PER_YEAR) * 100)
   const activeScalePresetKey = getActiveTimelineScalePresetKey(pixelsPerYear)
   const axisTicks = buildTimelineAxisTicks(timelineTimeScale, visibleMaxX, timelineZoom)
   const storyStartX = timelineTimeScale(0)
@@ -318,14 +321,20 @@ export function TimelinePage({
     behavior.transform(select(viewport), nextTransform)
   }, [basePixelsPerYear, baseTimeScale, timelineTimeScale])
   const resetTimelineViewport = useCallback(() => {
-    const viewport = timelineViewportRef.current
-    const behavior = timelineZoomBehaviorRef.current
-    if (viewport === null || behavior === null) {
+    zoomTimelineToPixelsPerYear(TIMELINE_DEFAULT_PIXELS_PER_YEAR)
+  }, [zoomTimelineToPixelsPerYear])
+  useEffect(() => {
+    if (hasInitializedTimelineScaleRef.current || timelineViewportWidth <= 0) {
       return
     }
 
-    behavior.transform(select(viewport), zoomIdentity)
-  }, [])
+    if (timelineViewportRef.current === null || timelineZoomBehaviorRef.current === null) {
+      return
+    }
+
+    hasInitializedTimelineScaleRef.current = true
+    zoomTimelineToPixelsPerYear(TIMELINE_DEFAULT_PIXELS_PER_YEAR)
+  }, [timelineViewportWidth, zoomTimelineToPixelsPerYear])
   const modeLabel =
     timeline?.mode === 'dated'
       ? ui.timelineModeDated
@@ -387,7 +396,7 @@ export function TimelinePage({
           <button type="button" onClick={() => zoomTimeline(timelineZoom / TIMELINE_ZOOM_STEP)} title={ui.zoomOut}>
             -
           </button>
-          <strong>{Math.round(timelineZoom * 100)}%</strong>
+          <strong>{timelineScalePercent}%</strong>
           <button type="button" onClick={() => zoomTimeline(timelineZoom * TIMELINE_ZOOM_STEP)} title={ui.zoomIn}>
             +
           </button>

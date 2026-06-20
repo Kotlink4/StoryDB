@@ -17,7 +17,6 @@ export type StructureCatalogEntryOption = {
 }
 
 export type StructureWorkspacePageItem = {
-  description: string
   key: StructureWorkspacePage
   label: string
 }
@@ -73,18 +72,10 @@ export function findSelectedStructureEdge(
 
 export function buildStructureWorkspacePages(ui: PreviewText): StructureWorkspacePageItem[] {
   return [
-    { key: 'overview', label: ui.structurePageOverview, description: ui.structurePageOverviewHint },
-    { key: 'create', label: ui.structurePageCreate, description: ui.structurePageCreateHint },
-    { key: 'system', label: ui.structurePageSystem, description: ui.structurePageSystemHint },
-    { key: 'schema', label: ui.structurePageSchema, description: ui.structurePageSchemaHint },
-    { key: 'objects', label: ui.structurePageObjects, description: ui.structurePageObjectsHint },
+    { key: 'overview', label: ui.structurePageOverview },
+    { key: 'create', label: ui.structurePageCreate },
+    { key: 'system', label: ui.structurePageSystem },
+    { key: 'schema', label: ui.structurePageSchema },
+    { key: 'objects', label: ui.structurePageObjects },
   ]
-}
-
-export function getActiveStructurePageDescription(
-  pages: StructureWorkspacePageItem[],
-  activePage: StructureWorkspacePage,
-  fallback: string,
-) {
-  return pages.find((page) => page.key === activePage)?.description ?? fallback
 }

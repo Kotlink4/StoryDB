@@ -10,11 +10,17 @@ import {
 } from '../../api'
 import { emptyAttributeDefinitionDraft, type PreviewDialogKind } from '../domain/stylePreviewConfig'
 import type { AttributeDefinition, AttributeDefinitionDraft, AttributeGroup } from '../../types'
-import { validateAttributeDefinitionDraft, validateAttributeGroupDraft } from '../../validation'
+import {
+  validateAttributeDefinitionDraftIssues,
+  validateAttributeGroupDraftIssues,
+  validationIssuesToMap,
+} from '../../validation'
+import type { ValidationIssueMap } from '../../validation'
 
 type AttributeCommandMessages = {
   attributeCreateFailed: string
   attributeDeleteFailed: string
+  fieldValidationFailed: string
   attributeGroupCreateFailed: string
   attributeGroupDeleteFailed: string
 }
@@ -35,6 +41,8 @@ type UseStylePreviewAttributeCommandsOptions = {
   setAttributeDefinitions: Dispatch<SetStateAction<AttributeDefinition[]>>
   setAttributeGroupIconKey: Dispatch<SetStateAction<string>>
   setAttributeGroupName: Dispatch<SetStateAction<string>>
+  setAttributeDefinitionValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
+  setAttributeGroupValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setAttributeGroups: Dispatch<SetStateAction<AttributeGroup[]>>
   setDialog: Dispatch<SetStateAction<PreviewDialogKind>>
   setEditingAttributeDefinitionId: Dispatch<SetStateAction<number | null>>
@@ -61,6 +69,8 @@ export function useStylePreviewAttributeCommands({
   setAttributeDefinitions,
   setAttributeGroupIconKey,
   setAttributeGroupName,
+  setAttributeDefinitionValidationErrors,
+  setAttributeGroupValidationErrors,
   setAttributeGroups,
   setDialog,
   setEditingAttributeDefinitionId,
@@ -73,11 +83,13 @@ export function useStylePreviewAttributeCommands({
   const resetAttributeGroupDraft = () => {
     setAttributeGroupName('')
     setAttributeGroupIconKey('')
+    setAttributeGroupValidationErrors({})
     setEditingAttributeGroupId(null)
   }
 
   const resetAttributeDefinitionDraft = () => {
     setAttributeDefinitionDraft(emptyAttributeDefinitionDraft)
+    setAttributeDefinitionValidationErrors({})
     setEditingAttributeDefinitionId(null)
   }
 
@@ -86,9 +98,10 @@ export function useStylePreviewAttributeCommands({
       return
     }
 
-    const validationMessage = validateAttributeGroupDraft(attributeGroupName, attributeGroupIconKey)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateAttributeGroupDraftIssues(attributeGroupName, attributeGroupIconKey)
+    if (validationIssues.length > 0) {
+      setAttributeGroupValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -133,9 +146,10 @@ export function useStylePreviewAttributeCommands({
       return
     }
 
-    const validationMessage = validateAttributeDefinitionDraft(attributeDefinitionDraft)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateAttributeDefinitionDraftIssues(attributeDefinitionDraft)
+    if (validationIssues.length > 0) {
+      setAttributeDefinitionValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -172,6 +186,7 @@ export function useStylePreviewAttributeCommands({
     setEditingAttributeGroupId(group.id)
     setAttributeGroupName(group.name)
     setAttributeGroupIconKey(group.iconKey ?? '')
+    setAttributeGroupValidationErrors({})
     setDialog('attributeGroup')
   }
 
@@ -190,6 +205,7 @@ export function useStylePreviewAttributeCommands({
       unit: definition.unit ?? '',
       optionsText: definition.options.join(', '),
     })
+    setAttributeDefinitionValidationErrors({})
   }
 
   const deletePendingAttributeGroup = async () => {

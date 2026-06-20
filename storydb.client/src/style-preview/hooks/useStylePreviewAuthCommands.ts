@@ -14,11 +14,14 @@ import type {
   StoryProject,
 } from '../../types'
 import {
-  validateAuthDraft,
-  validateProfileDraft,
+  validateAuthDraftIssues,
+  validateProfileDraftIssues,
+  validationIssuesToMap,
 } from '../../validation'
+import type { ValidationIssueMap } from '../../validation'
 
 type AuthCommandMessages = {
+  fieldValidationFailed: string
   loginFailed: string
   profileAvatarUploadFailed: string
   profileSaved: string
@@ -39,12 +42,14 @@ type UseStylePreviewAuthCommandsOptions = {
   profileDisplayName: string
   profileEmail: string
   setCurrentUser: Dispatch<SetStateAction<AuthUser | null>>
+  setAuthValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setDialog: Dispatch<SetStateAction<PreviewDialogKind>>
   setIsProfilePageOpen: Dispatch<SetStateAction<boolean>>
   setIsProfileSaving: Dispatch<SetStateAction<boolean>>
   setIsSettingsPageOpen: Dispatch<SetStateAction<boolean>>
   setObjects: Dispatch<SetStateAction<StoryObject[]>>
   setProfileAvatarImagePath: Dispatch<SetStateAction<string | null>>
+  setProfileValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setProjects: Dispatch<SetStateAction<StoryProject[]>>
   setSelectedProjectId: Dispatch<SetStateAction<number | null>>
   showErrorMessage: (message: string) => void
@@ -64,6 +69,7 @@ export function useStylePreviewAuthCommands({
   profileAvatarImagePath,
   profileDisplayName,
   profileEmail,
+  setAuthValidationErrors,
   setCurrentUser,
   setDialog,
   setIsProfilePageOpen,
@@ -71,19 +77,21 @@ export function useStylePreviewAuthCommands({
   setIsSettingsPageOpen,
   setObjects,
   setProfileAvatarImagePath,
+  setProfileValidationErrors,
   setProjects,
   setSelectedProjectId,
   showErrorMessage,
   showMessage,
 }: UseStylePreviewAuthCommandsOptions) {
   const submitAuth = async () => {
-    const validationMessage = validateAuthDraft(
+    const validationIssues = validateAuthDraftIssues(
       authEmail,
       authPassword,
       authMode === 'register' ? authDisplayName : null,
     )
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    if (validationIssues.length > 0) {
+      setAuthValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -93,6 +101,7 @@ export function useStylePreviewAuthCommands({
           ? await loginRequest(authEmail, authPassword)
           : await registerRequest(authEmail, authPassword, authDisplayName)
       setCurrentUser(user)
+      setAuthValidationErrors({})
       setDialog(null)
       await loadProjects()
     } catch {
@@ -125,9 +134,10 @@ export function useStylePreviewAuthCommands({
       return
     }
 
-    const validationMessage = validateProfileDraft(profileEmail, profileDisplayName, profileAvatarImagePath)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateProfileDraftIssues(profileEmail, profileDisplayName, profileAvatarImagePath)
+    if (validationIssues.length > 0) {
+      setProfileValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -135,6 +145,7 @@ export function useStylePreviewAuthCommands({
       setIsProfileSaving(true)
       const updatedUser = await updateCurrentUserRequest(profileEmail, profileDisplayName, profileAvatarImagePath)
       setCurrentUser(updatedUser)
+      setProfileValidationErrors({})
       showMessage(messages.profileSaved)
     } catch {
       showErrorMessage(messages.profileSaveFailed)

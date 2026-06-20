@@ -1,6 +1,7 @@
 import type { PreviewLanguage, PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { PreviewDialogKind } from '../style-preview/domain/stylePreviewConfig'
 import type { AttributeDefinition, AttributeGroup } from '../types'
+import type { ValidationIssueMap } from '../validation'
 import { AttributeGroupDialog } from './AttributeGroupDialog'
 import { DeletePreviewDialog } from './DeletePreviewDialog'
 
@@ -8,6 +9,7 @@ export function StylePreviewAttributeDialogs({
   attributeDefinitions,
   attributeGroupIconKey,
   attributeGroupName,
+  attributeGroupValidationErrors,
   attributeGroups,
   dialog,
   editingAttributeGroupId,
@@ -25,6 +27,7 @@ export function StylePreviewAttributeDialogs({
   attributeDefinitions: AttributeDefinition[]
   attributeGroupIconKey: string
   attributeGroupName: string
+  attributeGroupValidationErrors?: ValidationIssueMap
   attributeGroups: AttributeGroup[]
   dialog: PreviewDialogKind
   editingAttributeGroupId: number | null
@@ -47,6 +50,7 @@ export function StylePreviewAttributeDialogs({
           groupName={attributeGroupName}
           iconKey={attributeGroupIconKey}
           language={language}
+          validationErrors={attributeGroupValidationErrors}
           ui={ui}
           onCancel={onClose}
           onIconKeyChange={onAttributeGroupIconChange}

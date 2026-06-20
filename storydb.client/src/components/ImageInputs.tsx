@@ -2,6 +2,9 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 
 import { resolveAssetUrl } from '../api'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import type { ValidationIssueMap } from '../validation'
+import { FieldError } from './FormValidation'
+import { getFieldValidationProps } from './formValidationUtils'
 
 export type ImageCropMode = 'none' | 'avatar' | 'cover' | 'portrait' | 'square' | 'landscape'
 
@@ -12,6 +15,9 @@ export function CoverDropzone({
   cropMode,
   imagePath,
   label,
+  validationErrorId,
+  validationErrors,
+  validationField,
   ui,
   onFileSelected,
 }: {
@@ -19,6 +25,9 @@ export function CoverDropzone({
   cropMode?: ImageCropMode
   imagePath: string | null
   label: string
+  validationErrorId?: string
+  validationErrors?: ValidationIssueMap
+  validationField?: string
   ui: PreviewText
   onFileSelected: (file: File) => void
 }) {
@@ -30,6 +39,10 @@ export function CoverDropzone({
   } | null>(null)
   const imageUrl = resolveAssetUrl(imagePath)
   const resolvedCropMode = cropMode ?? (className.includes('avatar') ? 'avatar' : 'cover')
+  const validationProps =
+    validationField === undefined || validationErrorId === undefined
+      ? {}
+      : getFieldValidationProps(validationField, validationErrors, validationErrorId)
 
   useEffect(() => {
     return () => {
@@ -74,6 +87,7 @@ export function CoverDropzone({
           <input
             accept="image/*"
             type="file"
+            {...validationProps}
             onChange={(event) => {
               pickFile(event.target.files?.[0])
               event.currentTarget.value = ''
@@ -94,6 +108,9 @@ export function CoverDropzone({
             </>
           )}
         </label>
+        {validationField !== undefined && validationErrorId !== undefined && (
+          <FieldError id={validationErrorId} message={validationErrors?.[validationField]} />
+        )}
       </div>
       {pendingCrop !== null && (
         <Suspense fallback={null}>

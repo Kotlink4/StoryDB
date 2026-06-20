@@ -111,6 +111,10 @@
   justify-self: end;
 }
 
+.sp-inline-menu:has(.sp-card-dropdown) {
+  z-index: 80;
+}
+
 .sp-inline-menu > button {
   display: grid;
   width: 34px;

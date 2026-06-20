@@ -14,6 +14,30 @@
   resize: vertical;
 }
 
+.sp-form input[aria-invalid="true"],
+.sp-form select[aria-invalid="true"],
+.sp-form textarea[aria-invalid="true"],
+.style-preview input[aria-invalid="true"],
+.style-preview select[aria-invalid="true"],
+.style-preview textarea[aria-invalid="true"] {
+  border-color: var(--sp-danger-border);
+  background: var(--sp-danger-bg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-danger-border) 24%, transparent);
+}
+
+.sp-field-error {
+  color: var(--sp-danger-text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.sp-cover-dropzone:has(input[aria-invalid="true"]) {
+  border-color: var(--sp-danger-border);
+  background: var(--sp-danger-bg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-danger-border) 24%, transparent);
+}
+
 .sp-catalog-editor,
 .sp-template-editor,
 .sp-form-section {

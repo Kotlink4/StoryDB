@@ -14,8 +14,14 @@ import type { PreviewText } from './stylePreviewI18n'
 import { buildStylePreviewPath, parseStylePreviewPath } from './stylePreviewRouting'
 import {
   validateAttributeDefinitionDraft,
+  validateAttributeDefinitionDraftIssues,
+  validateAttributeGroupDraftIssues,
   validateCatalogFieldDraft,
+  validateCatalogEntryDraftIssues,
+  validateCatalogFieldDraftIssues,
   validateObjectDraft,
+  validateObjectDraftIssues,
+  validateProjectDraftIssues,
   validateRelationLinkDraft,
   validateTimelineEventDraft,
 } from '../../validation'
@@ -211,6 +217,18 @@ describe('frontend validation', () => {
     expect(validateObjectDraft('Lilia', '', '', '', '', '', 'Active', '/uploads/projects/3/images/2026/06/lilia/gallery.webp')).toBeNull()
     expect(validateObjectDraft('Lilia', '', '', '', '', '', 'Active', '/uploads/images/lilia.png')).toContain('Обложка')
     expect(validateObjectDraft('Lilia', '', '', '', '', '', 'Active', '/external/lilia.png')).toContain('Обложка')
+    expect(validateObjectDraftIssues('', '', '', '', '', '', '', null)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'name', message: 'Введите название объекта.' })]),
+    )
+    expect(validateObjectDraftIssues('Lilia', '', '', '', '', '', 'x'.repeat(121), null)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'currentStatus' })]),
+    )
+  })
+
+  it('returns field-level project validation issues', () => {
+    expect(validateProjectDraftIssues('', null)).toEqual([
+      { field: 'name', message: 'Введите название проекта.' },
+    ])
   })
 
   it('validates timeline ranges, references and select options', () => {
@@ -229,6 +247,12 @@ describe('frontend validation', () => {
       unit: '',
     }
     expect(validateAttributeDefinitionDraft(attributeDraft)).toContain('вариант')
+    expect(validateAttributeDefinitionDraftIssues(attributeDraft)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'optionsText' })]),
+    )
+    expect(validateAttributeGroupDraftIssues('', '')).toEqual([
+      { field: 'name', message: 'Введите название группы характеристик.' },
+    ])
 
     const catalogFieldDraft: CatalogFieldDraft = {
       dataType: 'entryReference',
@@ -240,6 +264,12 @@ describe('frontend validation', () => {
       referenceCatalogId: '',
     }
     expect(validateCatalogFieldDraft(catalogFieldDraft)).toContain('каталог')
+    expect(validateCatalogFieldDraftIssues(catalogFieldDraft)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'referenceCatalogId' })]),
+    )
+    expect(validateCatalogEntryDraftIssues({ name: '', description: '', imagePath: null, entryGroupId: '', parentEntryIds: [], fieldValues: {} })).toEqual([
+      { field: 'name', message: 'Введите название записи.' },
+    ])
   })
 
   it('validates relation link endpoints and strength ranges', () => {

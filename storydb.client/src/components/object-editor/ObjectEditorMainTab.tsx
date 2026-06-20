@@ -3,6 +3,9 @@ import type {
   ObjectTypeKey,
   StoryObject,
 } from '../../types'
+import type { ValidationIssueMap } from '../../validation'
+import { FieldError } from '../FormValidation'
+import { getFieldValidationProps } from '../formValidationUtils'
 import { CoverDropzone } from '../ImageInputs'
 import {
   buildOrganizationSurnameOptions,
@@ -21,6 +24,7 @@ type ObjectEditorMainTabProps = {
   objectSurname: string
   objectSurnameForm: string
   organizations: StoryObject[]
+  validationErrors?: ValidationIssueMap
   ui: PreviewText
   onImageUpload: (file: File | null) => void
   onObjectAgeChange: (value: string) => void
@@ -43,6 +47,7 @@ export function ObjectEditorMainTab({
   objectSurname,
   objectSurnameForm,
   organizations,
+  validationErrors,
   ui,
   onImageUpload,
   onObjectAgeChange,
@@ -64,12 +69,20 @@ export function ObjectEditorMainTab({
         cropMode={objectImageCropMode}
         imagePath={objectImagePath}
         label={ui.image}
+        validationErrorId="object-image-error"
+        validationErrors={validationErrors}
+        validationField="imagePath"
         ui={ui}
         onFileSelected={(file) => onImageUpload(file)}
       />
       <label>
         {ui.firstName}
-        <input value={objectName} onChange={(event) => onObjectNameChange(event.target.value)} />
+        <input
+          value={objectName}
+          onChange={(event) => onObjectNameChange(event.target.value)}
+          {...getFieldValidationProps('name', validationErrors, 'object-name-error')}
+        />
+        <FieldError id="object-name-error" message={validationErrors?.name} />
       </label>
       {activeType === 'characters' && (
         <>
@@ -79,7 +92,9 @@ export function ObjectEditorMainTab({
               list="sp-organization-surnames"
               value={objectSurname}
               onChange={(event) => onObjectSurnameChange(event.target.value)}
+              {...getFieldValidationProps('surname', validationErrors, 'object-surname-error')}
             />
+            <FieldError id="object-surname-error" message={validationErrors?.surname} />
           </label>
           <datalist id="sp-organization-surnames">
             {organizationSurnameOptions.map(([surname, organizationName]) => (
@@ -90,27 +105,52 @@ export function ObjectEditorMainTab({
           </datalist>
           <label>
             {ui.yearAge}
-            <input value={objectAge} onChange={(event) => onObjectAgeChange(event.target.value)} />
+            <input
+              value={objectAge}
+              onChange={(event) => onObjectAgeChange(event.target.value)}
+              {...getFieldValidationProps('age', validationErrors, 'object-age-error')}
+            />
+            <FieldError id="object-age-error" message={validationErrors?.age} />
           </label>
           <label>
             {ui.role}
-            <input value={objectRole} onChange={(event) => onObjectRoleChange(event.target.value)} />
+            <input
+              value={objectRole}
+              onChange={(event) => onObjectRoleChange(event.target.value)}
+              {...getFieldValidationProps('role', validationErrors, 'object-role-error')}
+            />
+            <FieldError id="object-role-error" message={validationErrors?.role} />
           </label>
         </>
       )}
       {activeType === 'organizations' && (
         <label>
           {ui.surnameForm}
-          <input value={objectSurnameForm} onChange={(event) => onObjectSurnameFormChange(event.target.value)} />
+          <input
+            value={objectSurnameForm}
+            onChange={(event) => onObjectSurnameFormChange(event.target.value)}
+            {...getFieldValidationProps('surnameForm', validationErrors, 'object-surname-form-error')}
+          />
+          <FieldError id="object-surname-form-error" message={validationErrors?.surnameForm} />
         </label>
       )}
       <label>
         {ui.currentStatus}
-        <input value={objectCurrentStatus} onChange={(event) => onObjectCurrentStatusChange(event.target.value)} />
+        <input
+          value={objectCurrentStatus}
+          onChange={(event) => onObjectCurrentStatusChange(event.target.value)}
+          {...getFieldValidationProps('currentStatus', validationErrors, 'object-current-status-error')}
+        />
+        <FieldError id="object-current-status-error" message={validationErrors?.currentStatus} />
       </label>
       <label className="wide">
         {ui.description}
-        <textarea value={objectDescription} onChange={(event) => onObjectDescriptionChange(event.target.value)} />
+        <textarea
+          value={objectDescription}
+          onChange={(event) => onObjectDescriptionChange(event.target.value)}
+          {...getFieldValidationProps('description', validationErrors, 'object-description-error')}
+        />
+        <FieldError id="object-description-error" message={validationErrors?.description} />
       </label>
     </div>
   )

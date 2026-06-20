@@ -1,4 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRef } from 'react'
+
 import {
   Background,
   BackgroundVariant,
@@ -155,6 +157,7 @@ export function RelationsPage({
   )
   const activeGraph = graphKind === 'structure' ? structureFlow.graph : visibleGraph
   const [flowNodes, setFlowNodes] = useState<RelationsFlowNode[]>(activeNodes)
+  const lastRequestedGraphKeyRef = useRef<string | null>(null)
   const relationTypes = Array.from(new Set(visibleGraph.edges.map((edge) => getRelationLabel(edge.relationType, ui)))).sort()
   const focusOptions = [...graph.nodes].sort((left, right) => left.name.localeCompare(right.name))
   const structureFocusOptions = structureFlow.allGraph.nodes.toSorted((left, right) => left.name.localeCompare(right.name))
@@ -177,6 +180,11 @@ export function RelationsPage({
   }, [activeNodes])
 
   useEffect(() => {
+    if (lastRequestedGraphKeyRef.current === graphKey) {
+      return
+    }
+
+    lastRequestedGraphKeyRef.current = graphKey
     onGraphKeyChange(graphKey)
   }, [graphKey, onGraphKeyChange])
 

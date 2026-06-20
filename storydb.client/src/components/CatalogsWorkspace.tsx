@@ -60,19 +60,22 @@ export function CatalogsWorkspace({
     selectedCatalogGroupId === null
       ? catalogEntries
       : catalogEntries.filter((entry) => entry.entryGroupId !== null && selectedCatalogGroupIds?.has(entry.entryGroupId))
+  const selectedCatalogDescription = selectedCatalog?.description?.trim() ?? ''
 
   return (
     <>
       <div className="sp-content-head">
         <div>
           <h2>{selectedCatalog?.name ?? ui.catalogs}</h2>
-          <p>
-            <LinkedText
-              emptyText={ui.catalogsDescription}
-              targets={textLinkTargets}
-              text={selectedCatalog?.description}
-            />
-          </p>
+          {selectedCatalogDescription.length > 0 && (
+            <p>
+              <LinkedText
+                emptyText=""
+                targets={textLinkTargets}
+                text={selectedCatalogDescription}
+              />
+            </p>
+          )}
         </div>
         <div className="sp-filters">
           {selectedCatalog !== null && (
@@ -190,7 +193,13 @@ export function CatalogsWorkspace({
                           <LinkedText emptyText={ui.unknownDescription} targets={textLinkTargets} text={entry.description} />
                         </p>
                       </div>
-                      <KebabMenu ui={ui} onDelete={() => onDeleteEntry(entry)} onEdit={() => onEditEntry(entry)} />
+                      <KebabMenu
+                        ariaLabel={`${entry.name}: ${ui.actions}`}
+                        className="sp-card-menu"
+                        ui={ui}
+                        onDelete={() => onDeleteEntry(entry)}
+                        onEdit={() => onEditEntry(entry)}
+                      />
                     </article>
                   )
                 })}

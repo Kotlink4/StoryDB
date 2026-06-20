@@ -417,6 +417,10 @@
   z-index: 20;
 }
 
+.sp-group-block > .sp-inline-menu:has(.sp-card-dropdown) {
+  z-index: 80;
+}
+
 .sp-group-blocks > button.create {
   color: var(--sp-accent);
   border-style: dashed;

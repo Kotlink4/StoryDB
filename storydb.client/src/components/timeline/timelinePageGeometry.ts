@@ -31,6 +31,7 @@ export const TIMELINE_SCALE_PRESETS = [
   { key: 'months', pixelsPerYear: 180 },
   { key: 'days', pixelsPerYear: 5200 },
 ] as const
+export const TIMELINE_DEFAULT_PIXELS_PER_YEAR = TIMELINE_SCALE_PRESETS[0].pixelsPerYear
 
 export type TimelineScalePresetKey = typeof TIMELINE_SCALE_PRESETS[number]['key']
 

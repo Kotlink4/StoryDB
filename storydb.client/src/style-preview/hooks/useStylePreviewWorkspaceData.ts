@@ -105,6 +105,8 @@ export function useStylePreviewWorkspaceData({
   const [catalogEntries, setCatalogEntries] = useState<CatalogEntry[]>([])
   const [catalogGroups, setCatalogGroups] = useState<CatalogEntryGroup[]>([])
   const relationLayoutRequestId = useRef(0)
+  const relationLayoutInFlightKey = useRef<string | null>(null)
+  const relationLayoutLoadedKey = useRef<string | null>(null)
 
   useStylePreviewClientCache({
     activeSection,
@@ -135,25 +137,40 @@ export function useStylePreviewWorkspaceData({
 
   const loadRelationGraphLayout = useCallback(
     async (graphKey?: string | null) => {
+      const normalizedGraphKey = graphKey?.trim() || 'relations:all'
       if (selectedProjectId === null) {
         relationLayoutRequestId.current += 1
+        relationLayoutInFlightKey.current = null
+        relationLayoutLoadedKey.current = null
         setRelationGraphLayout(null)
+        return
+      }
+
+      const requestKey = `${selectedProjectId}:${normalizedGraphKey}`
+      if (relationLayoutInFlightKey.current === requestKey || relationLayoutLoadedKey.current === requestKey) {
         return
       }
 
       const requestId = relationLayoutRequestId.current + 1
       relationLayoutRequestId.current = requestId
+      relationLayoutInFlightKey.current = requestKey
       setRelationGraphLayout(null)
       try {
-        const layout = await fetchRelationGraphLayout(selectedProjectId, graphKey)
+        const layout = await fetchRelationGraphLayout(selectedProjectId, normalizedGraphKey)
         if (requestId === relationLayoutRequestId.current) {
+          relationLayoutLoadedKey.current = requestKey
           setRelationGraphLayout(layout)
           void writeProjectClientCachePatch(selectedProjectId, { relationGraphLayout: layout })
         }
       } catch {
         if (requestId === relationLayoutRequestId.current) {
+          relationLayoutLoadedKey.current = null
           setRelationGraphLayout(null)
           showMessage(messages.graphLayoutLoadMissing)
+        }
+      } finally {
+        if (relationLayoutInFlightKey.current === requestKey) {
+          relationLayoutInFlightKey.current = null
         }
       }
     },
@@ -472,6 +489,7 @@ export function useStylePreviewWorkspaceData({
     setRelationGraphLayout,
     setSelectedAttributeGroupId,
     setSelectedCatalogId,
+    setStructureAssignments,
     setTimelineEvents,
     setTimelineLayout,
     setTimelineLinks,

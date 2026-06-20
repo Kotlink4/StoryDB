@@ -26,6 +26,8 @@ export function buildStylePreviewCatalogsWorkspaceProps({
   openEditCatalogEntry,
   openEditCatalogGroup,
   resetCatalogGroupDraft,
+  setCatalogEntryValidationErrors,
+  setCatalogGroupValidationErrors,
   selectedCatalog,
   selectedCatalogGroupId,
   selectedProjectId,
@@ -53,6 +55,8 @@ export function buildStylePreviewCatalogsWorkspaceProps({
   openEditCatalogEntry: CatalogsWorkspaceProps['onEditEntry']
   openEditCatalogGroup: CatalogsWorkspaceProps['onEditGroup']
   resetCatalogGroupDraft: () => void
+  setCatalogEntryValidationErrors: Dispatch<SetStateAction<Record<string, string>>>
+  setCatalogGroupValidationErrors: Dispatch<SetStateAction<Record<string, string>>>
   selectedCatalog: Catalog | null
   selectedCatalogGroupId: number | null
   selectedProjectId: number | null
@@ -82,10 +86,12 @@ export function buildStylePreviewCatalogsWorkspaceProps({
     onEditGroup: openEditCatalogGroup,
     onCreateGroup: () => {
       resetCatalogGroupDraft()
+      setCatalogGroupValidationErrors({})
       setDialog('catalogGroup')
     },
     onCreateEntry: () => {
       createCatalogEntryDraftForGroup(selectedCatalogGroupId)
+      setCatalogEntryValidationErrors({})
       setDialog('catalogEntry')
     },
     onDeleteCatalog: () => {
@@ -107,9 +113,11 @@ export function buildStylePreviewCatalogsWorkspaceProps({
 
 export function buildStylePreviewAttributesWorkspaceProps({
   attributeDefinitionDraft,
+  attributeDefinitionValidationErrors,
   attributeDefinitions,
   attributeGroupIconKey,
   attributeGroupName,
+  attributeGroupValidationErrors,
   attributeGroups,
   editingAttributeDefinitionId,
   groupDisplayMode,
@@ -120,6 +128,7 @@ export function buildStylePreviewAttributesWorkspaceProps({
   saveAttributeGroup,
   selectedAttributeGroupId,
   setAttributeDefinitionDraft,
+  setAttributeDefinitionValidationErrors,
   setAttributeGroupIconKey,
   setAttributeGroupName,
   setDialog,
@@ -130,9 +139,11 @@ export function buildStylePreviewAttributesWorkspaceProps({
   ui,
 }: {
   attributeDefinitionDraft: AttributesWorkspaceProps['attributeDefinitionDraft']
+  attributeDefinitionValidationErrors?: AttributesWorkspaceProps['definitionValidationErrors']
   attributeDefinitions: AttributesWorkspaceProps['attributeDefinitions']
   attributeGroupIconKey: string
   attributeGroupName: string
+  attributeGroupValidationErrors?: AttributesWorkspaceProps['attributeGroupValidationErrors']
   attributeGroups: AttributesWorkspaceProps['attributeGroups']
   editingAttributeDefinitionId: number | null
   groupDisplayMode: AttributesWorkspaceProps['groupDisplayMode']
@@ -143,6 +154,7 @@ export function buildStylePreviewAttributesWorkspaceProps({
   saveAttributeGroup: () => void | Promise<void>
   selectedAttributeGroupId: number | null
   setAttributeDefinitionDraft: AttributesWorkspaceProps['onAttributeDefinitionDraftChange']
+  setAttributeDefinitionValidationErrors: Dispatch<SetStateAction<Record<string, string>>>
   setAttributeGroupIconKey: AttributesWorkspaceProps['onAttributeGroupIconChange']
   setAttributeGroupName: AttributesWorkspaceProps['onAttributeGroupNameChange']
   setDialog: Dispatch<SetStateAction<PreviewDialogKind>>
@@ -154,9 +166,11 @@ export function buildStylePreviewAttributesWorkspaceProps({
 }): AttributesWorkspaceProps {
   return {
     attributeDefinitionDraft,
+    definitionValidationErrors: attributeDefinitionValidationErrors,
     attributeDefinitions,
     attributeGroupIconKey,
     attributeGroupName,
+    attributeGroupValidationErrors,
     attributeGroups,
     groupDisplayMode,
     editingAttributeDefinitionId,
@@ -166,6 +180,7 @@ export function buildStylePreviewAttributesWorkspaceProps({
     onCancelAttributeEdit: () => {
       setEditingAttributeDefinitionId(null)
       setAttributeDefinitionDraft(emptyAttributeDefinitionDraft)
+      setAttributeDefinitionValidationErrors({})
     },
     onAttributeDefinitionDraftChange: setAttributeDefinitionDraft,
     onAttributeGroupIconChange: setAttributeGroupIconKey,
@@ -257,7 +272,6 @@ export function buildStylePreviewProjectExportWorkspaceProps({
 }
 
 export function buildStylePreviewObjectCardsWorkspaceProps({
-  activeObjectMenuId,
   currentUser,
   isObjectSectionActive,
   layoutMode,
@@ -266,14 +280,12 @@ export function buildStylePreviewObjectCardsWorkspaceProps({
   openEditObjectDialog,
   openObjectDetail,
   selectedObjectId,
-  setActiveObjectMenuId,
   setDialog,
   setLayoutMode,
   setSelectedObjectId,
   ui,
   visibleObjects,
 }: {
-  activeObjectMenuId: number | null
   currentUser: AuthUser | null
   isObjectSectionActive: boolean
   layoutMode: ObjectCardsWorkspaceProps['layoutMode']
@@ -282,7 +294,6 @@ export function buildStylePreviewObjectCardsWorkspaceProps({
   openEditObjectDialog: ObjectCardsWorkspaceProps['onEditObject']
   openObjectDetail: ObjectCardsWorkspaceProps['onOpenObject']
   selectedObjectId: number | null
-  setActiveObjectMenuId: ObjectCardsWorkspaceProps['onObjectMenuChange']
   setDialog: Dispatch<SetStateAction<PreviewDialogKind>>
   setLayoutMode: ObjectCardsWorkspaceProps['onLayoutModeChange']
   setSelectedObjectId: Dispatch<SetStateAction<number | null>>
@@ -290,7 +301,6 @@ export function buildStylePreviewObjectCardsWorkspaceProps({
   visibleObjects: StoryObject[]
 }): ObjectCardsWorkspaceProps {
   return {
-    activeObjectMenuId,
     currentUser,
     layoutMode,
     sectionTitle: isObjectSectionActive ? objectSectionLabel : ui.database,
@@ -305,7 +315,6 @@ export function buildStylePreviewObjectCardsWorkspaceProps({
     },
     onEditObject: openEditObjectDialog,
     onLayoutModeChange: setLayoutMode,
-    onObjectMenuChange: setActiveObjectMenuId,
     onOpenObject: openObjectDetail,
   }
 }

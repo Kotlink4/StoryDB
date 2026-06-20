@@ -101,22 +101,19 @@ export function useResetProjectSearchOnShellChange({
 }
 
 export function useCloseStylePreviewFloatingMenus({
-  setActiveObjectMenuId,
   setIsSettingsOpen,
 }: {
-  setActiveObjectMenuId: (objectId: number | null) => void
   setIsSettingsOpen: (isOpen: boolean) => void
 }) {
   useEffect(() => {
     const closeFloatingMenus = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null
-      if (target?.closest('.sp-card-menu, .sp-profile') === null) {
-        setActiveObjectMenuId(null)
+      if (target?.closest('.sp-profile') === null) {
         setIsSettingsOpen(false)
       }
     }
 
     document.addEventListener('pointerdown', closeFloatingMenus)
     return () => document.removeEventListener('pointerdown', closeFloatingMenus)
-  }, [setActiveObjectMenuId, setIsSettingsOpen])
+  }, [setIsSettingsOpen])
 }

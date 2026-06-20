@@ -43,7 +43,6 @@ import {
   buildStructureWorkspacePages,
   findSelectedStructureEdge,
   findSelectedStructureNode,
-  getActiveStructurePageDescription,
 } from './structure-workspace/structureWorkspaceModel'
 import { useStructureAssignmentMaps } from './structure-workspace/useStructureAssignmentMaps'
 import { useStructureAssignmentSelection } from './structure-workspace/useStructureAssignmentSelection'
@@ -427,11 +426,6 @@ export function StructuresWorkspace({
   const structurePages = buildStructureWorkspacePages(ui)
   const selectedStructurePages = structurePages.filter((page) => page.key !== 'overview' && page.key !== 'create')
   const isSelectedStructurePage = selectedStructurePages.some((page) => page.key === activeStructurePage)
-  const activeStructurePageDescription = getActiveStructurePageDescription(
-    structurePages,
-    activeStructurePage,
-    ui.structuresDescription,
-  )
   if (
     activeStructurePage === 'schema' &&
     detailMode === 'page' &&
@@ -440,7 +434,6 @@ export function StructuresWorkspace({
   ) {
     return (
       <StructureDossierPage
-        description={ui.structurePageSchemaHint}
         title={selectedStructureNode?.name.trim() || ui.structureNodeDossier}
         ui={ui}
         onBack={() => setSelectedStructureNodeClientId(null)}
@@ -458,7 +451,6 @@ export function StructuresWorkspace({
   ) {
     return (
       <StructureDossierPage
-        description={ui.structureEdgesHint}
         title={selectedStructureEdge?.relationType.trim() || ui.structureEdgeDefaultType}
         ui={ui}
         onBack={() => setSelectedStructureEdgeKey(null)}
@@ -472,7 +464,6 @@ export function StructuresWorkspace({
     <section className="sp-database-main sp-structures-workspace">
       <StructureWorkspaceHeader
         activePage={activeStructurePage}
-        activePageDescription={activeStructurePageDescription}
         isSelectedStructurePage={isSelectedStructurePage}
         selectedPages={selectedStructurePages}
         ui={ui}
@@ -512,7 +503,6 @@ export function StructuresWorkspace({
       {isSelectedStructurePage && (
         <StructureDetailEditor
           activeStructurePage={activeStructurePage}
-          activeStructurePageDescription={activeStructurePageDescription}
           assignmentCatalogEntryId={assignmentCatalogEntryId}
           assignmentNodeId={assignmentNodeId}
           assignmentRoleLabel={assignmentRoleLabel}

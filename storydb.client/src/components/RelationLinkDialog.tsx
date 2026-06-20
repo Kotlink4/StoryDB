@@ -3,11 +3,15 @@ import type { Dispatch, SetStateAction } from 'react'
 import { getObjectFullName } from '../style-preview/domain/objectDisplay'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { RelationLinkDraft, StoryObject } from '../types'
+import type { ValidationIssueMap } from '../validation'
+import { FieldError } from './FormValidation'
+import { getFieldValidationProps, useFirstInvalidFieldFocus } from './formValidationUtils'
 import { PreviewDialog } from './StylePreviewPrimitives'
 
 type RelationLinkDialogProps = {
   characters: StoryObject[]
   draft: RelationLinkDraft
+  validationErrors?: ValidationIssueMap
   ui: PreviewText
   onCancel: () => void
   onDraftChange: Dispatch<SetStateAction<RelationLinkDraft>>
@@ -17,14 +21,17 @@ type RelationLinkDialogProps = {
 export function RelationLinkDialog({
   characters,
   draft,
+  validationErrors,
   ui,
   onCancel,
   onDraftChange,
   onSave,
 }: RelationLinkDialogProps) {
+  const formRef = useFirstInvalidFieldFocus(validationErrors)
+
   return (
     <PreviewDialog title={ui.linkCharacters} onClose={onCancel}>
-      <div className="sp-form">
+      <div className="sp-form" ref={formRef}>
         <label>
           {ui.relationSourceCharacter}
           <select
@@ -37,6 +44,7 @@ export function RelationLinkDialog({
                   event.target.value === currentDraft.targetCharacterId ? '' : currentDraft.targetCharacterId,
               }))
             }
+            {...getFieldValidationProps('sourceCharacterId', validationErrors, 'relation-link-source-error')}
           >
             <option value="">{ui.characters}</option>
             {characters.map((character) => (
@@ -45,6 +53,7 @@ export function RelationLinkDialog({
               </option>
             ))}
           </select>
+          <FieldError id="relation-link-source-error" message={validationErrors?.sourceCharacterId} />
         </label>
         <label>
           {ui.relationTargetCharacter}
@@ -53,6 +62,7 @@ export function RelationLinkDialog({
             onChange={(event) =>
               onDraftChange((currentDraft) => ({ ...currentDraft, targetCharacterId: event.target.value }))
             }
+            {...getFieldValidationProps('targetCharacterId', validationErrors, 'relation-link-target-error')}
           >
             <option value="">{ui.characters}</option>
             {characters.map((character) => (
@@ -61,6 +71,7 @@ export function RelationLinkDialog({
               </option>
             ))}
           </select>
+          <FieldError id="relation-link-target-error" message={validationErrors?.targetCharacterId} />
         </label>
         <label>
           {ui.relationType}
@@ -68,7 +79,9 @@ export function RelationLinkDialog({
             placeholder={ui.relationTypePlaceholder}
             value={draft.relationType}
             onChange={(event) => onDraftChange((currentDraft) => ({ ...currentDraft, relationType: event.target.value }))}
+            {...getFieldValidationProps('relationType', validationErrors, 'relation-link-type-error')}
           />
+          <FieldError id="relation-link-type-error" message={validationErrors?.relationType} />
         </label>
         <label>
           {ui.relationStrength}
@@ -78,7 +91,9 @@ export function RelationLinkDialog({
             type="number"
             value={draft.strength}
             onChange={(event) => onDraftChange((currentDraft) => ({ ...currentDraft, strength: event.target.value }))}
+            {...getFieldValidationProps('strength', validationErrors, 'relation-link-strength-error')}
           />
+          <FieldError id="relation-link-strength-error" message={validationErrors?.strength} />
         </label>
         <label>
           {ui.relationTension}
@@ -88,7 +103,9 @@ export function RelationLinkDialog({
             type="number"
             value={draft.tension}
             onChange={(event) => onDraftChange((currentDraft) => ({ ...currentDraft, tension: event.target.value }))}
+            {...getFieldValidationProps('tension', validationErrors, 'relation-link-tension-error')}
           />
+          <FieldError id="relation-link-tension-error" message={validationErrors?.tension} />
         </label>
         <label className="sp-checkline wide">
           <input

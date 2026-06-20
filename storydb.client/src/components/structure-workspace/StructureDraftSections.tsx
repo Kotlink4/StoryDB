@@ -155,7 +155,6 @@ export function StructureEdgeDraftSection({
       <div className="sp-structure-nodes-head">
         <div>
           <h3>{ui.structureEdges}</h3>
-          <p>{ui.structureEdgesHint}</p>
         </div>
         <button className="sp-button" disabled={!canCreateEdge} type="button" onClick={onEdgeAdd}>
           {ui.structureAddEdge}
@@ -165,7 +164,7 @@ export function StructureEdgeDraftSection({
       {edges.length === 0 ? (
         <div className="sp-empty compact">
           <strong>{ui.noStructureEdges}</strong>
-          <span>{canCreateEdge ? ui.structureEdgesHint : ui.structureEdgesNeedNodes}</span>
+          {!canCreateEdge && <span>{ui.structureEdgesNeedNodes}</span>}
         </div>
       ) : (
         <div className="sp-structure-edge-list">

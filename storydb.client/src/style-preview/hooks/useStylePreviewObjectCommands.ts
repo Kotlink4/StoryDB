@@ -25,7 +25,7 @@ import {
   type PreviewDialogKind,
 } from '../domain/stylePreviewConfig'
 import type { PreviewSection, PreviewTab } from '../domain/stylePreviewRouting'
-import type { DraftTimelineParticipation } from '../domain/stylePreviewUiTypes'
+import type { DraftTimelineParticipation, ObjectEditorTab } from '../domain/stylePreviewUiTypes'
 import type {
   AttributeDefinition,
   DraftAttribute,
@@ -39,7 +39,11 @@ import type {
   TimelineEvent,
   TimelineLayout,
 } from '../../types'
-import { validateObjectDraft } from '../../validation'
+import {
+  validateObjectDraftIssues,
+  validationIssuesToMap,
+} from '../../validation'
+import type { ValidationIssueMap } from '../../validation'
 
 type ObjectCommandMessages = {
   galleryImageAddFailed: string
@@ -47,6 +51,7 @@ type ObjectCommandMessages = {
   imageUploadFailed: string
   objectDeleteFailed: string
   objectEditorLoadFailed: string
+  fieldValidationFailed: string
   objectRelationGraphUpdateFailed: string
   objectSaveFailed: string
   objectTimelineParticipationUpdateFailed: string
@@ -106,6 +111,8 @@ type UseStylePreviewObjectCommandsOptions = {
   setGalleryImagePath: Dispatch<SetStateAction<string | null>>
   setIsObjectSaving: Dispatch<SetStateAction<boolean>>
   setObjectImagePath: Dispatch<SetStateAction<string | null>>
+  setObjectEditorTab: Dispatch<SetStateAction<ObjectEditorTab>>
+  setObjectValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setObjects: Dispatch<SetStateAction<StoryObject[]>>
   setRelationGraph: Dispatch<SetStateAction<RelationGraph>>
   setRelationGraphLayout: Dispatch<SetStateAction<RelationGraphLayout | null>>
@@ -159,6 +166,8 @@ export function useStylePreviewObjectCommands({
   setGalleryImagePath,
   setIsObjectSaving,
   setObjectImagePath,
+  setObjectEditorTab,
+  setObjectValidationErrors,
   setObjects,
   setRelationGraph,
   setRelationGraphLayout,
@@ -197,6 +206,7 @@ export function useStylePreviewObjectCommands({
 
   const openCreateObjectDialog = () => {
     resetObjectForm()
+    setObjectValidationErrors({})
     if (isObjectSection(activeSection)) {
       void loadObjectEditorData(activeSection)
     }
@@ -225,6 +235,7 @@ export function useStylePreviewObjectCommands({
     }
 
     fillObjectForm(objectToEdit, timelineEvents)
+    setObjectValidationErrors({})
     setDialog('object')
   }
 
@@ -344,7 +355,7 @@ export function useStylePreviewObjectCommands({
       return
     }
 
-    const validationMessage = validateObjectDraft(
+    const validationIssues = validateObjectDraftIssues(
       objectName,
       objectSurname,
       objectSurnameForm,
@@ -354,8 +365,10 @@ export function useStylePreviewObjectCommands({
       objectCurrentStatus,
       objectImagePath,
     )
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    if (validationIssues.length > 0) {
+      setObjectEditorTab('main')
+      setObjectValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -431,6 +444,7 @@ export function useStylePreviewObjectCommands({
         setSelectedObjectId(optimisticObject.id)
       }
       setDialog(null)
+      setObjectValidationErrors({})
       resetObjectForm()
     }
 
@@ -495,6 +509,7 @@ export function useStylePreviewObjectCommands({
       }
       if (optimisticObject === null) {
         setDialog(null)
+        setObjectValidationErrors({})
         resetObjectForm()
       }
       try {

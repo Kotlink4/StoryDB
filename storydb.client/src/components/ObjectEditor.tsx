@@ -16,6 +16,8 @@ import type {
   StoryObject,
   TimelineEvent,
 } from '../types'
+import type { ValidationIssueMap } from '../validation'
+import { useFirstInvalidFieldFocus } from './formValidationUtils'
 import { ObjectEditorMainTab } from './object-editor/ObjectEditorMainTab'
 import { ObjectEditorAttributesTab } from './object-editor/ObjectEditorAttributesTab'
 import { ObjectEditorCatalogsTab } from './object-editor/ObjectEditorCatalogsTab'
@@ -55,6 +57,7 @@ export function ObjectEditor({
   saveObjectAsTimelineChange,
   selectedProjectId,
   timelineEvents,
+  validationErrors,
   territoryPlaceIds,
   ui,
   isSaving,
@@ -114,6 +117,7 @@ export function ObjectEditor({
   saveObjectAsTimelineChange: boolean
   selectedProjectId: number | null
   timelineEvents: TimelineEvent[]
+  validationErrors?: ValidationIssueMap
   territoryPlaceIds: number[]
   ui: PreviewText
   isSaving: boolean
@@ -142,12 +146,13 @@ export function ObjectEditor({
   onTimelineEventUpdated?: (event: TimelineEvent) => void
   toggleNumberSelection: (values: number[], value: number) => number[]
 }) {
+  const formRef = useFirstInvalidFieldFocus<HTMLElement>(validationErrors)
   const editingObject =
     editingObjectId === null
       ? null
       : objectsByType[activeType].find((storyObject) => storyObject.id === editingObjectId) ?? null
   return (
-    <section className="sp-object-editor">
+    <section className="sp-object-editor" ref={formRef}>
       <div className="sp-object-editor-tabs">
         {[
           ['main', ui.main],
@@ -180,6 +185,7 @@ export function ObjectEditor({
           objectSurname={objectSurname}
           objectSurnameForm={objectSurnameForm}
           organizations={objectsByType.organizations}
+          validationErrors={validationErrors}
           ui={ui}
           onImageUpload={onImageUpload}
           onObjectAgeChange={onObjectAgeChange}

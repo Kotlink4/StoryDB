@@ -6,7 +6,6 @@ import type { StructureWorkspacePageItem } from './structureWorkspaceModel'
 
 export type StructureWorkspaceHeaderProps = {
   activePage: StructureWorkspacePage
-  activePageDescription: string
   isSelectedStructurePage: boolean
   selectedPages: StructureWorkspacePageItem[]
   ui: PreviewText
@@ -16,7 +15,6 @@ export type StructureWorkspaceHeaderProps = {
 
 export function StructureWorkspaceHeader({
   activePage,
-  activePageDescription,
   isSelectedStructurePage,
   selectedPages,
   ui,
@@ -28,7 +26,6 @@ export function StructureWorkspaceHeader({
       <div className="sp-workspace-head">
         <div>
           <h2>{ui.structures}</h2>
-          <p>{activePageDescription}</p>
         </div>
         {activePage === 'overview' && (
           <button className="sp-button primary" type="button" onClick={onCreate}>

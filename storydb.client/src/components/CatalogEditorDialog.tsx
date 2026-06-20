@@ -8,7 +8,10 @@ import type {
   CatalogFieldDraft,
   CatalogHierarchyMode,
 } from '../types'
+import type { ValidationIssueMap } from '../validation'
 import { catalogFieldDataTypeLabels, formatCatalogFieldDefinition } from './catalogFieldDefinitionDisplay'
+import { FieldError } from './FormValidation'
+import { getFieldValidationProps, useFirstInvalidFieldFocus } from './formValidationUtils'
 import { KebabMenu, PreviewDialog } from './StylePreviewPrimitives'
 
 export type CatalogDialogTab = 'main' | 'template'
@@ -30,8 +33,10 @@ export function CatalogEditorDialog({
   catalogHierarchyMode,
   catalogName,
   catalogSupportsHierarchy,
+  catalogValidationErrors,
   editingCatalogFieldId,
   editingCatalogId,
+  fieldValidationErrors,
   language,
   ui,
   visibleCatalogs,
@@ -55,8 +60,10 @@ export function CatalogEditorDialog({
   catalogHierarchyMode: CatalogHierarchyMode
   catalogName: string
   catalogSupportsHierarchy: boolean
+  catalogValidationErrors?: ValidationIssueMap
   editingCatalogFieldId: number | null
   editingCatalogId: number | null
+  fieldValidationErrors?: ValidationIssueMap
   language: PreviewLanguage
   ui: PreviewText
   visibleCatalogs: Catalog[]
@@ -74,6 +81,8 @@ export function CatalogEditorDialog({
   onSaveCatalogField: () => void
 }) {
   const catalogTemplateUi = catalogTemplateLabels[language]
+  const catalogFormRef = useFirstInvalidFieldFocus(catalogValidationErrors)
+  const fieldFormRef = useFirstInvalidFieldFocus(fieldValidationErrors)
 
   return (
     <PreviewDialog title={editingCatalogId === null ? ui.newCatalog : ui.edit} onClose={onCancel}>
@@ -96,10 +105,15 @@ export function CatalogEditorDialog({
           </button>
         </div>
         {catalogDialogTab === 'main' && (
-          <div className="sp-form">
+          <div className="sp-form" ref={catalogFormRef}>
             <label>
               {ui.firstName}
-              <input value={catalogName} onChange={(event) => onCatalogNameChange(event.target.value)} />
+              <input
+                value={catalogName}
+                onChange={(event) => onCatalogNameChange(event.target.value)}
+                {...getFieldValidationProps('name', catalogValidationErrors, 'catalog-name-error')}
+              />
+              <FieldError id="catalog-name-error" message={catalogValidationErrors?.name} />
             </label>
             <label>
               {ui.hierarchy}
@@ -126,7 +140,12 @@ export function CatalogEditorDialog({
             )}
             <label className="wide">
               {ui.description}
-              <textarea value={catalogDescription} onChange={(event) => onCatalogDescriptionChange(event.target.value)} />
+              <textarea
+                value={catalogDescription}
+                onChange={(event) => onCatalogDescriptionChange(event.target.value)}
+                {...getFieldValidationProps('description', catalogValidationErrors, 'catalog-description-error')}
+              />
+              <FieldError id="catalog-description-error" message={catalogValidationErrors?.description} />
             </label>
             <div className="sp-dialog-actions">
               <button className="sp-button" type="button" onClick={onCancel}>
@@ -140,7 +159,7 @@ export function CatalogEditorDialog({
         )}
         {catalogDialogTab === 'template' && (
           <div className="sp-template-editor">
-            <div className="sp-form sp-template-form">
+            <div className="sp-form sp-template-form" ref={fieldFormRef}>
               <label>
                 {ui.firstName}
                 <input
@@ -148,7 +167,9 @@ export function CatalogEditorDialog({
                   onChange={(event) =>
                     onCatalogFieldDraftChange((draft) => ({ ...draft, name: event.target.value }))
                   }
+                  {...getFieldValidationProps('name', fieldValidationErrors, 'catalog-field-name-error')}
                 />
+                <FieldError id="catalog-field-name-error" message={fieldValidationErrors?.name} />
               </label>
               <label>
                 {catalogTemplateUi.dataType}
@@ -188,7 +209,9 @@ export function CatalogEditorDialog({
                       onChange={(event) =>
                         onCatalogFieldDraftChange((draft) => ({ ...draft, minValue: event.target.value }))
                       }
+                      {...getFieldValidationProps('minValue', fieldValidationErrors, 'catalog-field-min-error')}
                     />
+                    <FieldError id="catalog-field-min-error" message={fieldValidationErrors?.minValue} />
                   </label>
                   <label>
                     {catalogTemplateUi.max}
@@ -198,7 +221,9 @@ export function CatalogEditorDialog({
                       onChange={(event) =>
                         onCatalogFieldDraftChange((draft) => ({ ...draft, maxValue: event.target.value }))
                       }
+                      {...getFieldValidationProps('maxValue', fieldValidationErrors, 'catalog-field-max-error')}
                     />
+                    <FieldError id="catalog-field-max-error" message={fieldValidationErrors?.maxValue} />
                   </label>
                 </>
               )}
@@ -211,7 +236,9 @@ export function CatalogEditorDialog({
                     onChange={(event) =>
                       onCatalogFieldDraftChange((draft) => ({ ...draft, optionsText: event.target.value }))
                     }
+                    {...getFieldValidationProps('optionsText', fieldValidationErrors, 'catalog-field-options-error')}
                   />
+                  <FieldError id="catalog-field-options-error" message={fieldValidationErrors?.optionsText} />
                 </label>
               )}
               {(catalogFieldDraft.dataType === 'entryReference' ||
@@ -223,6 +250,7 @@ export function CatalogEditorDialog({
                     onChange={(event) =>
                       onCatalogFieldDraftChange((draft) => ({ ...draft, referenceCatalogId: event.target.value }))
                     }
+                    {...getFieldValidationProps('referenceCatalogId', fieldValidationErrors, 'catalog-field-reference-error')}
                   >
                     <option value="">-</option>
                     {visibleCatalogs.map((catalog) => (
@@ -231,6 +259,7 @@ export function CatalogEditorDialog({
                       </option>
                     ))}
                   </select>
+                  <FieldError id="catalog-field-reference-error" message={fieldValidationErrors?.referenceCatalogId} />
                 </label>
               )}
               <div className="sp-dialog-actions">

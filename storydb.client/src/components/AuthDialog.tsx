@@ -1,4 +1,7 @@
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
+import type { ValidationIssueMap } from '../validation'
+import { FieldError } from './FormValidation'
+import { getFieldValidationProps, useFirstInvalidFieldFocus } from './formValidationUtils'
 import { PreviewDialog } from './StylePreviewPrimitives'
 
 type AuthDialogProps = {
@@ -6,6 +9,7 @@ type AuthDialogProps = {
   email: string
   mode: 'login' | 'register'
   password: string
+  validationErrors?: ValidationIssueMap
   ui: PreviewText
   onCancel: () => void
   onDisplayNameChange: (value: string) => void
@@ -20,6 +24,7 @@ export function AuthDialog({
   email,
   mode,
   password,
+  validationErrors,
   ui,
   onCancel,
   onDisplayNameChange,
@@ -28,21 +33,39 @@ export function AuthDialog({
   onPasswordChange,
   onSubmit,
 }: AuthDialogProps) {
+  const formRef = useFirstInvalidFieldFocus(validationErrors)
+
   return (
     <PreviewDialog title={mode === 'login' ? ui.login : ui.register} onClose={onCancel}>
-      <div className="sp-form">
+      <div className="sp-form" ref={formRef}>
         <label>
           Email
-          <input value={email} onChange={(event) => onEmailChange(event.target.value)} />
+          <input
+            value={email}
+            onChange={(event) => onEmailChange(event.target.value)}
+            {...getFieldValidationProps('email', validationErrors, 'auth-email-error')}
+          />
+          <FieldError id="auth-email-error" message={validationErrors?.email} />
         </label>
         <label>
           {ui.password}
-          <input type="password" value={password} onChange={(event) => onPasswordChange(event.target.value)} />
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => onPasswordChange(event.target.value)}
+            {...getFieldValidationProps('password', validationErrors, 'auth-password-error')}
+          />
+          <FieldError id="auth-password-error" message={validationErrors?.password} />
         </label>
         {mode === 'register' && (
           <label>
             {ui.displayName}
-            <input value={displayName} onChange={(event) => onDisplayNameChange(event.target.value)} />
+            <input
+              value={displayName}
+              onChange={(event) => onDisplayNameChange(event.target.value)}
+              {...getFieldValidationProps('displayName', validationErrors, 'auth-display-name-error')}
+            />
+            <FieldError id="auth-display-name-error" message={validationErrors?.displayName} />
           </label>
         )}
         <div className="sp-dialog-actions">

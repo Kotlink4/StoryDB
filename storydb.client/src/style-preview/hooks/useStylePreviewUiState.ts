@@ -57,7 +57,6 @@ export const useStylePreviewUiState = (
   )
   const [isRelationPageOpen, setIsRelationPageOpen] = useState(false)
   const [isTimelineEventPageOpen, setIsTimelineEventPageOpen] = useState(false)
-  const [activeObjectMenuId, setActiveObjectMenuId] = useState<number | null>(null)
   const [dialog, setDialog] = useState<PreviewDialogKind>(null)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [authEmail, setAuthEmail] = useState('')
@@ -97,7 +96,6 @@ export const useStylePreviewUiState = (
   const [isObjectSaving, setIsObjectSaving] = useState(false)
 
   return {
-    activeObjectMenuId,
     activeSection,
     activeTab,
     attributeDefinitionDraft,
@@ -138,7 +136,6 @@ export const useStylePreviewUiState = (
     selectedRelationEdgeId,
     selectedRelationObjectId,
     selectedTimelineEventId,
-    setActiveObjectMenuId,
     setActiveSection,
     setActiveTab,
     setAttributeDefinitionDraft,

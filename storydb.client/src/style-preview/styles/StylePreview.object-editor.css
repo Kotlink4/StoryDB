@@ -18,12 +18,14 @@
 .sp-object-editor {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .sp-object-editor-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
   border: 1px solid var(--sp-line);
   border-radius: 18px;
   background: var(--sp-accent-soft);
@@ -50,6 +52,7 @@
 .sp-editor-stack {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .sp-editor-row {
@@ -98,6 +101,7 @@
 .sp-editor-block {
   display: grid;
   gap: 10px;
+  min-width: 0;
   border: 1px solid var(--sp-line);
   border-radius: 18px;
   background: var(--sp-soft);
@@ -143,16 +147,17 @@
 .sp-relationship-grid,
 .sp-relationship-stats {
   display: grid;
+  min-width: 0;
   gap: 12px;
   align-items: end;
 }
 
 .sp-relationship-grid {
-  grid-template-columns: minmax(150px, 1fr) minmax(190px, 1.35fr) minmax(160px, 1fr) auto;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .sp-relationship-stats {
-  grid-template-columns: minmax(110px, 140px) minmax(110px, 140px) minmax(180px, 1fr);
+  grid-template-columns: minmax(110px, 140px) minmax(110px, 140px) minmax(160px, 1fr);
 }
 
 .sp-relationship-field,
@@ -194,7 +199,7 @@
 }
 
 .sp-relationship-delete {
-  min-width: 112px;
+  min-width: 0;
   align-self: end;
 }
 

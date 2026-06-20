@@ -11,7 +11,7 @@ export function StructureDossierPage({
   onBack,
 }: {
   children: ReactNode
-  description: string
+  description?: string
   title: string
   ui: PreviewText
   onBack: () => void
@@ -21,7 +21,7 @@ export function StructureDossierPage({
       <div className="sp-content-head">
         <div>
           <h2>{title}</h2>
-          <p>{description}</p>
+          {description !== undefined && description.trim().length > 0 && <p>{description}</p>}
         </div>
         <button
           className="sp-icon-button sp-page-back-button"

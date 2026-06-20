@@ -3,6 +3,7 @@
   Suspense,
   useCallback,
   useMemo,
+  useState,
 } from 'react'
 import {
   resolveAssetVariantUrl,
@@ -64,6 +65,7 @@ import {
   buildStylePreviewTimelineEventDetailProps,
 } from './hooks/stylePreviewDetailProps'
 import { buildStylePreviewObjectEditorProps } from './hooks/stylePreviewObjectEditorProps'
+import type { ValidationIssueMap } from '../validation'
 import {
   buildStylePreviewCatalogEntryDetailPageProps,
   buildStylePreviewRelationDetailPageProps,
@@ -90,6 +92,19 @@ export function StylePreview() {
   const { navigate, navigateToPreview, routeState } = useStylePreviewRouting()
   const initialPreviewState = useMemo(() => readPreviewState(), [])
   const { dismissMessage, message, messageTone, showErrorMessage, showMessage } = usePreviewToast()
+  const [authValidationErrors, setAuthValidationErrors] = useState<ValidationIssueMap>({})
+  const [objectValidationErrors, setObjectValidationErrors] = useState<ValidationIssueMap>({})
+  const [profileValidationErrors, setProfileValidationErrors] = useState<ValidationIssueMap>({})
+  const [projectValidationErrors, setProjectValidationErrors] = useState<ValidationIssueMap>({})
+  const [relationLinkValidationErrors, setRelationLinkValidationErrors] = useState<ValidationIssueMap>({})
+  const [timelineEventValidationErrors, setTimelineEventValidationErrors] = useState<ValidationIssueMap>({})
+  const [timelineLinkValidationErrors, setTimelineLinkValidationErrors] = useState<ValidationIssueMap>({})
+  const [attributeDefinitionValidationErrors, setAttributeDefinitionValidationErrors] = useState<ValidationIssueMap>({})
+  const [attributeGroupValidationErrors, setAttributeGroupValidationErrors] = useState<ValidationIssueMap>({})
+  const [catalogEntryValidationErrors, setCatalogEntryValidationErrors] = useState<ValidationIssueMap>({})
+  const [catalogFieldValidationErrors, setCatalogFieldValidationErrors] = useState<ValidationIssueMap>({})
+  const [catalogGroupValidationErrors, setCatalogGroupValidationErrors] = useState<ValidationIssueMap>({})
+  const [catalogValidationErrors, setCatalogValidationErrors] = useState<ValidationIssueMap>({})
   const {
     editingProjectId,
     openCreateProjectDialog,
@@ -111,7 +126,6 @@ export function StylePreview() {
     setProjectVisibility,
   } = useStylePreviewProjectDialog()
   const {
-    activeObjectMenuId,
     activeSection,
     activeTab,
     attributeDefinitionDraft,
@@ -152,7 +166,6 @@ export function StylePreview() {
     selectedRelationEdgeId,
     selectedRelationObjectId,
     selectedTimelineEventId,
-    setActiveObjectMenuId,
     setActiveSection,
     setActiveTab,
     setAttributeDefinitionDraft,
@@ -385,6 +398,7 @@ export function StylePreview() {
     setRelationGraphLayout,
     setSelectedAttributeGroupId,
     setSelectedCatalogId,
+    setStructureAssignments,
     setTimelineEvents,
     setTimelineLayout,
     setTimelineLinks,
@@ -544,6 +558,7 @@ export function StylePreview() {
     profileAvatarImagePath,
     profileDisplayName,
     profileEmail,
+    setAuthValidationErrors,
     setCurrentUser,
     setDialog,
     setIsProfilePageOpen,
@@ -551,6 +566,7 @@ export function StylePreview() {
     setIsSettingsPageOpen,
     setObjects,
     setProfileAvatarImagePath,
+    setProfileValidationErrors,
     setProjects,
     setSelectedProjectId,
     showErrorMessage,
@@ -577,6 +593,7 @@ export function StylePreview() {
     setDialog,
     setPendingDeleteProjectId,
     setProjectCoverImagePath,
+    setProjectValidationErrors,
     setProjects,
     setSelectedProjectId,
     showErrorMessage,
@@ -632,6 +649,8 @@ export function StylePreview() {
     setGalleryImagePath,
     setIsObjectSaving,
     setObjectImagePath,
+    setObjectEditorTab,
+    setObjectValidationErrors,
     setObjects,
     setRelationGraph,
     setRelationGraphLayout,
@@ -696,9 +715,13 @@ export function StylePreview() {
     setCatalogEntries,
     setCatalogEntriesByCatalogId,
     setCatalogEntryDraft,
+    setCatalogEntryValidationErrors,
     setCatalogFieldsByCatalogId,
+    setCatalogFieldValidationErrors,
+    setCatalogGroupValidationErrors,
     setCatalogGroups,
     setCatalogs,
+    setCatalogValidationErrors,
     setDialog,
     setIsObjectPageOpen,
     setPendingDeleteCatalogEntryId,
@@ -732,8 +755,10 @@ export function StylePreview() {
     selectedProjectId,
     setAttributeDefinitionDraft,
     setAttributeDefinitions,
+    setAttributeDefinitionValidationErrors,
     setAttributeGroupIconKey,
     setAttributeGroupName,
+    setAttributeGroupValidationErrors,
     setAttributeGroups,
     setDialog,
     setEditingAttributeDefinitionId,
@@ -773,7 +798,6 @@ export function StylePreview() {
     setStructureDetailPanel,
   })
   useCloseStylePreviewFloatingMenus({
-    setActiveObjectMenuId,
     setIsSettingsOpen,
   })
 
@@ -846,11 +870,13 @@ export function StylePreview() {
     setPendingDeleteTimelineEventId,
     setSelectedTimelineEventId,
     setTimelineDraft,
+    setTimelineEventValidationErrors,
     setTimelineEvents,
     setTimelineGalleryImageCaption,
     setTimelineGalleryImagePath,
     setTimelineLayout,
     setTimelineLinkDraft,
+    setTimelineLinkValidationErrors,
     setTimelineLinks,
     showErrorMessage,
     timelineDraft,
@@ -875,6 +901,7 @@ export function StylePreview() {
     setRelationGraph,
     setRelationGraphLayout,
     setRelationLinkDraft,
+    setRelationLinkValidationErrors,
     showErrorMessage,
   })
 
@@ -937,6 +964,7 @@ export function StylePreview() {
     territoryPlaceIds,
     timelineEvents,
     uploadObjectImage,
+    validationErrors: objectValidationErrors,
   })
 
   const objectDetailProps = buildStylePreviewObjectDetailProps({
@@ -1006,8 +1034,12 @@ export function StylePreview() {
   const timelineLinkDialogProps = {
     draft: timelineLinkDraft,
     events: timelineEvents,
+    validationErrors: timelineLinkValidationErrors,
     ui,
-    onCancel: () => setDialog(null),
+    onCancel: () => {
+      setTimelineLinkValidationErrors({})
+      setDialog(null)
+    },
     onDraftChange: setTimelineLinkDraft,
     onSave: () => void saveTimelineLink(),
   }
@@ -1015,8 +1047,12 @@ export function StylePreview() {
   const relationLinkDialogProps = {
     characters: objectsByType.characters,
     draft: relationLinkDraft,
+    validationErrors: relationLinkValidationErrors,
     ui,
-    onCancel: () => setDialog(null),
+    onCancel: () => {
+      setRelationLinkValidationErrors({})
+      setDialog(null)
+    },
     onDraftChange: setRelationLinkDraft,
     onSave: () => void saveCharacterRelationLink(),
   }
@@ -1026,6 +1062,7 @@ export function StylePreview() {
     editingTimelineEventId,
     linkableObjects,
     parentOptions: timelineDraftParentOptions,
+    validationErrors: timelineEventValidationErrors,
     ui,
     onCancel: () => setDialog(null),
     onCoverFileSelected: (file: File) => void uploadTimelineEventCover(file),
@@ -1055,6 +1092,7 @@ export function StylePreview() {
     openCreateProjectDialog,
     openEditProjectDialog,
     profileAvatarImagePath,
+    profileValidationErrors,
     saveProfile,
     setDialog,
     setIsProfilePageOpen,
@@ -1204,6 +1242,8 @@ export function StylePreview() {
     openEditCatalogEntry,
     openEditCatalogGroup,
     resetCatalogGroupDraft,
+    setCatalogEntryValidationErrors,
+    setCatalogGroupValidationErrors,
     selectedProjectId,
     setDialog,
     setPendingDeleteCatalogEntryId,
@@ -1214,9 +1254,11 @@ export function StylePreview() {
 
   const attributesWorkspaceProps = buildStylePreviewAttributesWorkspaceProps({
     attributeDefinitionDraft,
+    attributeDefinitionValidationErrors,
     attributeDefinitions,
     attributeGroupIconKey,
     attributeGroupName,
+    attributeGroupValidationErrors,
     attributeGroups,
     groupDisplayMode,
     editingAttributeDefinitionId,
@@ -1228,6 +1270,7 @@ export function StylePreview() {
     saveAttributeDefinition,
     saveAttributeGroup,
     setAttributeDefinitionDraft,
+    setAttributeDefinitionValidationErrors,
     setAttributeGroupIconKey,
     setAttributeGroupName,
     setDialog,
@@ -1267,7 +1310,6 @@ export function StylePreview() {
       : ui.catalogs
 
   const objectCardsWorkspaceProps = buildStylePreviewObjectCardsWorkspaceProps({
-    activeObjectMenuId,
     currentUser,
     isObjectSectionActive: isObjectSection(activeSection),
     layoutMode,
@@ -1278,7 +1320,6 @@ export function StylePreview() {
     openCreateObjectDialog,
     openEditObjectDialog,
     openObjectDetail,
-    setActiveObjectMenuId,
     setDialog,
     setLayoutMode,
     setSelectedObjectId,
@@ -1388,9 +1429,18 @@ export function StylePreview() {
       onEditCatalogGroup: openEditCatalogGroup,
       onSelectAttributeGroup: setSelectedAttributeGroupId,
       onSelectCatalogGroup: setSelectedCatalogGroupId,
-      resetCatalogDraft,
-      resetCatalogFieldDraft,
-      resetCatalogGroupDraft,
+      resetCatalogDraft: () => {
+        setCatalogValidationErrors({})
+        resetCatalogDraft()
+      },
+      resetCatalogFieldDraft: () => {
+        setCatalogFieldValidationErrors({})
+        resetCatalogFieldDraft()
+      },
+      resetCatalogGroupDraft: () => {
+        setCatalogGroupValidationErrors({})
+        resetCatalogGroupDraft()
+      },
       setCatalogDialogTab,
       setPendingDeleteAttributeGroupId,
       setPendingDeleteCatalogId,
@@ -1431,6 +1481,7 @@ export function StylePreview() {
       authEmail,
       authMode,
       authPassword,
+      authValidationErrors,
       currentUser,
       dialog,
       editingProjectId,
@@ -1441,6 +1492,7 @@ export function StylePreview() {
       projectPresetKeys,
       projectTemplatePackIds,
       projectVisibility,
+      validationErrors: projectValidationErrors,
       favoriteTemplatePacks,
       projects,
       ui,
@@ -1489,6 +1541,7 @@ export function StylePreview() {
       attributeDefinitions,
       attributeGroupIconKey,
       attributeGroupName,
+      attributeGroupValidationErrors,
       attributeGroups,
       dialog,
       editingAttributeGroupId,
@@ -1519,11 +1572,15 @@ export function StylePreview() {
       catalogHierarchyMode,
       catalogName,
       catalogSupportsHierarchy,
+      catalogValidationErrors,
       dialog,
       editingCatalogEntryId,
       editingCatalogFieldId,
       editingCatalogGroupId,
       editingCatalogId,
+      entryValidationErrors: catalogEntryValidationErrors,
+      fieldValidationErrors: catalogFieldValidationErrors,
+      groupValidationErrors: catalogGroupValidationErrors,
       language: previewLanguage,
       pendingDeleteCatalogEntryId,
       pendingDeleteCatalogId,
@@ -1535,6 +1592,13 @@ export function StylePreview() {
       textLinkTargets,
       ui,
       visibleCatalogs,
+      onCatalogEntryStructureAssignmentsChange: (catalogEntryId, assignments) =>
+        setStructureAssignments((currentAssignments) => [
+          ...currentAssignments.filter(
+            (assignment) => !(assignment.targetKind === 'catalogEntry' && assignment.targetId === catalogEntryId),
+          ),
+          ...assignments,
+        ]),
     },
     catalogHandlers: {
       onCatalogDescriptionChange: setCatalogDescription,

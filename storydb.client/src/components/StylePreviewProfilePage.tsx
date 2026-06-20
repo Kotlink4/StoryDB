@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { AuthUser, StoryProject, TemplatePack, TemplatePackScope } from '../types'
+import type { ValidationIssueMap } from '../validation'
+import { FieldError } from './FormValidation'
+import { getFieldValidationProps, useFirstInvalidFieldFocus } from './formValidationUtils'
 import { ProfileProjectCard } from './ProfileProjectCard'
 
 export function ProfilePage({
@@ -18,6 +21,7 @@ export function ProfilePage({
   templatePackProjectId,
   templatePackScope,
   templatePacks,
+  validationErrors,
   ui,
   onCreateProject,
   onCreateTemplatePack,
@@ -51,6 +55,7 @@ export function ProfilePage({
   templatePackProjectId: number | null
   templatePackScope: TemplatePackScope
   templatePacks: TemplatePack[]
+  validationErrors?: ValidationIssueMap
   ui: PreviewText
   onCreateProject: () => void
   onCreateTemplatePack: () => void
@@ -71,6 +76,7 @@ export function ProfilePage({
   onTemplatePackVisibilityDraftChange: (isPublic: boolean) => void
 }) {
   const [activeProfileTab, setActiveProfileTab] = useState<'projects' | 'templatePacks'>('projects')
+  const profileFormRef = useFirstInvalidFieldFocus(validationErrors)
 
   if (currentUser === null) {
     return (
@@ -119,14 +125,24 @@ export function ProfilePage({
               <p>{email || currentUser.email}</p>
             </div>
           </div>
-          <div className="sp-form sp-profile-form">
+          <div className="sp-form sp-profile-form" ref={profileFormRef}>
             <label>
               {ui.displayName}
-              <input value={displayName} onChange={(event) => onDisplayNameChange(event.target.value)} />
+              <input
+                value={displayName}
+                onChange={(event) => onDisplayNameChange(event.target.value)}
+                {...getFieldValidationProps('displayName', validationErrors, 'profile-display-name-error')}
+              />
+              <FieldError id="profile-display-name-error" message={validationErrors?.displayName} />
             </label>
             <label>
               {ui.email}
-              <input value={email} onChange={(event) => onEmailChange(event.target.value)} />
+              <input
+                value={email}
+                onChange={(event) => onEmailChange(event.target.value)}
+                {...getFieldValidationProps('email', validationErrors, 'profile-email-error')}
+              />
+              <FieldError id="profile-email-error" message={validationErrors?.email} />
             </label>
           </div>
           <div className="sp-dialog-actions">

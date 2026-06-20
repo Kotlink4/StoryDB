@@ -39,12 +39,11 @@ export function StructureOverviewList({
             className={`sp-card compact${structure.id === selectedStructureId ? ' selected' : ''}`}
             key={structure.id}
           >
-            <div className="sp-card-menu">
-              <KebabMenu
-                ui={ui}
-                onDelete={canDeleteStructure ? () => onDelete(structure) : undefined}
-              />
-            </div>
+            <KebabMenu
+              className="sp-card-menu"
+              ui={ui}
+              onDelete={canDeleteStructure ? () => onDelete(structure) : undefined}
+            />
             <button className="sp-card-main" type="button" onClick={() => onOpen(structure.id)}>
               <div className="sp-structure-icon">
                 <SectionIcon name="structures" />
