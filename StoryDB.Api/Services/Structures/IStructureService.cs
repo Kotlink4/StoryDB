@@ -18,6 +18,17 @@ public interface IStructureService
         int structureId,
         StructureRequest request);
 
+    Task<StructureServiceResult<StructureDto>> UpdateStructureDetailsAsync(
+        int projectId,
+        int structureId,
+        StructureDetailsRequest request);
+
+    Task<StructureServiceResult<StructureNodeDto>> UpdateStructureNodeDetailsAsync(
+        int projectId,
+        int structureId,
+        int nodeId,
+        StructureNodeDetailsRequest request);
+
     Task<StructureServiceResult> DeleteStructureAsync(int projectId, int structureId);
 
     Task<StructureServiceResult<IReadOnlyList<StructureUsageDto>>> GetStructureUsagesAsync(
@@ -45,7 +56,9 @@ public interface IStructureService
         int? structureUsageId,
         int? structureId,
         int? structureNodeId,
-        int? storyObjectId);
+        int? storyObjectId,
+        string? targetKind,
+        int? targetId);
 
     Task<StructureServiceResult<StructureAssignmentDto>> AssignObjectToStructureAsync(
         int projectId,

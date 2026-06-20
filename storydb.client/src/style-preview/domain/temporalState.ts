@@ -10,15 +10,22 @@ import type {
   ObjectHierarchySelection,
   ObjectReference,
   ObjectTypeKey,
-  RelationGraph,
-  RelationGraphEdge,
   Structure,
   StructureAssignment,
-  StructureUsage,
   StoryObject,
   TimelineChange,
   TimelineEvent,
 } from '../../types'
+import {
+  isCatalogSelectionSnapshot,
+  isHierarchySelectionSnapshot,
+  isNumber,
+  isRelationshipSnapshot,
+  isStructureAssignmentSnapshot,
+  type StructureAssignmentSnapshot,
+} from './temporalSnapshotGuards'
+
+export { isStructureAssignmentSnapshot, type StructureAssignmentSnapshot } from './temporalSnapshotGuards'
 
 export type TemporalResolverContext = {
   catalogEntriesByCatalogId?: Record<number, CatalogEntry[]>
@@ -79,44 +86,6 @@ export function getTimelineContextChangesForObject(
   storyObjectId: number,
 ) {
   return getTimelineContextChangesForTarget(timelineEvents, contextEventId, 'storyObject', storyObjectId)
-}
-
-type CatalogSelectionSnapshot = {
-  targetType: ObjectCatalogSelection['targetType']
-  catalogId: number
-  catalogEntryGroupId: number | null
-  catalogEntryId: number | null
-}
-
-type HierarchySelectionSnapshot = {
-  groupId: number
-  nodeIds: number[]
-}
-
-type RelationshipSnapshot = {
-  direction: CharacterRelationship['direction']
-  characterId: number
-  relationType: string
-  strength: number
-  tension: number
-  isBidirectional: boolean
-  description: string
-}
-
-type StructureAssignmentSnapshot = {
-  id: number
-  projectId: number
-  structureUsageId: number
-  structureId: number
-  structureName: string
-  structureNodeId: number
-  structureNodeName: string
-  storyObjectId: number
-  storyObjectName: string
-  storyObjectTypeKey: ObjectTypeKey
-  roleLabel: string | null
-  notes: string | null
-  sortOrder: number
 }
 
 function readTimelineChangeRawValue(value: string | null) {
@@ -181,7 +150,7 @@ function getLatestSnapshotChange(changes: TimelineChange[], changeType: string, 
   return getLatestObjectTimelineChange(changes, changeType, fieldName)
 }
 
-function getSnapshotArray<TValue>(
+export function getSnapshotArray<TValue>(
   changes: TimelineChange[],
   changeType: string,
   fieldName: string,
@@ -229,88 +198,24 @@ function resolveAttributeChanges(baseAttributes: ObjectAttribute[], changes: Tim
   return attributes
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+export function normalizeStructureAssignmentSnapshot(assignment: StructureAssignmentSnapshot): StructureAssignment {
+  const targetKind = assignment.targetKind ?? 'storyObject'
+  const targetId = assignment.targetId ?? assignment.storyObjectId ?? 0
+  const targetName = assignment.targetName ?? assignment.storyObjectName ?? `#${targetId}`
+  const targetTypeKey = assignment.targetTypeKey ?? assignment.storyObjectTypeKey ?? 'catalogEntry'
 
-function isNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === 'string'
-}
-
-function isNullableString(value: unknown): value is string | null {
-  return value === null || isString(value)
-}
-
-function isNullableNumber(value: unknown): value is number | null {
-  return value === null || isNumber(value)
-}
-
-function isCatalogSelectionSnapshot(value: unknown): value is CatalogSelectionSnapshot {
-  if (!isRecord(value)) {
-    return false
+  return {
+    ...assignment,
+    targetKind,
+    targetId,
+    targetName,
+    targetTypeKey,
+    storyObjectId: targetKind === 'storyObject' ? assignment.storyObjectId ?? targetId : null,
+    storyObjectName: targetKind === 'storyObject' ? assignment.storyObjectName ?? targetName : null,
+    storyObjectTypeKey: targetKind === 'storyObject'
+      ? assignment.storyObjectTypeKey ?? (targetTypeKey === 'catalogEntry' ? 'characters' : targetTypeKey)
+      : null,
   }
-
-  return (
-    (value.targetType === 'catalog' || value.targetType === 'group' || value.targetType === 'entry') &&
-    isNumber(value.catalogId) &&
-    isNullableNumber(value.catalogEntryGroupId) &&
-    isNullableNumber(value.catalogEntryId)
-  )
-}
-
-function isHierarchySelectionSnapshot(value: unknown): value is HierarchySelectionSnapshot {
-  return (
-    isRecord(value) &&
-    isNumber(value.groupId) &&
-    Array.isArray(value.nodeIds) &&
-    value.nodeIds.every(isNumber)
-  )
-}
-
-function isRelationshipSnapshot(value: unknown): value is RelationshipSnapshot {
-  return (
-    isRecord(value) &&
-    (value.direction === 'outgoing' || value.direction === 'incoming') &&
-    isNumber(value.characterId) &&
-    typeof value.relationType === 'string' &&
-    isNumber(value.strength) &&
-    isNumber(value.tension) &&
-    typeof value.isBidirectional === 'boolean' &&
-    typeof value.description === 'string'
-  )
-}
-
-function isObjectTypeKey(value: unknown): value is ObjectTypeKey {
-  return (
-    value === 'characters' ||
-    value === 'items' ||
-    value === 'places' ||
-    value === 'organizations' ||
-    value === 'hierarchy'
-  )
-}
-
-function isStructureAssignmentSnapshot(value: unknown): value is StructureAssignmentSnapshot {
-  return (
-    isRecord(value) &&
-    isNumber(value.id) &&
-    isNumber(value.projectId) &&
-    isNumber(value.structureUsageId) &&
-    isNumber(value.structureId) &&
-    isString(value.structureName) &&
-    isNumber(value.structureNodeId) &&
-    isString(value.structureNodeName) &&
-    isNumber(value.storyObjectId) &&
-    isString(value.storyObjectName) &&
-    isObjectTypeKey(value.storyObjectTypeKey) &&
-    isNullableString(value.roleLabel) &&
-    isNullableString(value.notes) &&
-    isNumber(value.sortOrder)
-  )
 }
 
 function getAllObjects(context: TemporalResolverContext) {
@@ -507,10 +412,22 @@ function resolveStructureAssignmentTemporalState(
   const structureUsageId = getChangedStructureAssignmentNumberField(changes, 'structureUsageId', assignment.structureUsageId)
   const structureId = getChangedStructureAssignmentNumberField(changes, 'structureId', assignment.structureId)
   const structureNodeId = getChangedStructureAssignmentNumberField(changes, 'structureNodeId', assignment.structureNodeId)
-  const storyObjectId = getChangedStructureAssignmentNumberField(changes, 'storyObjectId', assignment.storyObjectId)
+  const targetId = getChangedStructureAssignmentNumberField(changes, 'targetId', assignment.targetId)
+  const storyObjectId =
+    assignment.targetKind === 'storyObject'
+      ? getChangedStructureAssignmentNumberField(changes, 'storyObjectId', assignment.storyObjectId ?? targetId)
+      : null
   const storyObject = getAllObjects(context).find((object) => object.id === storyObjectId)
   const structure = context.structuresById?.[structureId]
   const structureNode = structure?.nodes.find((node) => node.id === structureNodeId)
+  const targetName =
+    assignment.targetKind === 'storyObject'
+      ? storyObject?.name ?? assignment.targetName
+      : assignment.targetName
+  const targetTypeKey =
+    assignment.targetKind === 'storyObject'
+      ? (storyObject?.typeKey as ObjectTypeKey | undefined) ?? assignment.targetTypeKey
+      : assignment.targetTypeKey
 
   return {
     ...assignment,
@@ -519,6 +436,9 @@ function resolveStructureAssignmentTemporalState(
     structureName: structure?.name ?? assignment.structureName,
     structureNodeId,
     structureNodeName: structureNode?.name ?? assignment.structureNodeName,
+    targetId: assignment.targetKind === 'storyObject' ? storyObjectId ?? targetId : targetId,
+    targetName,
+    targetTypeKey,
     storyObjectId,
     storyObjectName: storyObject?.name ?? assignment.storyObjectName,
     storyObjectTypeKey: (storyObject?.typeKey as ObjectTypeKey | undefined) ?? assignment.storyObjectTypeKey,
@@ -544,7 +464,7 @@ export function resolveStructureAssignmentsTemporalState(
     'structureAssignments',
     isStructureAssignmentSnapshot,
   )
-  const baseAssignments = snapshotAssignments ?? assignments
+  const baseAssignments = snapshotAssignments?.map(normalizeStructureAssignmentSnapshot) ?? assignments
 
   return baseAssignments
     .map((assignment) =>
@@ -554,7 +474,10 @@ export function resolveStructureAssignmentsTemporalState(
         context,
       ),
     )
-    .filter((assignment) => context.storyObjectId === undefined || assignment.storyObjectId === context.storyObjectId)
+    .filter((assignment) =>
+      context.storyObjectId === undefined ||
+      (assignment.targetKind === 'storyObject' && assignment.storyObjectId === context.storyObjectId),
+    )
     .sort((left, right) => left.sortOrder - right.sortOrder || left.id - right.id)
 }
 
@@ -638,252 +561,4 @@ export function resolveObjectsByTypeTemporalState(
       ),
     ]),
   ) as Record<ObjectTypeKey, StoryObject[]>
-}
-
-function getObjectEdgeKey(edge: Pick<RelationGraphEdge, 'category' | 'sourceId' | 'targetId' | 'relationType'>) {
-  return `${edge.category}:${edge.sourceId}:${edge.targetId}:${edge.relationType}`
-}
-
-export function resolveRelationGraphTemporalState(
-  graph: RelationGraph,
-  objectsByType: Record<ObjectTypeKey, StoryObject[]>,
-  structureAssignments: StructureAssignment[] = [],
-  structureUsages: StructureUsage[] = [],
-  timelineEvents: TimelineEvent[] = [],
-  contextEventId = '',
-  context: TemporalResolverContext = {},
-): RelationGraph {
-  const resolvedObjects = Object.values(objectsByType).flat()
-  const objectById = new Map(resolvedObjects.map((storyObject) => [storyObject.id, storyObject]))
-  const nodes = resolvedObjects.map((storyObject) => ({
-    id: storyObject.id,
-    imagePath: storyObject.imagePath,
-    name: storyObject.name,
-    surname: storyObject.surname,
-    surnameForm: storyObject.surnameForm,
-    typeKey: storyObject.typeKey as ObjectTypeKey,
-  }))
-  const edges: RelationGraphEdge[] = []
-  const pushEdge = (edge: RelationGraphEdge) => {
-    if (!objectById.has(edge.sourceId) || !objectById.has(edge.targetId)) {
-      return
-    }
-
-    if (edges.some((currentEdge) => getObjectEdgeKey(currentEdge) === getObjectEdgeKey(edge))) {
-      return
-    }
-
-    edges.push(edge)
-  }
-
-  const organizations = objectsByType.organizations
-  objectsByType.characters.forEach((character) => {
-    const surname = character.surname?.trim()
-
-    if (!surname) {
-      return
-    }
-
-    organizations
-      .filter((organization) => organization.surnameForm?.trim().toLocaleLowerCase() === surname.toLocaleLowerCase())
-      .forEach((organization) => {
-        pushEdge({
-          id: `temporal-membership:${character.id}:${organization.id}`,
-          sourceId: character.id,
-          targetId: organization.id,
-          relationType: 'organizationMembership',
-          category: 'membership',
-          strength: null,
-          tension: null,
-          isBidirectional: false,
-          description: null,
-        })
-      })
-
-    character.outgoingCharacterRelationships.forEach((relationship) => {
-      pushEdge({
-        id: `temporal-character:${character.id}:${relationship.character.id}:${relationship.relationType}`,
-        sourceId: character.id,
-        targetId: relationship.character.id,
-        relationType: relationship.relationType,
-        category: 'character',
-        strength: relationship.strength,
-        tension: relationship.tension,
-        isBidirectional: relationship.isBidirectional,
-        description: relationship.description,
-      })
-    })
-
-    character.incomingCharacterRelationships.forEach((relationship) => {
-      pushEdge({
-        id: `temporal-character:${relationship.character.id}:${character.id}:${relationship.relationType}`,
-        sourceId: relationship.character.id,
-        targetId: character.id,
-        relationType: relationship.relationType,
-        category: 'character',
-        strength: relationship.strength,
-        tension: relationship.tension,
-        isBidirectional: relationship.isBidirectional,
-        description: relationship.description,
-      })
-    })
-
-    character.ownedItems.forEach((item) => {
-      pushEdge({
-        id: `temporal-ownership:${character.id}:${item.id}`,
-        sourceId: character.id,
-        targetId: item.id,
-        relationType: 'владеет',
-        category: 'ownership',
-        strength: null,
-        tension: null,
-        isBidirectional: false,
-        description: null,
-      })
-    })
-  })
-
-  objectsByType.items.forEach((item) => {
-    item.owners.forEach((owner) => {
-      pushEdge({
-        id: `temporal-ownership:${owner.id}:${item.id}`,
-        sourceId: owner.id,
-        targetId: item.id,
-        relationType: 'владеет',
-        category: 'ownership',
-        strength: null,
-        tension: null,
-        isBidirectional: false,
-        description: null,
-      })
-    })
-  })
-
-  resolvedObjects.forEach((storyObject) => {
-    storyObject.territoryPlaces.forEach((place) => {
-      pushEdge({
-        id: `temporal-object:locatedOnTerritory:${storyObject.id}:${place.id}`,
-        sourceId: storyObject.id,
-        targetId: place.id,
-        relationType: 'locatedOnTerritory',
-        category: 'object',
-        strength: null,
-        tension: null,
-        isBidirectional: false,
-        description: null,
-      })
-    })
-
-    storyObject.ownerOrganizations.forEach((organization) => {
-      pushEdge({
-        id: `temporal-object:territoryOwner:${storyObject.id}:${organization.id}`,
-        sourceId: storyObject.id,
-        targetId: organization.id,
-        relationType: 'territoryOwner',
-        category: 'object',
-        strength: null,
-        tension: null,
-        isBidirectional: false,
-        description: null,
-      })
-    })
-
-    storyObject.hierarchyParents.forEach((parent) => {
-      pushEdge({
-        id: `temporal-object:hierarchyParent:${storyObject.id}:${parent.id}`,
-        sourceId: storyObject.id,
-        targetId: parent.id,
-        relationType: 'hierarchyParent',
-        category: 'object',
-        strength: null,
-        tension: null,
-        isBidirectional: false,
-        description: null,
-      })
-    })
-  })
-
-  if (structureAssignments.length > 0) {
-    const structureUsageById = new Map(structureUsages.map((usage) => [usage.id, usage]))
-    const temporalStructureAssignments = resolveStructureAssignmentsTemporalState(
-      structureAssignments,
-      timelineEvents,
-      contextEventId,
-      {
-        ...context,
-        objectsByType,
-      },
-    )
-    const snapshotAssignmentsByObjectId = new Map<number, StructureAssignment[]>()
-
-    resolvedObjects.forEach((storyObject) => {
-      const storyObjectChanges = getTimelineContextChangesForTarget(
-        timelineEvents,
-        contextEventId,
-        'storyObject',
-        storyObject.id,
-      )
-      const snapshotAssignments = getSnapshotArray(
-        storyObjectChanges,
-        'structureAssignment',
-        'structureAssignments',
-        isStructureAssignmentSnapshot,
-      )
-
-      if (snapshotAssignments === null) {
-        return
-      }
-
-      snapshotAssignmentsByObjectId.set(
-        storyObject.id,
-        resolveStructureAssignmentsTemporalState(snapshotAssignments, timelineEvents, contextEventId, {
-          ...context,
-          objectsByType,
-          storyObjectId: storyObject.id,
-        }),
-      )
-    })
-    const effectiveStructureAssignments = [
-      ...temporalStructureAssignments.filter(
-        (assignment) => !snapshotAssignmentsByObjectId.has(assignment.storyObjectId),
-      ),
-      ...Array.from(snapshotAssignmentsByObjectId.values()).flat(),
-    ]
-
-    effectiveStructureAssignments.forEach((assignment) => {
-      const usage = structureUsageById.get(assignment.structureUsageId)
-
-      if (usage?.targetKind !== 'object') {
-        return
-      }
-
-      pushEdge({
-        id: `temporal-structure:${assignment.id}:${assignment.storyObjectId}:${usage.targetId}`,
-        sourceId: assignment.storyObjectId,
-        targetId: usage.targetId,
-        relationType: assignment.roleLabel?.trim() || assignment.structureNodeName,
-        category: 'structure',
-        strength: null,
-        tension: null,
-        isBidirectional: false,
-        description: assignment.notes,
-      })
-    })
-  } else {
-    graph.edges
-      .filter((edge) => edge.category === 'structure')
-      .forEach((edge) => {
-        const source = objectById.get(edge.sourceId)
-        const target = objectById.get(edge.targetId)
-
-        if (source !== undefined && target !== undefined) {
-          pushEdge(edge)
-        }
-      })
-  }
-
-  return {
-    nodes,
-    edges,
-  }
 }

@@ -7,9 +7,12 @@ public record StructureDto(
     string? Description,
     string OwnerKind,
     int? OwnerId,
+    string ApplicationScope,
     string LayoutKind,
     string NodeBindingMode,
+    string CatalogSyncMode,
     int? LinkedCatalogId,
+    int TimelineReferenceCount,
     IReadOnlyList<StructureNodeDto> Nodes,
     IReadOnlyList<StructureEdgeDto> Edges);
 
@@ -20,12 +23,15 @@ public record StructureSummaryDto(
     string? Description,
     string OwnerKind,
     int? OwnerId,
+    string ApplicationScope,
     string LayoutKind,
     string NodeBindingMode,
+    string CatalogSyncMode,
     int? LinkedCatalogId,
     int NodeCount,
     int EdgeCount,
-    int UsageCount);
+    int UsageCount,
+    int TimelineReferenceCount);
 
 public record StructureUsageDto(
     int Id,
@@ -53,16 +59,22 @@ public record StructureAssignmentDto(
     string StructureName,
     int StructureNodeId,
     string StructureNodeName,
-    int StoryObjectId,
-    string StoryObjectName,
-    string StoryObjectTypeKey,
+    string TargetKind,
+    int TargetId,
+    string TargetName,
+    string TargetTypeKey,
+    int? StoryObjectId,
+    string? StoryObjectName,
+    string? StoryObjectTypeKey,
     string? RoleLabel,
     string? Notes,
     int SortOrder);
 
 public record StructureAssignmentRequest(
     int StructureNodeId,
-    int StoryObjectId,
+    int? StoryObjectId,
+    string? TargetKind,
+    int? TargetId,
     string? RoleLabel,
     string? Notes,
     int SortOrder);
@@ -93,11 +105,17 @@ public record StructureRequest(
     string? Description,
     string OwnerKind,
     int? OwnerId,
+    string? ApplicationScope,
     string LayoutKind,
     string NodeBindingMode,
+    string? CatalogSyncMode,
     int? LinkedCatalogId,
     IReadOnlyList<StructureNodeRequest> Nodes,
     IReadOnlyList<StructureEdgeRequest> Edges);
+
+public record StructureDetailsRequest(
+    string Name,
+    string? Description);
 
 public record StructureNodeRequest(
     string ClientId,
@@ -111,6 +129,13 @@ public record StructureNodeRequest(
     string? IconKey,
     int LevelIndex,
     int SortOrder);
+
+public record StructureNodeDetailsRequest(
+    string Name,
+    string? Description,
+    string? NodeType,
+    string? Color,
+    string? IconKey);
 
 public record StructureEdgeRequest(
     string SourceClientId,

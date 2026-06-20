@@ -14,8 +14,6 @@ public class MediaAsset
     public int Height { get; set; }
     public long SizeBytes { get; set; }
     public required string Sha256 { get; set; }
-    public bool IsMigrated { get; set; }
-    public string? LegacyPath { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

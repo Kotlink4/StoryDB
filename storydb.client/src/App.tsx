@@ -1,30 +1,45 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 
-import { StylePreview } from './style-preview/StylePreview'
+const AdminApp = lazy(() => import('./admin-app/AdminApp'))
+const StylePreview = lazy(() => import('./style-preview/StylePreview').then((module) => ({ default: module.StylePreview })))
 
-const LegacyApp = lazy(() => import('./legacy-app/LegacyApp'))
+function ProjectRedirect() {
+  const { projectId } = useParams()
+  const normalizedProjectId = Number(projectId)
+
+  return Number.isInteger(normalizedProjectId) && normalizedProjectId > 0
+    ? <Navigate replace to={`/style-preview/projects/${normalizedProjectId}/database/characters`} />
+    : <Navigate replace to="/style-preview" />
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/style-preview/*" element={<StylePreview />} />
         <Route
-          path="/"
+          path="/style-preview/*"
           element={(
             <Suspense fallback={<div className="sp-empty">Loading...</div>}>
-              <LegacyApp />
+              <StylePreview />
             </Suspense>
           )}
         />
         <Route
-          path="/projects/:projectId"
+          path="/admin/*"
           element={(
             <Suspense fallback={<div className="sp-empty">Loading...</div>}>
-              <LegacyApp />
+              <AdminApp />
             </Suspense>
           )}
+        />
+        <Route
+          path="/"
+          element={<Navigate replace to="/style-preview" />}
+        />
+        <Route
+          path="/projects/:projectId"
+          element={<ProjectRedirect />}
         />
       </Routes>
     </BrowserRouter>

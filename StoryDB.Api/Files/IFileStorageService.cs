@@ -14,8 +14,6 @@ public interface IFileStorageService
 
     Task<StoredFile> SaveImageAsync(IFormFile file, int? projectId = null, CancellationToken cancellationToken = default);
 
-    Task<StoredFile?> MigrateImageAsync(string requestPath, int? projectId = null, CancellationToken cancellationToken = default);
-
     bool IsUploadedImagePath(string? path);
 
     Task<bool> DeleteUploadedFileAsync(string? path, CancellationToken cancellationToken = default);

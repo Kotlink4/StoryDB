@@ -1,25 +1,31 @@
 import type { Dispatch, SetStateAction } from 'react'
 
 import {
-  addObjectGalleryImageRequest,
   createObjectRequest,
-  deleteObjectGalleryImageRequest,
   deleteObjectRequest,
   fetchObject,
   fetchRelationGraph,
-  uploadImageRequest,
   updateObjectRequest,
-  updateTimelineEventRequest,
 } from '../../api'
-import { buildObjectTimelineChanges } from '../domain/objectTimelineChanges'
+import {
+  addObjectCoverToGallery as addObjectCoverToGalleryRequest,
+  addObjectGalleryImage,
+  deleteObjectGalleryImage,
+  uploadObjectMediaPath,
+} from './objectMediaCommands'
+import { syncObjectTimelineParticipationsRequest } from './objectTimelineParticipationCommands'
+import {
+  buildOptimisticObjectSummary,
+  mergeSavedObjectSummary,
+} from './objectSaveModel'
+import { saveObjectTimelineChange } from './objectTimelineChangeSave'
 import {
   isObjectSection,
   isPreviewObjectSection,
   type PreviewDialogKind,
 } from '../domain/stylePreviewConfig'
 import type { PreviewSection, PreviewTab } from '../domain/stylePreviewRouting'
-import { toTimelineEventDraft } from '../domain/stylePreviewTimelineDrafts'
-import type { DraftTimelineParticipation } from '../domain/stylePreviewUiTypes'
+import type { DraftTimelineParticipation, ObjectEditorTab } from '../domain/stylePreviewUiTypes'
 import type {
   AttributeDefinition,
   DraftAttribute,
@@ -33,7 +39,11 @@ import type {
   TimelineEvent,
   TimelineLayout,
 } from '../../types'
-import { validateObjectDraft } from '../../validation'
+import {
+  validateObjectDraftIssues,
+  validationIssuesToMap,
+} from '../../validation'
+import type { ValidationIssueMap } from '../../validation'
 
 type ObjectCommandMessages = {
   galleryImageAddFailed: string
@@ -41,6 +51,7 @@ type ObjectCommandMessages = {
   imageUploadFailed: string
   objectDeleteFailed: string
   objectEditorLoadFailed: string
+  fieldValidationFailed: string
   objectRelationGraphUpdateFailed: string
   objectSaveFailed: string
   objectTimelineParticipationUpdateFailed: string
@@ -100,6 +111,8 @@ type UseStylePreviewObjectCommandsOptions = {
   setGalleryImagePath: Dispatch<SetStateAction<string | null>>
   setIsObjectSaving: Dispatch<SetStateAction<boolean>>
   setObjectImagePath: Dispatch<SetStateAction<string | null>>
+  setObjectEditorTab: Dispatch<SetStateAction<ObjectEditorTab>>
+  setObjectValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setObjects: Dispatch<SetStateAction<StoryObject[]>>
   setRelationGraph: Dispatch<SetStateAction<RelationGraph>>
   setRelationGraphLayout: Dispatch<SetStateAction<RelationGraphLayout | null>>
@@ -153,6 +166,8 @@ export function useStylePreviewObjectCommands({
   setGalleryImagePath,
   setIsObjectSaving,
   setObjectImagePath,
+  setObjectEditorTab,
+  setObjectValidationErrors,
   setObjects,
   setRelationGraph,
   setRelationGraphLayout,
@@ -171,8 +186,7 @@ export function useStylePreviewObjectCommands({
     }
 
     try {
-      const result = await uploadImageRequest(file, selectedProjectId)
-      setObjectImagePath(result.path)
+      setObjectImagePath(await uploadObjectMediaPath(file, selectedProjectId))
     } catch {
       showErrorMessage(messages.imageUploadFailed)
     }
@@ -184,8 +198,7 @@ export function useStylePreviewObjectCommands({
     }
 
     try {
-      const result = await uploadImageRequest(file, selectedProjectId)
-      setGalleryImagePath(result.path)
+      setGalleryImagePath(await uploadObjectMediaPath(file, selectedProjectId))
     } catch {
       showErrorMessage(messages.imageUploadFailed)
     }
@@ -193,6 +206,7 @@ export function useStylePreviewObjectCommands({
 
   const openCreateObjectDialog = () => {
     resetObjectForm()
+    setObjectValidationErrors({})
     if (isObjectSection(activeSection)) {
       void loadObjectEditorData(activeSection)
     }
@@ -221,6 +235,7 @@ export function useStylePreviewObjectCommands({
     }
 
     fillObjectForm(objectToEdit, timelineEvents)
+    setObjectValidationErrors({})
     setDialog('object')
   }
 
@@ -268,7 +283,7 @@ export function useStylePreviewObjectCommands({
     }
 
     try {
-      const updatedObject = await addObjectGalleryImageRequest(
+      const updatedObject = await addObjectGalleryImage(
         selectedProjectId,
         selectedObject.id,
         galleryImagePath,
@@ -288,11 +303,10 @@ export function useStylePreviewObjectCommands({
     }
 
     try {
-      const updatedObject = await addObjectGalleryImageRequest(
+      const updatedObject = await addObjectCoverToGalleryRequest(
         selectedProjectId,
         selectedObject.id,
         selectedObject.imagePath,
-        '',
       )
       updateSelectedObject(updatedObject)
     } catch {
@@ -306,7 +320,7 @@ export function useStylePreviewObjectCommands({
     }
 
     try {
-      const updatedObject = await deleteObjectGalleryImageRequest(selectedProjectId, selectedObject.id, imageId)
+      const updatedObject = await deleteObjectGalleryImage(selectedProjectId, selectedObject.id, imageId)
       updateSelectedObject(updatedObject)
     } catch {
       showErrorMessage(messages.galleryImageDeleteFailed)
@@ -318,57 +332,16 @@ export function useStylePreviewObjectCommands({
     objectId: number,
     participations: DraftTimelineParticipation[],
   ) => {
-    const desiredRolesByEventId = new Map<number, string>()
+    const updatedEvents = await syncObjectTimelineParticipationsRequest(
+      projectId,
+      objectId,
+      participations,
+      timelineEvents,
+    )
 
-    participations.forEach((participation) => {
-      const eventId = Number(participation.timelineEventId)
-      if (Number.isInteger(eventId) && eventId > 0) {
-        desiredRolesByEventId.set(eventId, participation.role)
-      }
-    })
-
-    const eventsToUpdate = timelineEvents.filter((event) => {
-      const currentParticipant = event.participants.find(
-        (participant) => participant.targetType === 'storyObject' && participant.targetId === objectId,
-      )
-      const nextRole = desiredRolesByEventId.get(event.id)
-
-      if (currentParticipant === undefined) {
-        return nextRole !== undefined
-      }
-
-      return nextRole === undefined || (currentParticipant.role ?? '') !== nextRole
-    })
-
-    if (eventsToUpdate.length === 0) {
+    if (updatedEvents.length === 0) {
       return
     }
-
-    const updatedEvents = await Promise.all(
-      eventsToUpdate.map((event) => {
-        const nextParticipants = event.participants
-          .filter((participant) => !(participant.targetType === 'storyObject' && participant.targetId === objectId))
-          .map((participant) => ({
-            targetType: participant.targetType,
-            targetId: String(participant.targetId),
-            role: participant.role ?? '',
-          }))
-        const nextRole = desiredRolesByEventId.get(event.id)
-
-        if (nextRole !== undefined) {
-          nextParticipants.push({
-            targetType: 'storyObject',
-            targetId: String(objectId),
-            role: nextRole,
-          })
-        }
-
-        return updateTimelineEventRequest(projectId, event.id, {
-          ...toTimelineEventDraft(event),
-          participants: nextParticipants,
-        })
-      }),
-    )
 
     const updatedEventsById = new Map(updatedEvents.map((event) => [event.id, event]))
     setTimelineEvents((currentEvents) =>
@@ -382,7 +355,7 @@ export function useStylePreviewObjectCommands({
       return
     }
 
-    const validationMessage = validateObjectDraft(
+    const validationIssues = validateObjectDraftIssues(
       objectName,
       objectSurname,
       objectSurnameForm,
@@ -392,8 +365,10 @@ export function useStylePreviewObjectCommands({
       objectCurrentStatus,
       objectImagePath,
     )
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    if (validationIssues.length > 0) {
+      setObjectEditorTab('main')
+      setObjectValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -406,159 +381,70 @@ export function useStylePreviewObjectCommands({
     const timelineParticipationsToSave = draftTimelineParticipations
 
     if (saveObjectAsTimelineChange) {
-      const targetEventId = Number(editorTimelineEventId)
-      const baseObject =
-        objectId === null
-          ? null
-          : previousObject?.id === objectId
-            ? previousObject
-            : objects.find((storyObject) => storyObject.id === objectId) ?? null
-      const targetEvent = timelineEvents.find((event) => event.id === targetEventId) ?? null
-
-      if (objectId === null || baseObject === null) {
-        showErrorMessage(messages.projectTimelineChangeNeedsObject)
-        return
-      }
-
-      if (!Number.isInteger(targetEventId) || targetEventId <= 0 || targetEvent === null) {
-        showErrorMessage(messages.projectTimelineChangeNeedsEvent)
-        return
-      }
-
-      const objectChanges = buildObjectTimelineChanges({
-        baseObject,
+      await saveObjectTimelineChange({
         draftAttributes,
         draftCatalogSelections,
         draftCharacterRelationships,
         draftHierarchySelections,
+        editorTimelineEventId,
+        messages,
         objectAge,
         objectCurrentStatus,
         objectDescription,
+        objectId,
         objectImagePath,
         objectName,
         objectRole,
         objectSurname,
         objectSurnameForm,
+        objects,
         ownedItemIds,
         ownerCharacterIds,
         ownerOrganizationIds,
         parentObjectIds,
-        targetObjectId: objectId,
+        previousObject,
+        projectId,
+        resetObjectForm,
+        setDialog,
+        setIsObjectSaving,
+        setSelectedTimelineEventId,
+        setTimelineEvents,
+        setTimelineLayout,
+        showErrorMessage,
+        showMessage,
         territoryPlaceIds,
+        timelineEvents,
+        timelineParticipations: timelineParticipationsToSave,
       })
-
-      if (objectChanges.length === 0) {
-        showErrorMessage(messages.projectTimelineChangeNoChanges)
-        return
-      }
-
-      try {
-        setIsObjectSaving(true)
-        const changedFieldNames = new Set(objectChanges.map((change) => `${change.changeType}:${change.fieldName}`))
-        const eventDraft = toTimelineEventDraft(targetEvent)
-        const retainedChanges = eventDraft.changes.filter(
-          (change) =>
-            !(
-              change.targetType === 'storyObject' &&
-              Number(change.targetId) === objectId &&
-              changedFieldNames.has(`${change.changeType}:${change.fieldName}`)
-            ),
-        )
-        const participationRole =
-          timelineParticipationsToSave.find((participation) => participation.timelineEventId === String(targetEvent.id))
-            ?.role ?? ''
-        const participants = [
-          ...eventDraft.participants.filter(
-            (participant) => !(participant.targetType === 'storyObject' && Number(participant.targetId) === objectId),
-          ),
-          { targetType: 'storyObject', targetId: String(objectId), role: participationRole },
-        ]
-        const savedEvent = await updateTimelineEventRequest(projectId, targetEvent.id, {
-          ...eventDraft,
-          participants,
-          changes: [...retainedChanges, ...objectChanges],
-        })
-
-        setTimelineEvents((currentEvents) =>
-          currentEvents.map((event) => (event.id === savedEvent.id ? savedEvent : event)),
-        )
-        setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
-        setSelectedTimelineEventId(savedEvent.id)
-        setDialog(null)
-        resetObjectForm()
-        showMessage(messages.timelineChangeSaved)
-      } catch {
-        showErrorMessage(messages.timelineChangeSaveFailed)
-      } finally {
-        setIsObjectSaving(false)
-      }
-
       return
     }
 
-    const temporaryObjectId = objectId === null ? -Date.now() : objectId
-    const optimisticObject =
-      objectId === null || (previousObject !== null && previousObject.id === objectId)
-        ? {
-            ...(previousObject ?? {
-              id: temporaryObjectId,
-              typeKey: section,
-              hierarchySelections: [],
-              catalogSelections: [],
-              ownedItems: [],
-              owners: [],
-              territoryPlaces: [],
-              organizationsOnTerritory: [],
-              ownerOrganizations: [],
-              ownedTerritories: [],
-              hierarchyParents: [],
-              hierarchyChildren: [],
-              organizationStructureLevels: [],
-              galleryImages: [],
-              outgoingCharacterRelationships: [],
-              incomingCharacterRelationships: [],
-            }),
-            id: temporaryObjectId,
-            name: objectName.trim(),
-            surname: objectSurname.trim() || null,
-            surnameForm: section === 'organizations' ? objectSurnameForm.trim() || null : null,
-            description: objectDescription.trim() || null,
-            age: objectAge.trim() || null,
-            role: objectRole.trim() || null,
-            currentStatus: objectCurrentStatus.trim() || null,
-            imagePath: objectImagePath,
-            attributes: draftAttributes
-              .map((attribute, index) => {
-                const name = attribute.name.trim()
-                const existingAttribute = previousObject?.attributes.find(
-                  (currentAttribute) => currentAttribute.name.toLowerCase() === name.toLowerCase(),
-                )
-                const definition = attributeDefinitions.find(
-                  (currentDefinition) => currentDefinition.name.toLowerCase() === name.toLowerCase(),
-                )
-
-                return {
-                  id: existingAttribute?.id ?? -(index + 1),
-                  attributeDefinitionId: existingAttribute?.attributeDefinitionId ?? definition?.id ?? 0,
-                  name,
-                  value: attribute.value.trim() || null,
-                }
-              })
-              .filter((attribute) => attribute.name.length > 0),
-          }
-        : null
+    const optimisticObject = buildOptimisticObjectSummary({
+      attributeDefinitions,
+      draftAttributes,
+      objectAge,
+      objectCurrentStatus,
+      objectDescription,
+      objectId,
+      objectImagePath,
+      objectName,
+      objectRole,
+      objectSurname,
+      objectSurnameForm,
+      previousObject,
+      section,
+    })
 
     setIsObjectSaving(true)
     if (optimisticObject !== null) {
       setObjects((currentObjects) =>
-        objectId === null
-          ? [optimisticObject, ...currentObjects]
-          : currentObjects.map((storyObject) => (storyObject.id === optimisticObject.id ? optimisticObject : storyObject)),
+        currentObjects.map((storyObject) => (storyObject.id === optimisticObject.id ? optimisticObject : storyObject)),
       )
       if (shouldSelectSavedObject) {
         setSelectedObjectId(optimisticObject.id)
       }
       setDialog(null)
+      setObjectValidationErrors({})
       resetObjectForm()
     }
 
@@ -608,25 +494,12 @@ export function useStylePreviewObjectCommands({
               draftCharacterRelationships,
             )
 
-      const mergeSavedSummary = (storyObject: StoryObject): StoryObject => ({
-        ...storyObject,
-        id: saved.id,
-        name: saved.name,
-        surname: saved.surname,
-        surnameForm: saved.surnameForm,
-        description: saved.description,
-        age: saved.age,
-        role: saved.role,
-        currentStatus: saved.currentStatus,
-        imagePath: saved.imagePath,
-        typeKey: saved.typeKey,
-        attributes: saved.attributes,
-      })
-
       setObjects((currentObjects) =>
         objectId === null
-          ? currentObjects.map((storyObject) => (storyObject.id === temporaryObjectId ? mergeSavedSummary(storyObject) : storyObject))
-          : currentObjects.map((storyObject) => (storyObject.id === saved.id ? mergeSavedSummary(storyObject) : storyObject)),
+          ? [saved, ...currentObjects.filter((storyObject) => storyObject.id !== saved.id)]
+          : currentObjects.map((storyObject) =>
+              storyObject.id === saved.id ? mergeSavedObjectSummary(storyObject, saved) : storyObject,
+            ),
       )
       if (shouldSelectSavedObject) {
         setSelectedObjectId(saved.id)
@@ -636,6 +509,7 @@ export function useStylePreviewObjectCommands({
       }
       if (optimisticObject === null) {
         setDialog(null)
+        setObjectValidationErrors({})
         resetObjectForm()
       }
       try {
@@ -666,9 +540,6 @@ export function useStylePreviewObjectCommands({
           currentObjects.map((storyObject) => (storyObject.id === previousObject.id ? previousObject : storyObject)),
         )
         setSelectedObjectId(previousObject.id)
-      } else if (optimisticObject !== null) {
-        setObjects((currentObjects) => currentObjects.filter((storyObject) => storyObject.id !== optimisticObject.id))
-        setSelectedObjectId(null)
       }
       showErrorMessage(messages.objectSaveFailed)
     } finally {

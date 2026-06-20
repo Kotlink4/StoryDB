@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 
 import type { PreviewSection, PreviewTab } from '../style-preview/domain/stylePreviewRouting'
 import type { DetailMode } from '../style-preview/domain/stylePreviewUiTypes'
@@ -29,6 +29,7 @@ export function StylePreviewDetailPanels({
   selectedRelationEdge,
   selectedRelationObject,
   selectedTimelineEvent,
+  structureDetailPanel,
   timelineEventDetailProps,
   onCloseRelationEdge,
   onCloseRelationObject,
@@ -52,6 +53,7 @@ export function StylePreviewDetailPanels({
   selectedRelationEdge: ComponentProps<typeof RelationDetail>['edge'] | null
   selectedRelationObject: StoryObject | null
   selectedTimelineEvent: TimelineEvent | null
+  structureDetailPanel: ReactNode | null
   timelineEventDetailProps: TimelineEventDetailBaseProps
   onCloseRelationEdge: () => void
   onCloseRelationObject: () => void
@@ -124,6 +126,12 @@ export function StylePreviewDetailPanels({
             />
           </aside>
         )}
+
+      {activeTab === 'database' && activeSection === 'structures' && structureDetailPanel !== null && (
+        <aside className="sp-detail">
+          {structureDetailPanel}
+        </aside>
+      )}
     </>
   )
 }

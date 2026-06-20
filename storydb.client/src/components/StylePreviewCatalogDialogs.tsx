@@ -10,7 +10,9 @@ import type {
   CatalogFieldDefinition,
   CatalogFieldDraft,
   CatalogHierarchyMode,
+  StructureAssignment,
 } from '../types'
+import type { ValidationIssueMap } from '../validation'
 import { CatalogEntryDialog, CatalogGroupDialog } from './CatalogDialogs'
 import { CatalogEditorDialog, type CatalogDialogTab } from './CatalogEditorDialog'
 import { CatalogEntryDetail } from './CatalogEntryDetail'
@@ -36,11 +38,14 @@ export function StylePreviewCatalogDialogs({
   catalogHierarchyMode,
   catalogName,
   catalogSupportsHierarchy,
+  catalogValidationErrors,
   dialog,
   editingCatalogEntryId,
   editingCatalogFieldId,
   editingCatalogGroupId,
   editingCatalogId,
+  fieldValidationErrors,
+  groupValidationErrors,
   language,
   pendingDeleteCatalogEntryId,
   pendingDeleteCatalogId,
@@ -49,9 +54,11 @@ export function StylePreviewCatalogDialogs({
   selectedCatalogFields,
   selectedCatalogGroupId,
   selectedProjectId,
+  entryValidationErrors,
   textLinkTargets,
   ui,
   visibleCatalogs,
+  onCatalogEntryStructureAssignmentsChange,
   onCancelCatalogFieldEdit,
   onCatalogDescriptionChange,
   onCatalogDialogTabChange,
@@ -89,11 +96,14 @@ export function StylePreviewCatalogDialogs({
   catalogHierarchyMode: CatalogHierarchyMode
   catalogName: string
   catalogSupportsHierarchy: boolean
+  catalogValidationErrors?: ValidationIssueMap
   dialog: PreviewDialogKind
   editingCatalogEntryId: number | null
   editingCatalogFieldId: number | null
   editingCatalogGroupId: number | null
   editingCatalogId: number | null
+  fieldValidationErrors?: ValidationIssueMap
+  groupValidationErrors?: ValidationIssueMap
   language: PreviewLanguage
   pendingDeleteCatalogEntryId: number | null
   pendingDeleteCatalogId: number | null
@@ -102,9 +112,11 @@ export function StylePreviewCatalogDialogs({
   selectedCatalogFields: CatalogFieldDefinition[]
   selectedCatalogGroupId: number | null
   selectedProjectId: number | null
+  entryValidationErrors?: ValidationIssueMap
   textLinkTargets: TextLinkTargets
   ui: PreviewText
   visibleCatalogs: Catalog[]
+  onCatalogEntryStructureAssignmentsChange?: (catalogEntryId: number, assignments: StructureAssignment[]) => void
   onCancelCatalogFieldEdit: () => void
   onCatalogDescriptionChange: (value: string) => void
   onCatalogDialogTabChange: (tab: CatalogDialogTab) => void
@@ -141,8 +153,10 @@ export function StylePreviewCatalogDialogs({
           catalogHierarchyMode={catalogHierarchyMode}
           catalogName={catalogName}
           catalogSupportsHierarchy={catalogSupportsHierarchy}
+          catalogValidationErrors={catalogValidationErrors}
           editingCatalogFieldId={editingCatalogFieldId}
           editingCatalogId={editingCatalogId}
+          fieldValidationErrors={fieldValidationErrors}
           language={language}
           ui={ui}
           visibleCatalogs={visibleCatalogs}
@@ -168,6 +182,7 @@ export function StylePreviewCatalogDialogs({
           catalogGroupParentIds={catalogGroupParentIds}
           catalogGroups={catalogGroups}
           editingCatalogGroupId={editingCatalogGroupId}
+          validationErrors={groupValidationErrors}
           ui={ui}
           onCancel={onClose}
           onCatalogGroupNameChange={onCatalogGroupNameChange}
@@ -183,11 +198,14 @@ export function StylePreviewCatalogDialogs({
           catalogEntriesByCatalogId={catalogEntriesByCatalogId}
           catalogEntryDraft={catalogEntryDraft}
           catalogGroups={catalogGroups}
+          catalogs={visibleCatalogs}
           editingCatalogEntryId={editingCatalogEntryId}
           fieldDefinitions={selectedCatalogFields}
           language={language}
           selectedProjectId={selectedProjectId}
+          validationErrors={entryValidationErrors}
           ui={ui}
+          onCatalogEntryStructureAssignmentsChange={onCatalogEntryStructureAssignmentsChange}
           onCancel={onClose}
           onCatalogEntryDraftChange={onCatalogEntryDraftChange}
           onSave={onSaveCatalogEntry}

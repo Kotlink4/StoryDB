@@ -16,7 +16,6 @@ export type PreviewDialogKind =
   | 'detail'
   | 'relationDetail'
   | 'relationLink'
-  | 'objectLegacy'
   | 'confirmDeleteProject'
   | 'confirmDeleteObject'
   | 'attributeGroup'

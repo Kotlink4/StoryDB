@@ -25,14 +25,17 @@ import type {
   TimelineLayout,
 } from '../../types'
 import {
-  getTimelineEventValidationMessage,
-  validateTimelineLinkDraft,
+  validateTimelineEventDraft,
+  validateTimelineLinkDraftIssues,
+  validationIssuesToMap,
 } from '../../validation'
+import type { ValidationIssueMap } from '../../validation'
 
 type TimelineCommandMessages = {
   eventCoverUploadFailed: string
   eventCreateFailed: string
   eventDeleteFailed: string
+  fieldValidationFailed: string
   galleryEventImageAddFailed: string
   galleryEventImageDeleteFailed: string
   galleryEventImageUploadFailed: string
@@ -54,11 +57,13 @@ type UseStylePreviewTimelineCommandsOptions = {
   setPendingDeleteTimelineEventId: Dispatch<SetStateAction<number | null>>
   setSelectedTimelineEventId: Dispatch<SetStateAction<number | null>>
   setTimelineDraft: Dispatch<SetStateAction<TimelineEventDraft>>
+  setTimelineEventValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setTimelineEvents: Dispatch<SetStateAction<TimelineEvent[]>>
   setTimelineGalleryImageCaption: Dispatch<SetStateAction<string>>
   setTimelineGalleryImagePath: Dispatch<SetStateAction<string | null>>
   setTimelineLayout: Dispatch<SetStateAction<TimelineLayout | null>>
   setTimelineLinkDraft: Dispatch<SetStateAction<TimelineEventLinkDraft>>
+  setTimelineLinkValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setTimelineLinks: Dispatch<SetStateAction<TimelineEventLink[]>>
   showErrorMessage: (message: string) => void
   timelineDraft: TimelineEventDraft
@@ -80,11 +85,13 @@ export function useStylePreviewTimelineCommands({
   setPendingDeleteTimelineEventId,
   setSelectedTimelineEventId,
   setTimelineDraft,
+  setTimelineEventValidationErrors,
   setTimelineEvents,
   setTimelineGalleryImageCaption,
   setTimelineGalleryImagePath,
   setTimelineLayout,
   setTimelineLinkDraft,
+  setTimelineLinkValidationErrors,
   setTimelineLinks,
   showErrorMessage,
   timelineDraft,
@@ -94,6 +101,7 @@ export function useStylePreviewTimelineCommands({
 }: UseStylePreviewTimelineCommandsOptions) {
   const openTimelineEventEditor = (event: TimelineEvent | null = null) => {
     setEditingTimelineEventId(event?.id ?? null)
+    setTimelineEventValidationErrors({})
     setTimelineDraft(event === null ? emptyTimelineEventDraft : toTimelineEventDraft(event))
     setDialog('timelineEvent')
   }
@@ -115,9 +123,10 @@ export function useStylePreviewTimelineCommands({
       return
     }
 
-    const validationMessage = getTimelineEventValidationMessage(timelineDraft)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateTimelineEventDraft(timelineDraft)
+    if (validationIssues.length > 0) {
+      setTimelineEventValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -134,6 +143,7 @@ export function useStylePreviewTimelineCommands({
       setSelectedTimelineEventId(saved.id)
       setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
       setTimelineDraft(emptyTimelineEventDraft)
+      setTimelineEventValidationErrors({})
       setEditingTimelineEventId(null)
       setDialog(null)
       setActiveTab('timeline')
@@ -240,9 +250,10 @@ export function useStylePreviewTimelineCommands({
       return
     }
 
-    const validationMessage = validateTimelineLinkDraft(timelineLinkDraft)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateTimelineLinkDraftIssues(timelineLinkDraft)
+    if (validationIssues.length > 0) {
+      setTimelineLinkValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -256,6 +267,7 @@ export function useStylePreviewTimelineCommands({
         linkType: 'precedes',
         description: '',
       })
+      setTimelineLinkValidationErrors({})
       setDialog(null)
     } catch {
       showErrorMessage(messages.relationLinkCreateFailed)

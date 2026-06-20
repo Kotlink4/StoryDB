@@ -1,6 +1,7 @@
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { PreviewDialogKind } from '../style-preview/domain/stylePreviewConfig'
 import type { AuthUser, StoryProject, TemplatePack } from '../types'
+import type { ValidationIssueMap } from '../validation'
 import { AuthDialog } from './AuthDialog'
 import { DeletePreviewDialog } from './DeletePreviewDialog'
 import { ProfileSummaryDialog } from './ProfileSummaryDialog'
@@ -11,6 +12,7 @@ export function StylePreviewProjectDialogs({
   authEmail,
   authMode,
   authPassword,
+  authValidationErrors,
   currentUser,
   dialog,
   editingProjectId,
@@ -22,6 +24,7 @@ export function StylePreviewProjectDialogs({
   projectPresetKeys,
   projectTemplatePackIds,
   projectVisibility,
+  validationErrors,
   projects,
   ui,
   onAuthDisplayNameChange,
@@ -44,6 +47,7 @@ export function StylePreviewProjectDialogs({
   authEmail: string
   authMode: 'login' | 'register'
   authPassword: string
+  authValidationErrors?: ValidationIssueMap
   currentUser: AuthUser | null
   dialog: PreviewDialogKind
   editingProjectId: number | null
@@ -55,6 +59,7 @@ export function StylePreviewProjectDialogs({
   projectPresetKeys: string[]
   projectTemplatePackIds: number[]
   projectVisibility: StoryProject['visibility']
+  validationErrors?: ValidationIssueMap
   projects: StoryProject[]
   ui: PreviewText
   onAuthDisplayNameChange: (displayName: string) => void
@@ -81,6 +86,7 @@ export function StylePreviewProjectDialogs({
           email={authEmail}
           mode={authMode}
           password={authPassword}
+          validationErrors={authValidationErrors}
           ui={ui}
           onCancel={onClose}
           onDisplayNameChange={onAuthDisplayNameChange}
@@ -110,6 +116,7 @@ export function StylePreviewProjectDialogs({
           projectPresetKeys={projectPresetKeys}
           projectTemplatePackIds={projectTemplatePackIds}
           projectVisibility={projectVisibility}
+          validationErrors={validationErrors}
           ui={ui}
           onCancel={onClose}
           onCoverFileSelected={onProjectCoverFileSelected}

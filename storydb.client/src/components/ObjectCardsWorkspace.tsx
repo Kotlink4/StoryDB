@@ -14,12 +14,11 @@ import type {
   AuthUser,
   StoryObject,
 } from '../types'
-import { ObjectPortrait } from './StylePreviewPrimitives'
+import { KebabMenu, ObjectPortrait } from './StylePreviewPrimitives'
 
 const objectListVirtualRowHeight = 154
 
 export function ObjectCardsWorkspace({
-  activeObjectMenuId,
   currentUser,
   layoutMode,
   sectionTitle,
@@ -31,10 +30,8 @@ export function ObjectCardsWorkspace({
   onDeleteObject,
   onEditObject,
   onLayoutModeChange,
-  onObjectMenuChange,
   onOpenObject,
 }: {
-  activeObjectMenuId: number | null
   currentUser: AuthUser | null
   layoutMode: 'grid' | 'list'
   sectionTitle: string
@@ -46,7 +43,6 @@ export function ObjectCardsWorkspace({
   onDeleteObject: (storyObject: StoryObject) => void
   onEditObject: (storyObject: StoryObject) => void
   onLayoutModeChange: (layoutMode: 'grid' | 'list') => void
-  onObjectMenuChange: (objectId: number | null) => void
   onOpenObject: (storyObject: StoryObject) => void
 }) {
   const cardsRef = useRef<HTMLDivElement | null>(null)
@@ -139,7 +135,6 @@ export function ObjectCardsWorkspace({
       <div className="sp-content-head">
         <div>
           <h2>{sectionTitle}</h2>
-          <p>{ui.objectData}</p>
         </div>
         {currentUser !== null && (
           <button className="sp-button primary sp-content-create" type="button" onClick={onCreateObject}>
@@ -212,37 +207,13 @@ export function ObjectCardsWorkspace({
                 ))}
               </div>
             </div>
-            <div className="sp-card-menu">
-              <button
-                aria-label={`${storyObject.name}: ${ui.actions}`}
-                type="button"
-                onClick={() => onObjectMenuChange(activeObjectMenuId === storyObject.id ? null : storyObject.id)}
-              >
-                ⋮
-              </button>
-              {activeObjectMenuId === storyObject.id && (
-                <div className="sp-card-dropdown">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onObjectMenuChange(null)
-                      onEditObject(storyObject)
-                    }}
-                  >
-                    {ui.edit}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onObjectMenuChange(null)
-                      onDeleteObject(storyObject)
-                    }}
-                  >
-                    {ui.delete}
-                  </button>
-                </div>
-              )}
-            </div>
+            <KebabMenu
+              ariaLabel={`${storyObject.name}: ${ui.actions}`}
+              className="sp-card-menu"
+              ui={ui}
+              onDelete={() => onDeleteObject(storyObject)}
+              onEdit={() => onEditObject(storyObject)}
+            />
             <div className="sp-card-actions" aria-hidden="true">
               <button type="button" onClick={() => onEditObject(storyObject)}>
                 {ui.edit}

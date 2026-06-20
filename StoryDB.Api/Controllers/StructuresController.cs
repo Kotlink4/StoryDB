@@ -53,6 +53,27 @@ public class StructuresController(IStructureService structureService) : Controll
         return ToActionResult(result);
     }
 
+    [HttpPut("{structureId:int}/details")]
+    public async Task<ActionResult<StructureDto>> UpdateStructureDetails(
+        int projectId,
+        int structureId,
+        StructureDetailsRequest request)
+    {
+        var result = await structureService.UpdateStructureDetailsAsync(projectId, structureId, request);
+        return ToActionResult(result);
+    }
+
+    [HttpPut("{structureId:int}/nodes/{nodeId:int}/details")]
+    public async Task<ActionResult<StructureNodeDto>> UpdateStructureNodeDetails(
+        int projectId,
+        int structureId,
+        int nodeId,
+        StructureNodeDetailsRequest request)
+    {
+        var result = await structureService.UpdateStructureNodeDetailsAsync(projectId, structureId, nodeId, request);
+        return ToActionResult(result);
+    }
+
     [HttpDelete("{structureId:int}")]
     public async Task<IActionResult> DeleteStructure(int projectId, int structureId)
     {
@@ -120,14 +141,18 @@ public class StructuresController(IStructureService structureService) : Controll
         [FromQuery] int? structureUsageId,
         [FromQuery] int? structureId,
         [FromQuery] int? structureNodeId,
-        [FromQuery] int? storyObjectId)
+        [FromQuery] int? storyObjectId,
+        [FromQuery] string? targetKind,
+        [FromQuery] int? targetId)
     {
         var result = await structureService.GetStructureAssignmentsAsync(
             projectId,
             structureUsageId,
             structureId,
             structureNodeId,
-            storyObjectId);
+            storyObjectId,
+            targetKind,
+            targetId);
         return ToActionResult(result);
     }
 

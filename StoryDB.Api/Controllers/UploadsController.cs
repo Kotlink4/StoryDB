@@ -62,7 +62,6 @@ public class UploadsController(
             Height = storedFile.Height,
             SizeBytes = storedFile.Size,
             Sha256 = storedFile.Sha256,
-            IsMigrated = false,
             CreatedAt = now,
             UpdatedAt = now,
             Variants = storedFile.Variants.Select(variant => new MediaAssetVariant

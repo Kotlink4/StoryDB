@@ -1,5 +1,8 @@
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type { StoryProject, TemplatePack } from '../types'
+import type { ValidationIssueMap } from '../validation'
+import { FieldError } from './FormValidation'
+import { getFieldValidationProps, useFirstInvalidFieldFocus } from './formValidationUtils'
 import { CoverDropzone } from './ImageInputs'
 import { ReadySolutionsPanel } from './ReadySolutionsPanel'
 import { PreviewDialog } from './StylePreviewPrimitives'
@@ -15,6 +18,7 @@ export function ProjectDialog({
   projectPresetKeys,
   projectTemplatePackIds,
   projectVisibility,
+  validationErrors,
   ui,
   onCancel,
   onCoverFileSelected,
@@ -33,6 +37,7 @@ export function ProjectDialog({
   projectPresetKeys: string[]
   projectTemplatePackIds: number[]
   projectVisibility: StoryProject['visibility']
+  validationErrors?: ValidationIssueMap
   ui: PreviewText
   onCancel: () => void
   onCoverFileSelected: (file: File) => void
@@ -50,6 +55,7 @@ export function ProjectDialog({
         : [...projectTemplatePackIds, templatePackId],
     )
   }
+  const formRef = useFirstInvalidFieldFocus(validationErrors)
 
   return (
     <PreviewDialog title={editingProjectId === null ? ui.newProject : ui.edit} onClose={onCancel}>
@@ -72,19 +78,24 @@ export function ProjectDialog({
         </div>
 
         {projectDialogTab === 'details' && (
-          <div className="sp-form">
+          <div className="sp-form" ref={formRef}>
             <label className="wide">
               {ui.projectName}
               <input
                 value={projectName}
                 placeholder={ui.projectNamePlaceholder}
                 onChange={(event) => onProjectNameChange(event.target.value)}
+                {...getFieldValidationProps('name', validationErrors, 'project-name-error')}
               />
+              <FieldError id="project-name-error" message={validationErrors?.name} />
             </label>
             <CoverDropzone
               className="wide"
               imagePath={projectCoverImagePath}
               label={ui.image}
+              validationErrorId="project-cover-error"
+              validationErrors={validationErrors}
+              validationField="coverImagePath"
               ui={ui}
               onFileSelected={onCoverFileSelected}
             />

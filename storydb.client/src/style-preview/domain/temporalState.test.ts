@@ -4,9 +4,9 @@ import { buildProjectSearchGroups } from './projectSearch'
 import type { PreviewText } from './stylePreviewI18n'
 import {
   resolveObjectsByTypeTemporalState,
-  resolveRelationGraphTemporalState,
   resolveStructureAssignmentsTemporalState,
 } from './temporalState'
+import { resolveRelationGraphTemporalState } from './temporalRelationGraph'
 import type {
   Catalog,
   CatalogEntry,
@@ -62,7 +62,6 @@ const makeObject = (
   ownedTerritories: [],
   hierarchyParents: [],
   hierarchyChildren: [],
-  organizationStructureLevels: [],
   galleryImages: [],
   outgoingCharacterRelationships: [],
   incomingCharacterRelationships: [],
@@ -223,9 +222,12 @@ describe('temporalState', () => {
       description: null,
       ownerKind: 'object',
       ownerId: organization.id,
+      applicationScope: 'characters',
       layoutKind: 'levels',
       nodeBindingMode: 'none',
+      catalogSyncMode: 'manual',
       linkedCatalogId: null,
+      timelineReferenceCount: 0,
       nodes: [
         {
           id: 70,
@@ -262,6 +264,10 @@ describe('temporalState', () => {
       structureName: structure.name,
       structureNodeId: 70,
       structureNodeName: 'Head',
+      targetKind: 'storyObject',
+      targetId: character.id,
+      targetName: character.name,
+      targetTypeKey: 'characters',
       storyObjectId: character.id,
       storyObjectName: character.name,
       storyObjectTypeKey: 'characters',

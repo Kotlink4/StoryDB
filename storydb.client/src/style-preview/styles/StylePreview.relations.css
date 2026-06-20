@@ -1,0 +1,523 @@
+﻿.sp-relations-workspace {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.sp-relations-page {
+  position: relative;
+  display: block;
+  min-height: 0;
+  height: 100%;
+  isolation: isolate;
+}
+
+.sp-relations-page .sp-relations-workspace {
+  position: absolute;
+  inset: 0;
+  display: block;
+  min-height: 0;
+  height: auto;
+}
+
+.sp-relations-overlay-head {
+  position: absolute;
+  z-index: 180;
+  top: 18px;
+  right: 18px;
+  left: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--sp-line);
+  border-radius: 22px;
+  background: var(--sp-overlay);
+  padding: 12px 14px;
+  box-shadow: 0 18px 46px var(--sp-shadow-soft);
+  backdrop-filter: blur(14px);
+}
+
+.sp-workspace.with-detail .sp-relations-overlay-head {
+  right: 456px;
+}
+
+.sp-relations-overlay-head h2,
+.sp-relations-overlay-head p {
+  margin: 0;
+}
+
+.sp-relations-overlay-head h2 {
+  font-size: 24px;
+}
+
+.sp-relations-overlay-head p {
+  color: var(--sp-muted);
+}
+
+.sp-relations-overlay-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sp-graph-control {
+  display: grid;
+  gap: 4px;
+  min-width: 150px;
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sp-graph-control select {
+  min-height: 38px;
+  border: 1px solid var(--sp-line);
+  border-radius: 999px;
+  background: var(--sp-surface);
+  color: var(--sp-text);
+  padding: 0 34px 0 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.sp-relations-legend {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--sp-line);
+  border-radius: 22px;
+  background: var(--sp-surface);
+  padding: 16px;
+}
+
+.sp-relations-page .sp-relations-legend {
+  position: absolute;
+  z-index: 170;
+  top: 112px;
+  left: 18px;
+  width: 230px;
+  background: var(--sp-overlay);
+  box-shadow: 0 18px 46px var(--sp-shadow-soft);
+  backdrop-filter: blur(14px);
+}
+
+.sp-relations-legend strong {
+  font-size: 18px;
+}
+
+.sp-relations-legend p {
+  margin: 0;
+  color: var(--sp-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sp-legend-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sp-muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.sp-legend-line::before {
+  content: '';
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--sp-relation-default);
+}
+
+.sp-legend-line.character::before {
+  background: var(--sp-relation-character);
+}
+
+.sp-legend-line.membership::before {
+  background: var(--sp-relation-membership);
+}
+
+.sp-legend-line.ownership::before {
+  background: var(--sp-relation-ownership);
+}
+
+.sp-legend-line.object::before {
+  background: var(--sp-relation-object);
+}
+
+.sp-legend-line.structure::before {
+  background: var(--sp-relation-structure);
+}
+
+.sp-relation-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sp-relation-types span {
+  border-radius: 999px;
+  background: var(--sp-accent-soft);
+  color: var(--sp-muted);
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sp-graph {
+  position: relative;
+  min-height: 620px;
+  overflow: hidden;
+  padding: 0;
+  background:
+    linear-gradient(var(--sp-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--sp-grid-line) 1px, transparent 1px),
+    var(--sp-soft);
+  background-size: 32px 32px;
+}
+
+.sp-relations-page .sp-graph {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  height: auto;
+}
+
+.sp-graph .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--sp-line);
+  border-radius: 14px;
+  background: var(--sp-overlay);
+  box-shadow: 0 14px 34px var(--sp-shadow-soft);
+}
+
+.sp-graph .react-flow__controls-button {
+  border-bottom: 1px solid var(--sp-line);
+  background: var(--sp-control);
+  color: var(--sp-ink);
+  fill: var(--sp-ink);
+}
+
+.sp-graph .react-flow__controls-button:hover {
+  background: var(--sp-active-bg);
+  color: var(--sp-active-text);
+  fill: var(--sp-active-text);
+}
+
+.sp-graph .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid var(--sp-line);
+  border-radius: 14px;
+  background: var(--sp-overlay);
+  box-shadow: 0 14px 34px var(--sp-shadow-soft);
+}
+
+.sp-graph .react-flow__attribution {
+  display: none;
+}
+
+.sp-graph .react-flow__background path {
+  stroke: var(--sp-grid-line);
+}
+
+.sp-graph-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 150px;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  background: var(--sp-surface);
+  padding: 10px;
+  box-shadow: 0 14px 34px var(--sp-shadow-soft);
+}
+
+.sp-graph-node .sp-portrait {
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+  font-size: 18px;
+}
+
+.sp-flow-node {
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 72px;
+  min-width: 0;
+  max-width: 240px;
+  border: 1px solid var(--sp-line);
+  border-radius: 20px;
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  padding: 10px;
+  overflow: hidden;
+  text-align: left;
+  box-shadow: 0 16px 34px var(--sp-shadow);
+  cursor: pointer;
+}
+
+.sp-flow-node .sp-portrait {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  font-size: 18px;
+}
+
+.sp-flow-node strong,
+.sp-flow-node span {
+  display: block;
+  min-width: 0;
+}
+
+.sp-flow-node strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-flow-node span {
+  color: var(--sp-muted);
+  font-size: 12px;
+}
+
+.sp-flow-node em {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--sp-accent-soft);
+  color: var(--sp-ink);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.sp-structure-flow-node {
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  gap: 4px;
+  width: 230px;
+  min-height: 76px;
+  border: 1px solid var(--sp-line);
+  border-left: 5px solid var(--node-color, var(--sp-relation-structure));
+  border-radius: 18px;
+  background: var(--sp-surface);
+  color: var(--sp-ink);
+  padding: 12px 14px;
+  overflow: hidden;
+  appearance: none;
+  box-shadow: 0 16px 34px var(--sp-shadow);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.sp-structure-flow-node span,
+.sp-structure-flow-node em {
+  overflow: hidden;
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sp-structure-flow-node strong {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-structure-flow-node p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--sp-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sp-structure-graph-detail {
+  width: min(360px, 28vw);
+  min-width: 300px;
+}
+
+.sp-structure-target-dossier {
+  display: grid;
+  gap: 18px;
+}
+
+.sp-detail-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sp-detail-card-head span,
+.sp-detail-field span {
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.sp-detail-card-head h2 {
+  margin: 4px 0 0;
+}
+
+.sp-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sp-detail-field {
+  display: grid;
+  gap: 8px;
+  min-height: 76px;
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface-muted);
+  padding: 14px;
+}
+
+.sp-detail-field strong {
+  color: var(--sp-ink);
+}
+
+.sp-flow-handle {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  background: transparent;
+}
+
+.sp-relation-detail {
+  position: relative;
+}
+
+.sp-relation-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sp-relation-detail-head span {
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sp-relation-detail-head h2 {
+  margin: 4px 0 0;
+}
+
+.sp-relation-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.sp-relation-route > strong {
+  color: var(--sp-muted);
+  font-size: 20px;
+}
+
+.sp-relation-endpoint {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  background: var(--sp-soft);
+  color: var(--sp-ink);
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sp-relation-endpoint.missing {
+  display: block;
+  color: var(--sp-muted);
+  cursor: default;
+}
+
+.sp-relation-endpoint .sp-portrait {
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  font-size: 18px;
+}
+
+.sp-relation-endpoint strong,
+.sp-relation-endpoint em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-relation-endpoint em {
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.sp-relation-meter {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sp-relation-meter span {
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sp-relation-meter div {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--sp-line);
+}
+
+.sp-relation-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sp-accent);
+}
+
+.sp-relation-meter strong {
+  text-align: right;
+}
+

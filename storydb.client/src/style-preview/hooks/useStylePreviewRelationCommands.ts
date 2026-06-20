@@ -19,10 +19,15 @@ import type {
   RelationLinkDraft,
   StoryObject,
 } from '../../types'
-import { validateRelationLinkDraft } from '../../validation'
+import {
+  validateRelationLinkDraftIssues,
+  validationIssuesToMap,
+} from '../../validation'
+import type { ValidationIssueMap } from '../../validation'
 
 type RelationCommandMessages = {
   characterRelationshipCreateFailed: string
+  fieldValidationFailed: string
   graphGenerateFailed: string
   graphNodeSaveFailed: string
 }
@@ -39,6 +44,7 @@ type UseStylePreviewRelationCommandsOptions = {
   setRelationGraph: Dispatch<SetStateAction<RelationGraph>>
   setRelationGraphLayout: Dispatch<SetStateAction<RelationGraphLayout | null>>
   setRelationLinkDraft: Dispatch<SetStateAction<RelationLinkDraft>>
+  setRelationLinkValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   showErrorMessage: (message: string) => void
 }
 
@@ -54,6 +60,7 @@ export function useStylePreviewRelationCommands({
   setRelationGraph,
   setRelationGraphLayout,
   setRelationLinkDraft,
+  setRelationLinkValidationErrors,
   showErrorMessage,
 }: UseStylePreviewRelationCommandsOptions) {
   const saveCharacterRelationLink = async () => {
@@ -61,9 +68,10 @@ export function useStylePreviewRelationCommands({
       return
     }
 
-    const validationMessage = validateRelationLinkDraft(relationLinkDraft)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateRelationLinkDraftIssues(relationLinkDraft)
+    if (validationIssues.length > 0) {
+      setRelationLinkValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -159,6 +167,7 @@ export function useStylePreviewRelationCommands({
         isBidirectional: true,
         description: '',
       })
+      setRelationLinkValidationErrors({})
       setDialog(null)
     } catch {
       showErrorMessage(messages.characterRelationshipCreateFailed)

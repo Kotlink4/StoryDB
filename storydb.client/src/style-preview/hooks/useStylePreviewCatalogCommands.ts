@@ -28,17 +28,20 @@ import type {
   CatalogFieldDraft,
 } from '../../types'
 import {
-  validateCatalogDraft,
-  validateCatalogEntryDraft,
-  validateCatalogFieldDraft,
-  validateCatalogGroupDraft,
+  validateCatalogDraftIssues,
+  validateCatalogEntryDraftIssues,
+  validateCatalogFieldDraftIssues,
+  validateCatalogGroupDraftIssues,
+  validationIssuesToMap,
 } from '../../validation'
+import type { ValidationIssueMap } from '../../validation'
 
 type CatalogCommandMessages = {
   catalogCreateFailed: string
   catalogDeleteFailed: string
   catalogEntryCreateFailed: string
   catalogEntryDeleteFailed: string
+  fieldValidationFailed: string
   catalogGroupCreateFailed: string
   catalogGroupDeleteFailed: string
   catalogTemplateLoadFailed: string
@@ -91,9 +94,13 @@ type UseStylePreviewCatalogCommandsOptions = {
   setCatalogEntries: Dispatch<SetStateAction<CatalogEntry[]>>
   setCatalogEntriesByCatalogId: Dispatch<SetStateAction<Record<number, CatalogEntry[]>>>
   setCatalogEntryDraft: Dispatch<SetStateAction<CatalogEntryDraft>>
+  setCatalogEntryValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setCatalogFieldsByCatalogId: Dispatch<SetStateAction<Record<number, CatalogFieldDefinition[]>>>
+  setCatalogFieldValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
+  setCatalogGroupValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setCatalogGroups: Dispatch<SetStateAction<CatalogEntryGroup[]>>
   setCatalogs: Dispatch<SetStateAction<Catalog[]>>
+  setCatalogValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setDialog: Dispatch<SetStateAction<PreviewDialogKind>>
   setIsObjectPageOpen: Dispatch<SetStateAction<boolean>>
   setPendingDeleteCatalogEntryId: Dispatch<SetStateAction<number | null>>
@@ -142,9 +149,13 @@ export function useStylePreviewCatalogCommands({
   setCatalogEntries,
   setCatalogEntriesByCatalogId,
   setCatalogEntryDraft,
+  setCatalogEntryValidationErrors,
   setCatalogFieldsByCatalogId,
+  setCatalogFieldValidationErrors,
+  setCatalogGroupValidationErrors,
   setCatalogGroups,
   setCatalogs,
+  setCatalogValidationErrors,
   setDialog,
   setIsObjectPageOpen,
   setPendingDeleteCatalogEntryId,
@@ -161,12 +172,12 @@ export function useStylePreviewCatalogCommands({
       return
     }
 
-    const validationMessage = validateCatalogDraft(catalogName, catalogDescription)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateCatalogDraftIssues(catalogName, catalogDescription)
+    if (validationIssues.length > 0) {
+      setCatalogValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
-
     try {
       const saved =
         editingCatalogId === null
@@ -191,6 +202,7 @@ export function useStylePreviewCatalogCommands({
           : currentCatalogs.map((catalog) => (catalog.id === saved.id ? saved : catalog)),
       )
       setSelectedCatalogId(saved.id)
+      setCatalogValidationErrors({})
       resetCatalogDraft()
       setDialog(null)
       navigateToPreview(selectedProjectId, 'database', 'catalogs', null, saved.id)
@@ -229,9 +241,10 @@ export function useStylePreviewCatalogCommands({
       return
     }
 
-    const validationMessage = validateCatalogGroupDraft(catalogGroupName)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateCatalogGroupDraftIssues(catalogGroupName)
+    if (validationIssues.length > 0) {
+      setCatalogGroupValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -254,6 +267,7 @@ export function useStylePreviewCatalogCommands({
           : currentGroups.map((group) => (group.id === saved.id ? saved : group)),
       )
       setSelectedCatalogGroupId(saved.id)
+      setCatalogGroupValidationErrors({})
       resetCatalogGroupDraft()
       setDialog(null)
     } catch (error) {
@@ -267,9 +281,10 @@ export function useStylePreviewCatalogCommands({
       return
     }
 
-    const validationMessage = validateCatalogFieldDraft(catalogFieldDraft)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateCatalogFieldDraftIssues(catalogFieldDraft)
+    if (validationIssues.length > 0) {
+      setCatalogFieldValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -293,6 +308,7 @@ export function useStylePreviewCatalogCommands({
                 field.id === saved.id ? saved : field,
               ),
       }))
+      setCatalogFieldValidationErrors({})
       resetCatalogFieldDraft()
     } catch (error) {
       showErrorMessage(getApiErrorMessage(error, messages.templateFieldSaveFailed))
@@ -300,6 +316,7 @@ export function useStylePreviewCatalogCommands({
   }
 
   const editCatalogField = (field: CatalogFieldDefinition) => {
+    setCatalogFieldValidationErrors({})
     fillCatalogFieldDraft(field)
   }
 
@@ -346,9 +363,10 @@ export function useStylePreviewCatalogCommands({
       return
     }
 
-    const validationMessage = validateCatalogEntryDraft(catalogEntryDraft)
-    if (validationMessage !== null) {
-      showErrorMessage(validationMessage)
+    const validationIssues = validateCatalogEntryDraftIssues(catalogEntryDraft)
+    if (validationIssues.length > 0) {
+      setCatalogEntryValidationErrors(validationIssuesToMap(validationIssues))
+      showErrorMessage(messages.fieldValidationFailed)
       return
     }
 
@@ -386,6 +404,7 @@ export function useStylePreviewCatalogCommands({
                 entry.id === saved.id ? saved : entry,
               ),
       }))
+      setCatalogEntryValidationErrors({})
       resetCatalogEntryDraft()
       setDialog(null)
     } catch (error) {
@@ -410,6 +429,8 @@ export function useStylePreviewCatalogCommands({
 
   const openEditCatalog = (catalog: Catalog) => {
     fillCatalogDraft(catalog)
+    setCatalogValidationErrors({})
+    setCatalogFieldValidationErrors({})
     if (selectedProjectId !== null) {
       void fetchCatalogFieldDefinitions(selectedProjectId, catalog.id)
         .then((fields) =>
@@ -425,11 +446,13 @@ export function useStylePreviewCatalogCommands({
 
   const openEditCatalogGroup = (group: CatalogEntryGroup) => {
     fillCatalogGroupDraft(group)
+    setCatalogGroupValidationErrors({})
     setDialog('catalogGroup')
   }
 
   const openEditCatalogEntry = (entry: CatalogEntry) => {
     fillCatalogEntryDraft(entry)
+    setCatalogEntryValidationErrors({})
     setDialog('catalogEntry')
   }
 
@@ -485,6 +508,7 @@ export function useStylePreviewCatalogCommands({
   }
 
   const createCatalogEntryDraftForGroup = (selectedCatalogGroupId: number | null) => {
+    setCatalogEntryValidationErrors({})
     setCatalogEntryDraft({
       ...emptyCatalogEntryDraft,
       entryGroupId: selectedCatalogGroupId === null ? '' : String(selectedCatalogGroupId),

@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 
 import { uploadImageRequest } from '../api'
+import { buildCatalogGroupTree, formatCatalogGroupTreeLabel } from '../domain/catalogGroupTree'
 import { catalogTemplateLabels, type PreviewLanguage, type PreviewText } from '../style-preview/domain/stylePreviewI18n'
 import type {
   Catalog,
@@ -8,8 +9,13 @@ import type {
   CatalogEntryDraft,
   CatalogEntryGroup,
   CatalogFieldDefinition,
+  StructureAssignment,
 } from '../types'
+import type { ValidationIssueMap } from '../validation'
 import { CatalogEntryFieldInput } from './CatalogEntryDetail'
+import { CatalogEntryStructureMembership } from './CatalogEntryStructureMembership'
+import { FieldError } from './FormValidation'
+import { getFieldValidationProps, useFirstInvalidFieldFocus } from './formValidationUtils'
 import { CoverDropzone } from './ImageInputs'
 import { PreviewDialog } from './StylePreviewPrimitives'
 
@@ -19,6 +25,7 @@ export function CatalogGroupDialog({
   catalogGroupParentIds,
   catalogGroups,
   editingCatalogGroupId,
+  validationErrors,
   ui,
   onCancel,
   onCatalogGroupNameChange,
@@ -30,18 +37,27 @@ export function CatalogGroupDialog({
   catalogGroupParentIds: number[]
   catalogGroups: CatalogEntryGroup[]
   editingCatalogGroupId: number | null
+  validationErrors?: ValidationIssueMap
   ui: PreviewText
   onCancel: () => void
   onCatalogGroupNameChange: (value: string) => void
   onCatalogGroupParentIdsChange: (value: number[]) => void
   onSave: () => void
 }) {
+  const catalogGroupTree = buildCatalogGroupTree(catalogGroups)
+  const formRef = useFirstInvalidFieldFocus(validationErrors)
+
   return (
     <PreviewDialog title={`${editingCatalogGroupId === null ? ui.newGroup : ui.edit}: ${catalog.name}`} onClose={onCancel}>
-      <div className="sp-form">
+      <div className="sp-form" ref={formRef}>
         <label className="wide">
           {ui.groupName}
-          <input value={catalogGroupName} onChange={(event) => onCatalogGroupNameChange(event.target.value)} />
+          <input
+            value={catalogGroupName}
+            onChange={(event) => onCatalogGroupNameChange(event.target.value)}
+            {...getFieldValidationProps('name', validationErrors, 'catalog-group-name-error')}
+          />
+          <FieldError id="catalog-group-name-error" message={validationErrors?.name} />
         </label>
         {catalog.supportsHierarchy && catalog.hierarchyMode === 'groups' && (
           <label className="wide">
@@ -55,11 +71,11 @@ export function CatalogGroupDialog({
                 )
               }
             >
-              {catalogGroups
-                .filter((group) => group.id !== editingCatalogGroupId)
-                .map((group) => (
+              {catalogGroupTree
+                .filter(({ group }) => group.id !== editingCatalogGroupId)
+                .map(({ group, depth }) => (
                   <option key={group.id} value={group.id}>
-                    {group.name}
+                    {formatCatalogGroupTreeLabel(group, depth)}
                   </option>
                 ))}
             </select>
@@ -84,11 +100,14 @@ export function CatalogEntryDialog({
   catalogEntriesByCatalogId,
   catalogEntryDraft,
   catalogGroups,
+  catalogs,
   editingCatalogEntryId,
   fieldDefinitions,
   language,
   selectedProjectId,
+  validationErrors,
   ui,
+  onCatalogEntryStructureAssignmentsChange,
   onCancel,
   onCatalogEntryDraftChange,
   onSave,
@@ -98,28 +117,36 @@ export function CatalogEntryDialog({
   catalogEntriesByCatalogId: Record<number, CatalogEntry[]>
   catalogEntryDraft: CatalogEntryDraft
   catalogGroups: CatalogEntryGroup[]
+  catalogs: Catalog[]
   editingCatalogEntryId: number | null
   fieldDefinitions: CatalogFieldDefinition[]
   language: PreviewLanguage
   selectedProjectId: number | null
+  validationErrors?: ValidationIssueMap
   ui: PreviewText
+  onCatalogEntryStructureAssignmentsChange?: (catalogEntryId: number, assignments: StructureAssignment[]) => void
   onCancel: () => void
   onCatalogEntryDraftChange: Dispatch<SetStateAction<CatalogEntryDraft>>
   onSave: () => void
 }) {
   const catalogTemplateUi = catalogTemplateLabels[language]
+  const catalogGroupTree = buildCatalogGroupTree(catalogGroups)
+  const formRef = useFirstInvalidFieldFocus(validationErrors)
+  const catalogEntry = catalogEntries.find((entry) => entry.id === editingCatalogEntryId) ?? null
 
   return (
     <PreviewDialog title={`${editingCatalogEntryId === null ? ui.newCatalogEntry : ui.edit}: ${catalog.name}`} onClose={onCancel}>
-      <div className="sp-form">
-        <label>
+      <div className="sp-form" ref={formRef}>
+        <label className="catalog-entry-name-field">
           {ui.firstName}
           <input
             value={catalogEntryDraft.name}
             onChange={(event) => onCatalogEntryDraftChange((draft) => ({ ...draft, name: event.target.value }))}
+            {...getFieldValidationProps('name', validationErrors, 'catalog-entry-name-error')}
           />
+          <FieldError id="catalog-entry-name-error" message={validationErrors?.name} />
         </label>
-        <label>
+        <label className="catalog-entry-group-field">
           {ui.group}
           <select
             value={catalogEntryDraft.entryGroupId}
@@ -132,9 +159,9 @@ export function CatalogEntryDialog({
             }
           >
             <option value="">{ui.noGroup}</option>
-            {catalogGroups.map((group) => (
+            {catalogGroupTree.map(({ group, depth }) => (
               <option key={group.id} value={group.id}>
-                {group.name}
+                {formatCatalogGroupTreeLabel(group, depth)}
               </option>
             ))}
           </select>
@@ -168,9 +195,12 @@ export function CatalogEntryDialog({
           </label>
         )}
         <CoverDropzone
-          className="wide"
+          className="catalog-entry-image"
           imagePath={catalogEntryDraft.imagePath}
           label={ui.image}
+          validationErrorId="catalog-entry-image-error"
+          validationErrors={validationErrors}
+          validationField="imagePath"
           ui={ui}
           onFileSelected={(file) => {
             void uploadImageRequest(file, selectedProjectId).then((result) =>
@@ -185,7 +215,9 @@ export function CatalogEntryDialog({
             onChange={(event) =>
               onCatalogEntryDraftChange((draft) => ({ ...draft, description: event.target.value }))
             }
+            {...getFieldValidationProps('description', validationErrors, 'catalog-entry-description-error')}
           />
+          <FieldError id="catalog-entry-description-error" message={validationErrors?.description} />
         </label>
         <section className="sp-form-section wide">
           <h3>{catalogTemplateUi.template}</h3>
@@ -214,6 +246,17 @@ export function CatalogEntryDialog({
             </div>
           )}
         </section>
+        <CatalogEntryStructureMembership
+          catalogEntry={catalogEntry}
+          catalogs={catalogs}
+          selectedProjectId={selectedProjectId}
+          ui={ui}
+          onAssignmentsChange={(assignments) => {
+            if (catalogEntry !== null) {
+              onCatalogEntryStructureAssignmentsChange?.(catalogEntry.id, assignments)
+            }
+          }}
+        />
         <div className="sp-dialog-actions">
           <button className="sp-button" type="button" onClick={onCancel}>
             {ui.cancel}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import {
   Activity,
   Anchor,
@@ -266,16 +266,21 @@ export function SectionIcon({ name }: { name: SectionIconName }) {
 }
 
 export function KebabMenu({
+  ariaLabel,
+  className = '',
   ui,
   onDelete,
   onEdit,
   onExport,
 }: {
+  ariaLabel?: string
+  className?: string
   ui: PreviewText
   onDelete?: () => void
   onEdit?: () => void
   onExport?: () => void
 }) {
+  const menuId = useId()
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
@@ -294,13 +299,42 @@ export function KebabMenu({
     return () => document.removeEventListener('pointerdown', closeMenu)
   }, [isOpen])
 
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const closeOtherMenu = (event: Event) => {
+      const openedMenuId = event instanceof CustomEvent ? event.detail?.menuId : null
+      if (openedMenuId !== menuId) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('storydb:kebab-menu-open', closeOtherMenu)
+    return () => document.removeEventListener('storydb:kebab-menu-open', closeOtherMenu)
+  }, [isOpen, menuId])
+
   if (onDelete === undefined && onEdit === undefined && onExport === undefined) {
     return null
   }
 
   return (
-    <div className="sp-inline-menu">
-      <button aria-label={ui.actions} type="button" onClick={() => setIsOpen((value) => !value)}>
+    <div className={`sp-inline-menu ${className}`.trim()}>
+      <button
+        aria-label={ariaLabel ?? ui.actions}
+        type="button"
+        onClick={() => {
+          setIsOpen((value) => {
+            const nextValue = !value
+            if (nextValue) {
+              document.dispatchEvent(new CustomEvent('storydb:kebab-menu-open', { detail: { menuId } }))
+            }
+
+            return nextValue
+          })
+        }}
+      >
         ⋮
       </button>
       {isOpen && (

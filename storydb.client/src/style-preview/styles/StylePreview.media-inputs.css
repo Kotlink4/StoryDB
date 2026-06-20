@@ -1,0 +1,299 @@
+﻿.sp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: var(--sp-modal-backdrop);
+  padding: 24px;
+}
+
+.sp-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(680px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 24px 70px var(--sp-shadow);
+}
+
+.sp-dialog-head {
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.sp-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sp-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sp-form label.wide {
+  grid-column: 1 / -1;
+}
+
+.sp-cover-field {
+  display: grid;
+  gap: 8px;
+  color: var(--sp-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.sp-form .sp-cover-field.wide {
+  grid-column: 1 / -1;
+}
+
+.sp-form .sp-cover-field.object-image,
+.sp-form .sp-cover-field.event-image {
+  grid-row: span 4;
+  align-self: start;
+  justify-self: start;
+}
+
+.sp-form .sp-cover-field.object-portrait {
+  width: min(180px, 100%);
+}
+
+.sp-form .sp-cover-field.object-square {
+  width: min(190px, 100%);
+}
+
+.sp-form .sp-cover-field.object-landscape,
+.sp-form .sp-cover-field.event-landscape {
+  width: min(280px, 100%);
+}
+
+.sp-form .sp-cover-field.catalog-entry-image {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  justify-self: end;
+  width: min(168px, 100%);
+}
+
+.sp-form .catalog-entry-name-field,
+.sp-form .catalog-entry-group-field {
+  grid-column: 1;
+}
+
+.sp-form .catalog-entry-name-field {
+  grid-row: 1;
+}
+
+.sp-form .catalog-entry-group-field {
+  grid-row: 2;
+}
+
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-dropzone {
+  aspect-ratio: 1;
+  min-height: 0;
+}
+
+.sp-form .sp-cover-field.object-portrait .sp-cover-dropzone {
+  aspect-ratio: 3 / 4;
+  min-height: 0;
+}
+
+.sp-form .sp-cover-field.object-square .sp-cover-dropzone {
+  aspect-ratio: 1;
+  min-height: 0;
+}
+
+.sp-form .sp-cover-field.object-landscape .sp-cover-dropzone,
+.sp-form .sp-cover-field.event-landscape .sp-cover-dropzone {
+  aspect-ratio: 4 / 3;
+  min-height: 0;
+}
+
+.sp-form .sp-cover-field.object-portrait .sp-cover-dropzone img,
+.sp-form .sp-cover-field.object-square .sp-cover-dropzone img,
+.sp-form .sp-cover-field.object-landscape .sp-cover-dropzone img,
+.sp-form .sp-cover-field.event-landscape .sp-cover-dropzone img,
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-dropzone img,
+.sp-form .sp-cover-field.object-portrait .sp-cover-placeholder,
+.sp-form .sp-cover-field.object-square .sp-cover-placeholder,
+.sp-form .sp-cover-field.object-landscape .sp-cover-placeholder,
+.sp-form .sp-cover-field.event-landscape .sp-cover-placeholder,
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-placeholder,
+.sp-form .sp-cover-field.object-portrait .sp-cover-overlay {
+  min-height: 0;
+}
+
+.sp-form .sp-cover-field.object-square .sp-cover-overlay,
+.sp-form .sp-cover-field.object-landscape .sp-cover-overlay,
+.sp-form .sp-cover-field.event-landscape .sp-cover-overlay,
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-overlay {
+  min-height: 0;
+}
+
+.sp-form .sp-cover-field.object-portrait .sp-cover-dropzone img,
+.sp-form .sp-cover-field.object-square .sp-cover-dropzone img,
+.sp-form .sp-cover-field.object-landscape .sp-cover-dropzone img,
+.sp-form .sp-cover-field.event-landscape .sp-cover-dropzone img,
+.sp-form .sp-cover-field.catalog-entry-image .sp-cover-dropzone img {
+  object-position: center top;
+}
+
+.sp-cover-dropzone {
+  position: relative;
+  display: grid;
+  min-height: 190px;
+  overflow: hidden;
+  border: 1px dashed var(--sp-line);
+  border-radius: 18px;
+  background: var(--sp-soft);
+  cursor: pointer;
+}
+
+.sp-cover-field.dragging .sp-cover-dropzone {
+  border-color: var(--sp-accent);
+  background: var(--sp-accent-soft);
+}
+
+.sp-form .sp-cover-dropzone input,
+.sp-cover-dropzone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sp-cover-dropzone img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 190px;
+  object-fit: cover;
+}
+
+.sp-cover-placeholder,
+.sp-cover-overlay {
+  display: grid;
+  min-height: 190px;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  padding: 18px;
+  text-align: center;
+}
+
+.sp-cover-placeholder strong,
+.sp-cover-overlay strong {
+  color: var(--sp-ink);
+  font-size: 16px;
+}
+
+.sp-cover-placeholder small,
+.sp-cover-overlay small {
+  color: var(--sp-muted);
+  font-size: 13px;
+}
+
+.sp-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--sp-cover-overlay);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.sp-cover-dropzone:hover .sp-cover-overlay,
+.sp-cover-field.dragging .sp-cover-overlay {
+  opacity: 1;
+}
+
+.sp-cover-overlay strong,
+.sp-cover-overlay small {
+  color: var(--sp-on-data-color);
+}
+
+.sp-crop-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.sp-crop-stage {
+  width: min(100%, 760px);
+  height: min(62vh, 560px);
+  min-height: 340px;
+  margin: 0 auto;
+  border: 1px solid var(--sp-line);
+  border-radius: 20px;
+  background: var(--sp-crop-stage-bg);
+  box-shadow: 0 18px 50px var(--sp-shadow-soft);
+}
+
+.sp-crop-stage.avatar {
+  width: min(100%, 560px);
+}
+
+.sp-crop-stage.portrait {
+  width: min(100%, 560px);
+}
+
+.sp-crop-stage.square {
+  width: min(100%, 560px);
+}
+
+.sp-crop-stage.landscape {
+  width: min(100%, 680px);
+}
+
+.sp-crop-stage .advanced-cropper__boundary {
+  border-radius: 20px;
+}
+
+.sp-crop-stage .advanced-cropper-simple-handler {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--sp-crop-handle-border);
+  border-radius: 999px;
+  background: var(--sp-accent);
+  box-shadow: 0 6px 16px var(--sp-shadow-soft);
+}
+
+.sp-crop-stage .advanced-cropper-simple-line {
+  border-color: var(--sp-crop-line);
+}
+
+.sp-crop-stage .advanced-cropper-stencil-grid {
+  color: var(--sp-crop-grid);
+}
+
+.sp-crop-stage .advanced-cropper-stencil-overlay {
+  color: var(--sp-crop-overlay);
+}
+
+.sp-crop-hint {
+  margin: -4px 0 0;
+  color: var(--sp-muted);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .sp-form .catalog-entry-name-field,
+  .sp-form .catalog-entry-group-field,
+  .sp-form .sp-cover-field.catalog-entry-image {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-self: start;
+  }
+
+  .sp-form .sp-cover-field.catalog-entry-image {
+    width: min(168px, 100%);
+  }
+}
+

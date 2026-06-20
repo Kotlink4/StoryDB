@@ -28,7 +28,6 @@ export const relationGraphNodeToStoryObject = (node: RelationGraphNode): StoryOb
   ownedTerritories: [],
   hierarchyParents: [],
   hierarchyChildren: [],
-  organizationStructureLevels: [],
   galleryImages: [],
   outgoingCharacterRelationships: [],
   incomingCharacterRelationships: [],

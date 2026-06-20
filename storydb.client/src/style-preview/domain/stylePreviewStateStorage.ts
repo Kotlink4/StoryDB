@@ -2,7 +2,7 @@ import type { PreviewLanguage, PreviewTheme } from './stylePreviewI18n'
 import type { PreviewSection, PreviewTab } from './stylePreviewRouting'
 import type { DetailMode, GroupDisplayMode } from './stylePreviewUiTypes'
 
-type PreviewPersistedState = Partial<{
+export type PreviewPersistedState = Partial<{
   activeSection: PreviewSection
   activeTab: PreviewTab
   detailMode: DetailMode

@@ -1,54 +1,28 @@
-import {
+﻿import {
   lazy,
   Suspense,
   useCallback,
-  useEffect,
   useMemo,
   useState,
 } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  createTemplatePackFromProjectRequest,
-  deleteTemplatePackRequest,
-  fetchTemplatePacks,
   resolveAssetVariantUrl,
-  setTemplatePackFavoriteRequest,
-  updateTemplatePackRequest,
 } from '../api'
-import { CoverDropzone } from '../components/ImageInputs'
 import { StylePreviewContent } from '../components/StylePreviewContent'
 import { StylePreviewLayout } from '../components/StylePreviewLayout'
 import {
   previewMessages,
   previewText,
-  type PreviewLanguage,
-  type PreviewTheme,
 } from './domain/stylePreviewI18n'
 import {
-  buildStylePreviewPath,
-  parseStylePreviewPath,
   previewRouteBase,
   type PreviewSection,
   type PreviewTab,
 } from './domain/stylePreviewRouting'
 import {
-  emptyAttributeDefinitionDraft,
-  emptyTimelineEventDraft,
   isObjectSection,
-  objectSections,
-  type PreviewDialogKind,
 } from './domain/stylePreviewConfig'
-import { readPreviewState, savePreviewState } from './domain/stylePreviewStateStorage'
-import { buildProjectSearchGroups } from './domain/projectSearch'
-import {
-  resolveObjectsByTypeTemporalState,
-  resolveRelationGraphTemporalState,
-} from './domain/temporalState'
-import type {
-  DetailMode,
-  GroupDisplayMode,
-  ObjectDossierTab,
-} from './domain/stylePreviewUiTypes'
+import { readPreviewState } from './domain/stylePreviewStateStorage'
 import { usePreviewToast } from './hooks/usePreviewToast'
 import { useStylePreviewAuthCommands } from './hooks/useStylePreviewAuthCommands'
 import { useStylePreviewAttributeCommands } from './hooks/useStylePreviewAttributeCommands'
@@ -62,21 +36,52 @@ import { useStylePreviewProfileDraft } from './hooks/useStylePreviewProfileDraft
 import { useStylePreviewProjectCommands } from './hooks/useStylePreviewProjectCommands'
 import { useStylePreviewProjectDialog } from './hooks/useStylePreviewProjectDialog'
 import { useStylePreviewProjects } from './hooks/useStylePreviewProjects'
+import { useStylePreviewProjectSearchGroups } from './hooks/useStylePreviewProjectSearchGroups'
 import { useStylePreviewRelationCommands } from './hooks/useStylePreviewRelationCommands'
+import {
+  useStylePreviewProfileRedirect,
+  useStylePreviewRouteSync,
+  useStylePreviewRouting,
+} from './hooks/useStylePreviewRouting'
 import { useStylePreviewSelections } from './hooks/useStylePreviewSelections'
+import {
+  getStylePreviewObjectSectionLabel,
+  useCloseStylePreviewFloatingMenus,
+  usePersistStylePreviewState,
+  useResetProjectSearchOnShellChange,
+  useResetStructureDetailPanel,
+} from './hooks/useStylePreviewShellEffects'
+import { useStylePreviewTemplatePacks } from './hooks/useStylePreviewTemplatePacks'
 import { useStylePreviewTimelineCommands } from './hooks/useStylePreviewTimelineCommands'
 import { useStylePreviewDialogHostProps } from './hooks/useStylePreviewDialogHostProps'
 import { useStylePreviewLayoutProps } from './hooks/useStylePreviewLayoutProps'
+import { useStylePreviewTemporalState } from './hooks/useStylePreviewTemporalState'
+import { useStylePreviewUiState } from './hooks/useStylePreviewUiState'
 import { useStylePreviewWorkspaceData } from './hooks/useStylePreviewWorkspaceData'
-import type {
-  AttributeDefinitionDraft,
-  ObjectTypeKey,
-  RelationLinkDraft,
-  TemplatePack,
-  TemplatePackScope,
-  TimelineEventDraft,
-  TimelineEventLinkDraft,
-} from '../types'
+import {
+  buildStylePreviewCatalogEntryDetailProps,
+  buildStylePreviewObjectDetailProps,
+  buildStylePreviewRelationDetailProps,
+  buildStylePreviewTimelineEventDetailProps,
+} from './hooks/stylePreviewDetailProps'
+import { buildStylePreviewObjectEditorProps } from './hooks/stylePreviewObjectEditorProps'
+import type { ValidationIssueMap } from '../validation'
+import {
+  buildStylePreviewCatalogEntryDetailPageProps,
+  buildStylePreviewRelationDetailPageProps,
+  buildStylePreviewRelationsPageProps,
+  buildStylePreviewSettingsPageProps,
+  buildStylePreviewTimelineEventDetailPageProps,
+  buildStylePreviewTimelinePageProps,
+} from './hooks/stylePreviewPageProps'
+import { buildStylePreviewProfilePageProps } from './hooks/stylePreviewProfilePageProps'
+import {
+  buildStylePreviewAttributesWorkspaceProps,
+  buildStylePreviewCatalogsWorkspaceProps,
+  buildStylePreviewObjectCardsWorkspaceProps,
+  buildStylePreviewProjectExportWorkspaceProps,
+  buildStylePreviewStructuresWorkspaceProps,
+} from './hooks/stylePreviewWorkspaceProps'
 import './StylePreview.css'
 
 const LazyStylePreviewDialogHost = lazy(() =>
@@ -84,11 +89,22 @@ const LazyStylePreviewDialogHost = lazy(() =>
 )
 
 export function StylePreview() {
-  const location = useLocation()
-  const navigate = useNavigate()
+  const { navigate, navigateToPreview, routeState } = useStylePreviewRouting()
   const initialPreviewState = useMemo(() => readPreviewState(), [])
-  const routeState = useMemo(() => parseStylePreviewPath(location.pathname), [location.pathname])
   const { dismissMessage, message, messageTone, showErrorMessage, showMessage } = usePreviewToast()
+  const [authValidationErrors, setAuthValidationErrors] = useState<ValidationIssueMap>({})
+  const [objectValidationErrors, setObjectValidationErrors] = useState<ValidationIssueMap>({})
+  const [profileValidationErrors, setProfileValidationErrors] = useState<ValidationIssueMap>({})
+  const [projectValidationErrors, setProjectValidationErrors] = useState<ValidationIssueMap>({})
+  const [relationLinkValidationErrors, setRelationLinkValidationErrors] = useState<ValidationIssueMap>({})
+  const [timelineEventValidationErrors, setTimelineEventValidationErrors] = useState<ValidationIssueMap>({})
+  const [timelineLinkValidationErrors, setTimelineLinkValidationErrors] = useState<ValidationIssueMap>({})
+  const [attributeDefinitionValidationErrors, setAttributeDefinitionValidationErrors] = useState<ValidationIssueMap>({})
+  const [attributeGroupValidationErrors, setAttributeGroupValidationErrors] = useState<ValidationIssueMap>({})
+  const [catalogEntryValidationErrors, setCatalogEntryValidationErrors] = useState<ValidationIssueMap>({})
+  const [catalogFieldValidationErrors, setCatalogFieldValidationErrors] = useState<ValidationIssueMap>({})
+  const [catalogGroupValidationErrors, setCatalogGroupValidationErrors] = useState<ValidationIssueMap>({})
+  const [catalogValidationErrors, setCatalogValidationErrors] = useState<ValidationIssueMap>({})
   const {
     editingProjectId,
     openCreateProjectDialog,
@@ -109,84 +125,105 @@ export function StylePreview() {
     setProjectTemplatePackIds,
     setProjectVisibility,
   } = useStylePreviewProjectDialog()
-  const [activeTab, setActiveTab] = useState<PreviewTab>(routeState.activeTab ?? initialPreviewState.activeTab ?? 'database')
-  const [activeSection, setActiveSection] = useState<PreviewSection>(
-    routeState.activeSection ?? initialPreviewState.activeSection ?? 'characters',
-  )
-  const [isTimelineGenerating, setIsTimelineGenerating] = useState(false)
-  const [selectedTimelineEventId, setSelectedTimelineEventId] = useState<number | null>(null)
-  const [editingTimelineEventId, setEditingTimelineEventId] = useState<number | null>(null)
-  const [pendingDeleteTimelineEventId, setPendingDeleteTimelineEventId] = useState<number | null>(null)
-  const [isRelationLayoutGenerating, setIsRelationLayoutGenerating] = useState(false)
-  const [selectedObjectId, setSelectedObjectId] = useState<number | null>(
-    routeState.objectId ?? initialPreviewState.selectedObjectId ?? null,
-  )
-  const [selectedRelationEdgeId, setSelectedRelationEdgeId] = useState<string | null>(null)
-  const [selectedRelationObjectId, setSelectedRelationObjectId] = useState<number | null>(null)
-  const [detailMode, setDetailMode] = useState<DetailMode>(initialPreviewState.detailMode ?? 'panel')
-  const [groupDisplayMode, setGroupDisplayMode] = useState<GroupDisplayMode>(
-    initialPreviewState.groupDisplayMode ?? 'blocks',
-  )
-  const [previewTheme, setPreviewTheme] = useState<PreviewTheme>(initialPreviewState.previewTheme ?? 'light')
-  const [previewLanguage, setPreviewLanguage] = useState<PreviewLanguage>(initialPreviewState.previewLanguage ?? 'ru')
-  const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid')
-  const [projectSearchQuery, setProjectSearchQuery] = useState('')
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isSettingsPageOpen, setIsSettingsPageOpen] = useState(routeState.utilityPage === 'settings')
-  const [isProfilePageOpen, setIsProfilePageOpen] = useState(routeState.utilityPage === 'profile')
-  const [templatePackScope, setTemplatePackScope] = useState<TemplatePackScope>('mine')
-  const [templatePacks, setTemplatePacks] = useState<TemplatePack[]>([])
-  const [favoriteTemplatePacks, setFavoriteTemplatePacks] = useState<TemplatePack[]>([])
-  const [templatePackProjectId, setTemplatePackProjectId] = useState<number | null>(null)
-  const [templatePackName, setTemplatePackName] = useState('')
-  const [templatePackDescription, setTemplatePackDescription] = useState('')
-  const [templatePackIsPublic, setTemplatePackIsPublic] = useState(false)
-  const [isTemplatePackSaving, setIsTemplatePackSaving] = useState(false)
-  const [isObjectPageOpen, setIsObjectPageOpen] = useState(
-    routeState.objectId !== null || initialPreviewState.isObjectPageOpen === true,
-  )
-  const [isRelationPageOpen, setIsRelationPageOpen] = useState(false)
-  const [isTimelineEventPageOpen, setIsTimelineEventPageOpen] = useState(false)
-  const [activeObjectMenuId, setActiveObjectMenuId] = useState<number | null>(null)
-  const [dialog, setDialog] = useState<PreviewDialogKind>(null)
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
-  const [authEmail, setAuthEmail] = useState('')
-  const [authPassword, setAuthPassword] = useState('')
-  const [authDisplayName, setAuthDisplayName] = useState('')
-  const [dossierTab, setDossierTab] = useState<ObjectDossierTab>('main')
-  const [dossierTimelineEventId, setDossierTimelineEventId] = useState('')
-  const [attributeGroupName, setAttributeGroupName] = useState('')
-  const [attributeGroupIconKey, setAttributeGroupIconKey] = useState('')
-  const [editingAttributeGroupId, setEditingAttributeGroupId] = useState<number | null>(null)
-  const [editingAttributeDefinitionId, setEditingAttributeDefinitionId] = useState<number | null>(null)
-  const [pendingDeleteAttributeGroupId, setPendingDeleteAttributeGroupId] = useState<number | null>(null)
-  const [pendingDeleteAttributeDefinitionId, setPendingDeleteAttributeDefinitionId] = useState<number | null>(null)
-  const [attributeDefinitionDraft, setAttributeDefinitionDraft] = useState<AttributeDefinitionDraft>(
-    emptyAttributeDefinitionDraft,
-  )
-  const [galleryImagePath, setGalleryImagePath] = useState<string | null>(null)
-  const [galleryImageCaption, setGalleryImageCaption] = useState('')
-  const [timelineGalleryImagePath, setTimelineGalleryImagePath] = useState<string | null>(null)
-  const [timelineGalleryImageCaption, setTimelineGalleryImageCaption] = useState('')
-  const [timelineDraft, setTimelineDraft] = useState<TimelineEventDraft>(emptyTimelineEventDraft)
-  const [timelineLinkDraft, setTimelineLinkDraft] = useState<TimelineEventLinkDraft>({
-    sourceEventId: '',
-    targetEventId: '',
-    linkType: 'precedes',
-    description: '',
-  })
-  const [relationLinkDraft, setRelationLinkDraft] = useState<RelationLinkDraft>({
-    sourceCharacterId: '',
-    targetCharacterId: '',
-    relationType: '',
-    strength: '50',
-    tension: '0',
-    isBidirectional: true,
-    description: '',
-  })
-  const [isObjectSaving, setIsObjectSaving] = useState(false)
+  const {
+    activeSection,
+    activeTab,
+    attributeDefinitionDraft,
+    attributeGroupIconKey,
+    attributeGroupName,
+    authDisplayName,
+    authEmail,
+    authMode,
+    authPassword,
+    detailMode,
+    dialog,
+    dossierTab,
+    dossierTimelineEventId,
+    editingAttributeDefinitionId,
+    editingAttributeGroupId,
+    editingTimelineEventId,
+    galleryImageCaption,
+    galleryImagePath,
+    groupDisplayMode,
+    isObjectPageOpen,
+    isObjectSaving,
+    isProfilePageOpen,
+    isRelationLayoutGenerating,
+    isRelationPageOpen,
+    isSettingsOpen,
+    isSettingsPageOpen,
+    isTimelineEventPageOpen,
+    isTimelineGenerating,
+    layoutMode,
+    pendingDeleteAttributeDefinitionId,
+    pendingDeleteAttributeGroupId,
+    pendingDeleteTimelineEventId,
+    previewLanguage,
+    previewTheme,
+    projectSearchQuery,
+    relationLinkDraft,
+    selectedObjectId,
+    selectedRelationEdgeId,
+    selectedRelationObjectId,
+    selectedTimelineEventId,
+    setActiveSection,
+    setActiveTab,
+    setAttributeDefinitionDraft,
+    setAttributeGroupIconKey,
+    setAttributeGroupName,
+    setAuthDisplayName,
+    setAuthEmail,
+    setAuthMode,
+    setAuthPassword,
+    setDetailMode,
+    setDialog,
+    setDossierTab,
+    setDossierTimelineEventId,
+    setEditingAttributeDefinitionId,
+    setEditingAttributeGroupId,
+    setEditingTimelineEventId,
+    setGalleryImageCaption,
+    setGalleryImagePath,
+    setGroupDisplayMode,
+    setIsObjectPageOpen,
+    setIsObjectSaving,
+    setIsProfilePageOpen,
+    setIsRelationLayoutGenerating,
+    setIsRelationPageOpen,
+    setIsSettingsOpen,
+    setIsSettingsPageOpen,
+    setIsTimelineEventPageOpen,
+    setIsTimelineGenerating,
+    setLayoutMode,
+    setPendingDeleteAttributeDefinitionId,
+    setPendingDeleteAttributeGroupId,
+    setPendingDeleteTimelineEventId,
+    setPreviewLanguage,
+    setPreviewTheme,
+    setProjectSearchQuery,
+    setRelationLinkDraft,
+    setSelectedObjectId,
+    setSelectedRelationEdgeId,
+    setSelectedRelationObjectId,
+    setSelectedTimelineEventId,
+    setStructureDetailPanel,
+    setTimelineDraft,
+    setTimelineGalleryImageCaption,
+    setTimelineGalleryImagePath,
+    setTimelineLinkDraft,
+    structureDetailPanel,
+    timelineDraft,
+    timelineGalleryImageCaption,
+    timelineGalleryImagePath,
+    timelineLinkDraft,
+  } = useStylePreviewUiState(routeState, initialPreviewState)
   const ui = previewText[previewLanguage]
   const messages = previewMessages[previewLanguage]
+  const getObjectSectionLabel = useCallback(
+    (sectionKey: Parameters<typeof getStylePreviewObjectSectionLabel>[0]) =>
+      getStylePreviewObjectSectionLabel(sectionKey, ui),
+    [ui],
+  )
   const handleProjectsLoadFailed = useCallback(() => {
     showErrorMessage(messages.apiUnavailable)
   }, [messages.apiUnavailable, showErrorMessage])
@@ -214,121 +251,31 @@ export function StylePreview() {
     setProfileDisplayName,
     setProfileEmail,
   } = useStylePreviewProfileDraft(currentUser)
-  const loadTemplatePacks = useCallback(
-    async (scope: TemplatePackScope = templatePackScope) => {
-      if (currentUser === null) {
-        setTemplatePacks([])
-        setFavoriteTemplatePacks([])
-        return
-      }
-
-      try {
-        const [scopedPacks, favoritePacks] = await Promise.all([
-          fetchTemplatePacks(scope),
-          fetchTemplatePacks('favorites'),
-        ])
-        setTemplatePacks(scopedPacks)
-        setFavoriteTemplatePacks(favoritePacks)
-      } catch {
-        showErrorMessage(messages.apiUnavailable)
-      }
-    },
-    [currentUser, messages.apiUnavailable, showErrorMessage, templatePackScope],
-  )
-
-  useEffect(() => {
-    void loadTemplatePacks(templatePackScope)
-  }, [loadTemplatePacks, templatePackScope])
-
-  useEffect(() => {
-    if (templatePackProjectId === null && projects.length > 0) {
-      setTemplatePackProjectId(selectedProjectId ?? projects[0].id)
-    }
-  }, [projects, selectedProjectId, templatePackProjectId])
-
-  const upsertTemplatePack = useCallback((pack: TemplatePack) => {
-    setTemplatePacks((currentPacks) =>
-      currentPacks.some((currentPack) => currentPack.id === pack.id)
-        ? currentPacks.map((currentPack) => (currentPack.id === pack.id ? pack : currentPack))
-        : [pack, ...currentPacks],
-    )
-    setFavoriteTemplatePacks((currentPacks) => {
-      if (!pack.isFavorite) {
-        return currentPacks.filter((currentPack) => currentPack.id !== pack.id)
-      }
-
-      return currentPacks.some((currentPack) => currentPack.id === pack.id)
-        ? currentPacks.map((currentPack) => (currentPack.id === pack.id ? pack : currentPack))
-        : [pack, ...currentPacks]
-    })
-  }, [])
-
-  const createTemplatePack = useCallback(async () => {
-    if (templatePackProjectId === null || templatePackName.trim().length === 0) {
-      return
-    }
-
-    setIsTemplatePackSaving(true)
-    try {
-      const pack = await createTemplatePackFromProjectRequest(
-        templatePackProjectId,
-        templatePackName,
-        templatePackDescription,
-        templatePackIsPublic,
-      )
-      upsertTemplatePack(pack)
-      setTemplatePackName('')
-      setTemplatePackDescription('')
-      setTemplatePackIsPublic(false)
-    } catch {
-      showErrorMessage(messages.projectSaveFailed)
-    } finally {
-      setIsTemplatePackSaving(false)
-    }
-  }, [
-    messages.projectSaveFailed,
-    showErrorMessage,
+  const {
+    favoriteTemplatePacks,
+    isTemplatePackSaving,
     templatePackDescription,
     templatePackIsPublic,
     templatePackName,
     templatePackProjectId,
-    upsertTemplatePack,
-  ])
-
-  const toggleTemplatePackPublic = useCallback(
-    async (pack: TemplatePack, isPublic: boolean) => {
-      try {
-        upsertTemplatePack(await updateTemplatePackRequest(pack.id, pack.name, pack.description ?? '', isPublic))
-      } catch {
-        showErrorMessage(messages.projectSaveFailed)
-      }
-    },
-    [messages.projectSaveFailed, showErrorMessage, upsertTemplatePack],
-  )
-
-  const toggleTemplatePackFavorite = useCallback(
-    async (pack: TemplatePack, isFavorite: boolean) => {
-      try {
-        upsertTemplatePack(await setTemplatePackFavoriteRequest(pack.id, isFavorite))
-      } catch {
-        showErrorMessage(messages.projectSaveFailed)
-      }
-    },
-    [messages.projectSaveFailed, showErrorMessage, upsertTemplatePack],
-  )
-
-  const deleteTemplatePack = useCallback(
-    async (pack: TemplatePack) => {
-      try {
-        await deleteTemplatePackRequest(pack.id)
-        setTemplatePacks((currentPacks) => currentPacks.filter((currentPack) => currentPack.id !== pack.id))
-        setFavoriteTemplatePacks((currentPacks) => currentPacks.filter((currentPack) => currentPack.id !== pack.id))
-      } catch {
-        showErrorMessage(messages.projectDeleteFailed)
-      }
-    },
-    [messages.projectDeleteFailed, showErrorMessage],
-  )
+    templatePackScope,
+    templatePacks,
+    createTemplatePack,
+    deleteTemplatePack,
+    setTemplatePackDescription,
+    setTemplatePackIsPublic,
+    setTemplatePackName,
+    setTemplatePackProjectId,
+    setTemplatePackScope,
+    toggleTemplatePackFavorite,
+    toggleTemplatePackPublic,
+  } = useStylePreviewTemplatePacks({
+    currentUser,
+    messages,
+    projects,
+    selectedProjectId,
+    showErrorMessage,
+  })
 
   const {
     draftAttributes,
@@ -445,13 +392,13 @@ export function StylePreview() {
     setCatalogEntriesByCatalogId,
     setCatalogFieldsByCatalogId,
     setCatalogGroups,
-    setCatalogGroupsByCatalogId,
     setCatalogs,
     setObjects,
     setRelationGraph,
     setRelationGraphLayout,
     setSelectedAttributeGroupId,
     setSelectedCatalogId,
+    setStructureAssignments,
     setTimelineEvents,
     setTimelineLayout,
     setTimelineLinks,
@@ -503,135 +450,49 @@ export function StylePreview() {
     selectedTimelineEventId,
     timelineEvents,
   })
-  const getObjectSectionLabel = useCallback((sectionKey: ObjectTypeKey) => {
-    const section = objectSections.find((item) => item.key === sectionKey)
-    return section === undefined ? sectionKey : ui[section.labelKey]
-  }, [ui])
-  const temporalObjectsByType = useMemo(
-    () =>
-      resolveObjectsByTypeTemporalState(objectsByType, visibleTimelineEvents, dossierTimelineEventId, {
-        catalogEntriesByCatalogId,
-        catalogGroupsByCatalogId,
-        catalogs: visibleCatalogs,
-        hierarchyGroups,
-        hierarchyNodesByGroupId,
-      }),
-    [
-      catalogEntriesByCatalogId,
-      catalogGroupsByCatalogId,
-      dossierTimelineEventId,
-      hierarchyGroups,
-      hierarchyNodesByGroupId,
-      objectsByType,
-      visibleCatalogs,
-      visibleTimelineEvents,
-    ],
-  )
-  const temporalVisibleObjects = useMemo(
-    () => Object.values(temporalObjectsByType).flat(),
-    [temporalObjectsByType],
-  )
-  const temporalSectionObjects = useMemo(
-    () => (isObjectSection(activeSection) ? temporalObjectsByType[activeSection] ?? [] : temporalVisibleObjects),
-    [activeSection, temporalObjectsByType, temporalVisibleObjects],
-  )
-  const selectedTemporalObject = useMemo(
-    () =>
-      selectedObjectId === null
-        ? null
-        : temporalVisibleObjects.find((storyObject) => storyObject.id === selectedObjectId) ?? selectedObject,
-    [selectedObject, selectedObjectId, temporalVisibleObjects],
-  )
-  const temporalRelationGraph = useMemo(
-    () =>
-      resolveRelationGraphTemporalState(
-        relationGraph,
-        temporalObjectsByType,
-        structureAssignments,
-        structureUsages,
-        visibleTimelineEvents,
-        dossierTimelineEventId,
-      ),
-    [
-      dossierTimelineEventId,
-      relationGraph,
-      structureAssignments,
-      structureUsages,
-      temporalObjectsByType,
-      visibleTimelineEvents,
-    ],
-  )
-  const selectedTemporalRelationEdge = useMemo(
-    () => temporalRelationGraph.edges.find((edge) => edge.id === selectedRelationEdgeId) ?? null,
-    [selectedRelationEdgeId, temporalRelationGraph.edges],
-  )
+  const {
+    selectedTemporalObject,
+    selectedTemporalRelationEdge,
+    temporalObjectsByType,
+    temporalRelationGraph,
+    temporalSectionObjects,
+    temporalVisibleObjects,
+  } = useStylePreviewTemporalState({
+    activeSection,
+    catalogEntriesByCatalogId,
+    catalogGroupsByCatalogId,
+    dossierTimelineEventId,
+    hierarchyGroups,
+    hierarchyNodesByGroupId,
+    objectsByType,
+    relationGraph,
+    selectedObject,
+    selectedObjectId,
+    selectedRelationEdgeId,
+    structureAssignments,
+    structureUsages,
+    visibleCatalogs,
+    visibleTimelineEvents,
+  })
 
-  const navigateToPreview = useCallback(
-    (
-      projectId: number | null,
-      tab: PreviewTab = 'database',
-      section: PreviewSection = 'characters',
-      objectId: number | null = null,
-      catalogId: number | null = null,
-      replace = false,
-    ) => {
-      navigate(buildStylePreviewPath(projectId, tab, section, objectId, catalogId), { replace })
-    },
-    [navigate],
-  )
-
-  useEffect(() => {
-    let isActive = true
-
-    queueMicrotask(() => {
-      if (!isActive) {
-        return
-      }
-
-      if (routeState.projectId !== null) {
-        setSelectedProjectId(routeState.projectId)
-      }
-
-      if (routeState.activeTab !== null) {
-        setActiveTab(routeState.activeTab)
-      }
-
-      if (routeState.activeSection !== null) {
-        setActiveSection(routeState.activeSection)
-        setIsSettingsPageOpen(false)
-        setIsProfilePageOpen(false)
-      }
-
-      setIsSettingsPageOpen(routeState.utilityPage === 'settings')
-      setIsProfilePageOpen(routeState.utilityPage === 'profile')
-
-      setSelectedObjectId(routeState.objectId)
-      setIsObjectPageOpen(routeState.objectId !== null)
-
-      if (routeState.catalogId !== null) {
-        setSelectedCatalogId(routeState.catalogId)
-      }
-    })
-
-    return () => {
-      isActive = false
-    }
-  }, [
-    routeState.activeSection,
-    routeState.activeTab,
-    routeState.catalogId,
-    routeState.objectId,
-    routeState.projectId,
-    routeState.utilityPage,
+  useStylePreviewRouteSync({
+    routeState,
+    setActiveSection,
+    setActiveTab,
+    setIsObjectPageOpen,
+    setIsProfilePageOpen,
+    setIsSettingsPageOpen,
     setSelectedCatalogId,
+    setSelectedObjectId,
     setSelectedProjectId,
-  ])
+  })
 
-  useEffect(() => {
-    if (isProfilePageOpen || isSettingsPageOpen || activeSection === 'exports') {
-      setProjectSearchQuery('')
-    }
-  }, [activeSection, isProfilePageOpen, isSettingsPageOpen])
+  useResetProjectSearchOnShellChange({
+    activeSection,
+    isProfilePageOpen,
+    isSettingsPageOpen,
+    setProjectSearchQuery,
+  })
 
   const navigateToWorkspace = useCallback(
     (
@@ -668,6 +529,14 @@ export function StylePreview() {
       navigateToPreview,
       selectedCatalogId,
       selectedProjectId,
+      setDialog,
+      setIsProfilePageOpen,
+      setIsRelationPageOpen,
+      setIsSettingsPageOpen,
+      setIsTimelineEventPageOpen,
+      setSelectedRelationEdgeId,
+      setSelectedRelationObjectId,
+      setSelectedTimelineEventId,
     ],
   )
 
@@ -689,6 +558,7 @@ export function StylePreview() {
     profileAvatarImagePath,
     profileDisplayName,
     profileEmail,
+    setAuthValidationErrors,
     setCurrentUser,
     setDialog,
     setIsProfilePageOpen,
@@ -696,6 +566,7 @@ export function StylePreview() {
     setIsSettingsPageOpen,
     setObjects,
     setProfileAvatarImagePath,
+    setProfileValidationErrors,
     setProjects,
     setSelectedProjectId,
     showErrorMessage,
@@ -722,6 +593,7 @@ export function StylePreview() {
     setDialog,
     setPendingDeleteProjectId,
     setProjectCoverImagePath,
+    setProjectValidationErrors,
     setProjects,
     setSelectedProjectId,
     showErrorMessage,
@@ -777,6 +649,8 @@ export function StylePreview() {
     setGalleryImagePath,
     setIsObjectSaving,
     setObjectImagePath,
+    setObjectEditorTab,
+    setObjectValidationErrors,
     setObjects,
     setRelationGraph,
     setRelationGraphLayout,
@@ -841,9 +715,13 @@ export function StylePreview() {
     setCatalogEntries,
     setCatalogEntriesByCatalogId,
     setCatalogEntryDraft,
+    setCatalogEntryValidationErrors,
     setCatalogFieldsByCatalogId,
+    setCatalogFieldValidationErrors,
+    setCatalogGroupValidationErrors,
     setCatalogGroups,
     setCatalogs,
+    setCatalogValidationErrors,
     setDialog,
     setIsObjectPageOpen,
     setPendingDeleteCatalogEntryId,
@@ -877,8 +755,10 @@ export function StylePreview() {
     selectedProjectId,
     setAttributeDefinitionDraft,
     setAttributeDefinitions,
+    setAttributeDefinitionValidationErrors,
     setAttributeGroupIconKey,
     setAttributeGroupName,
+    setAttributeGroupValidationErrors,
     setAttributeGroups,
     setDialog,
     setEditingAttributeDefinitionId,
@@ -889,67 +769,37 @@ export function StylePreview() {
     showErrorMessage,
   })
 
-  useEffect(() => {
-    if (isLoadingProjects || currentUser !== null) {
-      return
-    }
-
-    setIsSettingsPageOpen(false)
-    setIsProfilePageOpen(true)
-    setSelectedProjectId(null)
-    setSelectedObjectId(null)
-
-    if (routeState.utilityPage !== 'profile') {
-      navigate(`${previewRouteBase}/profile`, { replace: true })
-    }
-  }, [currentUser, isLoadingProjects, navigate, routeState.utilityPage, setSelectedProjectId])
-
-  useEffect(() => {
-    if (
-      !isLoadingProjects &&
-      routeState.utilityPage === null &&
-      routeState.projectId === null
-    ) {
-      setIsSettingsPageOpen(false)
-      setIsProfilePageOpen(true)
-      navigate(`${previewRouteBase}/profile`, { replace: true })
-    }
-  }, [
+  useStylePreviewProfileRedirect({
+    currentUser,
     isLoadingProjects,
     navigate,
-    routeState.projectId,
-    routeState.utilityPage,
-  ])
+    routeState,
+    setIsProfilePageOpen,
+    setIsSettingsPageOpen,
+    setSelectedObjectId,
+    setSelectedProjectId,
+  })
 
-  useEffect(() => {
-    savePreviewState({
-      activeSection,
-      activeTab,
-      detailMode,
-      groupDisplayMode,
-      isObjectPageOpen,
-      previewLanguage,
-      previewTheme,
-      selectedObjectId,
-      selectedProjectId,
-    })
-  }, [activeSection, activeTab, detailMode, groupDisplayMode, isObjectPageOpen, previewLanguage, previewTheme, selectedObjectId, selectedProjectId])
-
-  useEffect(() => {
-    const closeFloatingMenus = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target : null
-      if (target?.closest('.sp-card-menu, .sp-profile') === null) {
-        setActiveObjectMenuId(null)
-        setIsSettingsOpen(false)
-      }
-    }
-
-    document.addEventListener('pointerdown', closeFloatingMenus)
-    return () => document.removeEventListener('pointerdown', closeFloatingMenus)
-  }, [])
-
-  const toggleNumberSelection = (values: number[], value: number) =>
-    values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
+  usePersistStylePreviewState({
+    activeSection,
+    activeTab,
+    detailMode,
+    groupDisplayMode,
+    isObjectPageOpen,
+    previewLanguage,
+    previewTheme,
+    selectedObjectId,
+    selectedProjectId,
+  })
+  useResetStructureDetailPanel({
+    activeSection,
+    activeTab,
+    detailMode,
+    setStructureDetailPanel,
+  })
+  useCloseStylePreviewFloatingMenus({
+    setIsSettingsOpen,
+  })
 
   const {
     openObjectDetail,
@@ -1020,11 +870,13 @@ export function StylePreview() {
     setPendingDeleteTimelineEventId,
     setSelectedTimelineEventId,
     setTimelineDraft,
+    setTimelineEventValidationErrors,
     setTimelineEvents,
     setTimelineGalleryImageCaption,
     setTimelineGalleryImagePath,
     setTimelineLayout,
     setTimelineLinkDraft,
+    setTimelineLinkValidationErrors,
     setTimelineLinks,
     showErrorMessage,
     timelineDraft,
@@ -1049,11 +901,12 @@ export function StylePreview() {
     setRelationGraph,
     setRelationGraphLayout,
     setRelationLinkDraft,
+    setRelationLinkValidationErrors,
     showErrorMessage,
   })
 
-  const objectEditorProps = {
-    activeType: isObjectSection(activeSection) ? activeSection : 'characters',
+  const objectEditorProps = buildStylePreviewObjectEditorProps({
+    activeSection,
     attributeDefinitions,
     attributeGroups,
     catalogEntriesByCatalogId,
@@ -1068,7 +921,7 @@ export function StylePreview() {
     editorTimelineEventId,
     hierarchyGroups,
     hierarchyNodesByGroupId,
-    isSaving: isObjectSaving,
+    isObjectSaving,
     objectAge,
     objectCurrentStatus,
     objectDescription,
@@ -1083,108 +936,110 @@ export function StylePreview() {
     ownerCharacterIds,
     ownerOrganizationIds,
     saveObjectAsTimelineChange,
-    timelineEvents,
-    territoryPlaceIds,
+    selectedProjectId,
     ui,
-    onCancel: () => setDialog(null),
-    onDraftAttributesChange: setDraftAttributes,
-    onDraftCatalogSelectionsChange: setDraftCatalogSelections,
-    onDraftCharacterRelationshipsChange: setDraftCharacterRelationships,
-    onDraftHierarchySelectionsChange: setDraftHierarchySelections,
-    onDraftTimelineParticipationsChange: setDraftTimelineParticipations,
-    onEditorTimelineEventIdChange: setEditorTimelineEventId,
-    onImageUpload: uploadObjectImage,
-    onObjectAgeChange: setObjectAge,
-    onObjectCurrentStatusChange: setObjectCurrentStatus,
-    onObjectDescriptionChange: setObjectDescription,
-    onObjectEditorTabChange: setObjectEditorTab,
-    onObjectNameChange: setObjectName,
-    onObjectRoleChange: setObjectRole,
-    onObjectSurnameChange: setObjectSurname,
-    onObjectSurnameFormChange: setObjectSurnameForm,
-    onOwnedItemIdsChange: setOwnedItemIds,
-    onOwnerCharacterIdsChange: setOwnerCharacterIds,
-    onOwnerOrganizationIdsChange: setOwnerOrganizationIds,
-    onSave: () => void saveObject(),
-    onSaveObjectAsTimelineChange: setSaveObjectAsTimelineChange,
-    onTerritoryPlaceIdsChange: setTerritoryPlaceIds,
-    toggleNumberSelection,
-  }
+    saveObject,
+    setDialog,
+    setDraftAttributes,
+    setDraftCatalogSelections,
+    setDraftCharacterRelationships,
+    setDraftHierarchySelections,
+    setDraftTimelineParticipations,
+    setEditorTimelineEventId,
+    setObjectAge,
+    setObjectCurrentStatus,
+    setObjectDescription,
+    setObjectEditorTab,
+    setObjectName,
+    setObjectRole,
+    setObjectSurname,
+    setObjectSurnameForm,
+    setOwnedItemIds,
+    setOwnerCharacterIds,
+    setOwnerOrganizationIds,
+    setSaveObjectAsTimelineChange,
+    setTerritoryPlaceIds,
+    setTimelineEvents,
+    setTimelineLayout,
+    territoryPlaceIds,
+    timelineEvents,
+    uploadObjectImage,
+    validationErrors: objectValidationErrors,
+  })
 
-  const objectDetailProps = {
-    activeTab: dossierTab,
+  const objectDetailProps = buildStylePreviewObjectDetailProps({
+    addGalleryImage,
+    addObjectCoverToGallery,
     attributeDefinitions,
     attributeGroups,
     catalogEntriesByCatalogId,
     catalogGroupsByCatalogId,
     catalogs: visibleCatalogs,
+    deleteGalleryImage,
+    dossierTab,
     dossierTimelineEventId,
     galleryImageCaption,
     galleryImagePath,
     hierarchyGroups,
     hierarchyNodesByGroupId,
     objectsByType,
+    openTimelineEventFromDossier,
     selectedProjectId,
+    setDialog,
+    setDossierTab,
+    setDossierTimelineEventId,
+    setGalleryImageCaption,
+    setTimelineEvents,
+    setTimelineLayout,
     textLinkTargets,
     timelineEvents,
     ui,
-    onAddGalleryImage: () => void addGalleryImage(),
-    onAddCoverToGallery: () => void addObjectCoverToGallery(),
-    onDelete: () => setDialog('confirmDeleteObject'),
-    onDeleteGalleryImage: (imageId: number) => void deleteGalleryImage(imageId),
-    onGalleryCaptionChange: setGalleryImageCaption,
-    onGalleryImageUpload: (file: File | null) => void uploadGalleryImage(file),
-    onDossierTimelineEventIdChange: setDossierTimelineEventId,
-    onOpenTimelineEvent: openTimelineEventFromDossier,
-    onTabChange: setDossierTab,
-    onTimelineEventUpdated: (timelineEvent: typeof timelineEvents[number]) => {
-      setTimelineEvents((currentEvents) =>
-        currentEvents.map((currentEvent) => (currentEvent.id === timelineEvent.id ? timelineEvent : currentEvent)),
-      )
-      setTimelineLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
-    },
-  }
+    uploadGalleryImage,
+  })
 
-  const relationDetailProps = {
+  const relationDetailProps = buildStylePreviewRelationDetailProps({
     graph: temporalRelationGraph,
     objects: linkableObjects,
+    openRelationObjectDetail,
     ui,
-    onOpenObject: openRelationObjectDetail,
-  }
+  })
 
-  const timelineEventDetailProps = {
+  const timelineEventDetailProps = buildStylePreviewTimelineEventDetailProps({
+    addTimelineGalleryImage,
+    deleteTimelineGalleryImage,
     events: visibleTimelineEvents,
     galleryImageCaption: timelineGalleryImageCaption,
     galleryImagePath: timelineGalleryImagePath,
+    linkableObjects,
     links: timelineLinks,
-    objects: linkableObjects,
+    openObjectDetail,
+    openTimelineEventDetail,
+    openTimelineEventEditor,
+    setDialog,
+    setPendingDeleteTimelineEventId,
+    setTimelineGalleryImageCaption,
+    timelineGalleryImagePath,
     ui,
-    onAddGalleryImage: () => void addTimelineGalleryImage(),
-    onDelete: (eventId: number) => {
-      setPendingDeleteTimelineEventId(eventId)
-      setDialog('confirmDeleteTimelineEvent')
-    },
-    onDeleteGalleryImage: (imageId: number) => void deleteTimelineGalleryImage(imageId),
-    onEdit: openTimelineEventEditor,
-    onGalleryCaptionChange: setTimelineGalleryImageCaption,
-    onGalleryImageUpload: (file: File | null) => void uploadTimelineGalleryImage(file),
-    onOpenEvent: openTimelineEventDetail,
-    onOpenObject: openObjectDetail,
-  }
+    uploadTimelineGalleryImage,
+  })
 
-  const catalogEntryDetailProps = {
+  const catalogEntryDetailProps = buildStylePreviewCatalogEntryDetailProps({
     catalog: selectedCatalog,
     catalogEntryLinksById,
     fieldDefinitions: selectedCatalogFields,
     textLinkTargets,
     ui,
-  }
+  })
 
   const timelineLinkDialogProps = {
     draft: timelineLinkDraft,
     events: timelineEvents,
+    validationErrors: timelineLinkValidationErrors,
     ui,
-    onCancel: () => setDialog(null),
+    onCancel: () => {
+      setTimelineLinkValidationErrors({})
+      setDialog(null)
+    },
     onDraftChange: setTimelineLinkDraft,
     onSave: () => void saveTimelineLink(),
   }
@@ -1192,8 +1047,12 @@ export function StylePreview() {
   const relationLinkDialogProps = {
     characters: objectsByType.characters,
     draft: relationLinkDraft,
+    validationErrors: relationLinkValidationErrors,
     ui,
-    onCancel: () => setDialog(null),
+    onCancel: () => {
+      setRelationLinkValidationErrors({})
+      setDialog(null)
+    },
     onDraftChange: setRelationLinkDraft,
     onSave: () => void saveCharacterRelationLink(),
   }
@@ -1203,6 +1062,7 @@ export function StylePreview() {
     editingTimelineEventId,
     linkableObjects,
     parentOptions: timelineDraftParentOptions,
+    validationErrors: timelineEventValidationErrors,
     ui,
     onCancel: () => setDialog(null),
     onCoverFileSelected: (file: File) => void uploadTimelineEventCover(file),
@@ -1211,16 +1071,7 @@ export function StylePreview() {
     onSave: () => void saveTimelineEvent(),
   }
 
-  const profilePageProps = {
-    avatarDropzone: (
-      <CoverDropzone
-        className="avatar"
-        imagePath={profileAvatarImagePath}
-        label={ui.avatar}
-        ui={ui}
-        onFileSelected={(file) => void uploadProfileAvatar(file)}
-      />
-    ),
+  const profilePageProps = buildStylePreviewProfilePageProps({
     currentUser,
     displayName: profileDisplayName,
     email: profileEmail,
@@ -1235,89 +1086,74 @@ export function StylePreview() {
     templatePackScope,
     templatePacks,
     ui,
-    onCreateTemplatePack: () => void createTemplatePack(),
-    onCreateProject: () => {
-      openCreateProjectDialog()
-      setDialog('project')
-    },
-    onDeleteProject: (project: typeof projects[number]) => {
-      setPendingDeleteProjectId(project.id)
-      setDialog('confirmDeleteProject')
-    },
-    onDisplayNameChange: setProfileDisplayName,
-    onEditProject: (project: typeof projects[number]) => {
-      openEditProjectDialog(project)
-      setDialog('project')
-    },
-    onEmailChange: setProfileEmail,
-    onExportProject: (project: typeof projects[number]) => {
-      setIsProfilePageOpen(false)
-      setIsSettingsPageOpen(false)
-      navigateToPreview(project.id, 'database', 'exports')
-    },
-    onDeleteTemplatePack: deleteTemplatePack,
-    onTemplatePackDescriptionChange: setTemplatePackDescription,
-    onTemplatePackFavoriteChange: (pack: TemplatePack, isFavorite: boolean) =>
-      void toggleTemplatePackFavorite(pack, isFavorite),
-    onTemplatePackNameChange: setTemplatePackName,
-    onTemplatePackProjectChange: setTemplatePackProjectId,
-    onTemplatePackPublicChange: (pack: TemplatePack, isPublic: boolean) =>
-      void toggleTemplatePackPublic(pack, isPublic),
-    onTemplatePackScopeChange: setTemplatePackScope,
-    onTemplatePackVisibilityDraftChange: setTemplatePackIsPublic,
-    onOpenProject: (project: typeof projects[number]) => {
-      setIsProfilePageOpen(false)
-      navigateToPreview(project.id, 'database', 'characters')
-    },
-    onSave: () => void saveProfile(),
-  }
+    createTemplatePack,
+    deleteTemplatePack,
+    navigateToPreview,
+    openCreateProjectDialog,
+    openEditProjectDialog,
+    profileAvatarImagePath,
+    profileValidationErrors,
+    saveProfile,
+    setDialog,
+    setIsProfilePageOpen,
+    setIsSettingsPageOpen,
+    setPendingDeleteProjectId,
+    setProfileDisplayName,
+    setProfileEmail,
+    setTemplatePackDescription,
+    setTemplatePackIsPublic,
+    setTemplatePackName,
+    setTemplatePackProjectId,
+    setTemplatePackScope,
+    toggleTemplatePackFavorite,
+    toggleTemplatePackPublic,
+    uploadProfileAvatar,
+  })
 
-  const settingsPageProps = {
+  const settingsPageProps = buildStylePreviewSettingsPageProps({
     detailMode,
     groupDisplayMode,
     previewLanguage,
     previewTheme,
     ui,
-    onDetailModeChange: setDetailMode,
-    onGroupDisplayModeChange: setGroupDisplayMode,
-    onLanguageChange: setPreviewLanguage,
-    onThemeChange: setPreviewTheme,
-  }
+    setDetailMode,
+    setGroupDisplayMode,
+    setPreviewLanguage,
+    setPreviewTheme,
+  })
 
-  const relationDetailPageProps = {
+  const relationDetailPageProps = buildStylePreviewRelationDetailPageProps({
     relationDetailProps,
     ui,
-    onBack: () => setIsRelationPageOpen(false),
-  }
+    setIsRelationPageOpen,
+  })
 
-  const relationsPageProps = {
+  const relationsPageProps = buildStylePreviewRelationsPageProps({
     graph: temporalRelationGraph,
-    catalogEntriesByCatalogId,
-    catalogGroupsByCatalogId,
-    catalogs: visibleCatalogs,
+    detailMode,
     isLayoutGenerating: isRelationLayoutGenerating,
     layout: relationGraphLayout,
-    objects: linkableObjects,
+    linkableObjects,
+    structureAssignments,
     structures,
     selectedEdgeId: selectedRelationEdgeId,
     ui,
-    onCreateRelation: () => setDialog('relationLink'),
-    onGenerateLayout: (graphKey: string, graph: typeof relationGraph) => void generateRelationGraphLayout(graphKey, graph),
-    onGraphKeyChange: loadRelationGraphLayout,
-    onSaveNodePosition: (graphKey: string, graph: typeof relationGraph, storyObjectId: number, position: { x: number; y: number }) =>
-      void saveRelationGraphNodePosition(graphKey, graph, storyObjectId, position),
-    onSelectEdge: openRelationDetail,
-    onSelect: openRelationObjectDetail,
-  }
+    generateRelationGraphLayout,
+    loadRelationGraphLayout,
+    openRelationDetail,
+    openRelationObjectDetail,
+    saveRelationGraphNodePosition,
+    setDialog,
+  })
 
-  const timelineEventDetailPageProps = {
+  const timelineEventDetailPageProps = buildStylePreviewTimelineEventDetailPageProps({
     timelineEventDetailProps,
     ui,
-    onBack: () => setIsTimelineEventPageOpen(false),
-  }
+    setIsTimelineEventPageOpen,
+  })
 
-  const timelinePageProps = {
-    events: visibleTimelineEvents,
+  const timelinePageProps = buildStylePreviewTimelinePageProps({
+    timelineEvents: visibleTimelineEvents,
     isGenerating: isTimelineGenerating,
     layout: timelineLayout,
     layoutRules: timelineLayoutRules,
@@ -1325,79 +1161,56 @@ export function StylePreview() {
     selectedEvent: selectedTimelineEvent,
     timeline: timelineInfo,
     ui,
-    onCreate: () => openTimelineEventEditor(),
-    onCreateLink: () => setDialog('timelineLink'),
-    onDeleteLink: (linkId: number) => void deleteTimelineLink(linkId),
-    onGenerate: () => void generateTimelineLayout(),
-    onSelectEvent: openTimelineEventDetail,
-  }
+    deleteTimelineLink,
+    generateTimelineLayout,
+    openTimelineEventDetail,
+    openTimelineEventEditor,
+    setDialog,
+  })
 
-  const projectSearchGroups = useMemo(
-    () =>
-      buildProjectSearchGroups({
-        attributeDefinitions,
-        attributeGroups,
-        catalogEntriesByCatalogId,
-        catalogGroupsByCatalogId,
-        catalogs: visibleCatalogs,
-        getObjectSectionLabel,
-        objectsByType: temporalObjectsByType,
-        query: projectSearchQuery,
-        relationGraph: temporalRelationGraph,
-        timelineEvents,
-        ui,
-        onOpenAttributes: () => {
-          setProjectSearchQuery('')
-          navigateToWorkspace('database', 'attributes')
-        },
-        onOpenCatalog: (catalog) => {
-          setProjectSearchQuery('')
-          setSelectedCatalogId(catalog.id)
-          navigateToWorkspace('database', 'catalogs', null, catalog.id)
-        },
-        onOpenCatalogEntry: (entry, catalogId) => {
-          setProjectSearchQuery('')
-          openCatalogEntryDetail(entry, catalogId)
-        },
-        onOpenObject: (storyObject) => {
-          setProjectSearchQuery('')
-          openObjectDetail(storyObject)
-        },
-        onOpenRelation: (edgeId) => {
-          const edge = temporalRelationGraph.edges.find((relationEdge) => relationEdge.id === edgeId)
-          if (edge === undefined) {
-            return
-          }
+  const projectSearchGroups = useStylePreviewProjectSearchGroups({
+    attributeDefinitions,
+    attributeGroups,
+    catalogEntriesByCatalogId,
+    catalogGroupsByCatalogId,
+    catalogs: visibleCatalogs,
+    getObjectSectionLabel,
+    objectsByType: temporalObjectsByType,
+    query: projectSearchQuery,
+    relationGraph: temporalRelationGraph,
+    timelineEvents,
+    ui,
+    onOpenAttributes: () => {
+      setProjectSearchQuery('')
+      navigateToWorkspace('database', 'attributes')
+    },
+    onOpenCatalog: (catalog) => {
+      setProjectSearchQuery('')
+      setSelectedCatalogId(catalog.id)
+      navigateToWorkspace('database', 'catalogs', null, catalog.id)
+    },
+    onOpenCatalogEntry: (entry, catalogId) => {
+      setProjectSearchQuery('')
+      openCatalogEntryDetail(entry, catalogId)
+    },
+    onOpenObject: (storyObject) => {
+      setProjectSearchQuery('')
+      openObjectDetail(storyObject)
+    },
+    onOpenRelation: (edgeId) => {
+      const edge = temporalRelationGraph.edges.find((relationEdge) => relationEdge.id === edgeId)
+      if (edge === undefined) {
+        return
+      }
 
-          setProjectSearchQuery('')
-          openRelationDetail(edge.id)
-        },
-        onOpenTimelineEvent: (event) => {
-          setProjectSearchQuery('')
-          openTimelineEventDetail(event.id)
-        },
-      }),
-    [
-      attributeDefinitions,
-      attributeGroups,
-      catalogEntriesByCatalogId,
-      catalogGroupsByCatalogId,
-      getObjectSectionLabel,
-      navigateToWorkspace,
-      temporalObjectsByType,
-      openCatalogEntryDetail,
-      openObjectDetail,
-      openRelationDetail,
-      openTimelineEventDetail,
-      projectSearchQuery,
-      temporalRelationGraph,
-      setSelectedCatalogId,
-      timelineEvents,
-      ui,
-      visibleCatalogs,
-    ],
-  )
-
+      setProjectSearchQuery('')
+      openRelationDetail(edge.id)
+    },
+    onOpenTimelineEvent: (event) => {
+      setProjectSearchQuery('')
+      openTimelineEventDetail(event.id)
+    },
+  })
   const objectDetailPageProps = {
     objectDetailProps,
     ui,
@@ -1405,131 +1218,90 @@ export function StylePreview() {
     onEdit: openEditObjectDialog,
   }
 
-  const catalogEntryDetailPageProps = {
+  const catalogEntryDetailPageProps = buildStylePreviewCatalogEntryDetailPageProps({
     catalogEntryDetailProps,
     ui,
-    onBack: () => setSelectedCatalogEntryId(null),
-    onDelete: (entry: typeof catalogEntries[number]) => {
-      setPendingDeleteCatalogEntryId(entry.id)
-      setDialog('confirmDeleteCatalogEntry')
-    },
-    onEdit: openEditCatalogEntry,
-  }
+    openEditCatalogEntry,
+    setDialog,
+    setPendingDeleteCatalogEntryId,
+    setSelectedCatalogEntryId,
+  })
 
-  const catalogsWorkspaceProps = {
+  const catalogsWorkspaceProps = buildStylePreviewCatalogsWorkspaceProps({
     catalogEntries,
     catalogGroups,
-    catalogs: visibleCatalogs,
     groupDisplayMode,
     selectedCatalog,
     selectedCatalogGroupId,
     textLinkTargets,
     ui,
-    onDeleteEntry: (entry: typeof catalogEntries[number]) => {
-      setPendingDeleteCatalogEntryId(entry.id)
-      setDialog('confirmDeleteCatalogEntry')
-    },
-    onEditCatalog: openEditCatalog,
-    onEditEntry: openEditCatalogEntry,
-    onEditGroup: openEditCatalogGroup,
-    onCreateGroup: () => {
-      resetCatalogGroupDraft()
-      setDialog('catalogGroup')
-    },
-    onCreateEntry: () => {
-      createCatalogEntryDraftForGroup(selectedCatalogGroupId)
-      setDialog('catalogEntry')
-    },
-    onDeleteCatalog: () => {
-      setPendingDeleteCatalogId(selectedCatalog?.id ?? null)
-      setDialog('confirmDeleteCatalog')
-    },
-    onDeleteGroup: (groupId: number) => {
-      setSelectedCatalogGroupId(groupId)
-      setDialog('confirmDeleteCatalogGroup')
-    },
-    onSelectCatalog: (catalogId: number) => navigateToPreview(selectedProjectId, 'database', 'catalogs', null, catalogId),
-    onOpenEntry: openCatalogEntryDetail,
-    onSelectGroup: setSelectedCatalogGroupId,
-  }
+    createCatalogEntryDraftForGroup,
+    navigateToPreview,
+    openCatalogEntryDetail,
+    openEditCatalog,
+    openEditCatalogEntry,
+    openEditCatalogGroup,
+    resetCatalogGroupDraft,
+    setCatalogEntryValidationErrors,
+    setCatalogGroupValidationErrors,
+    selectedProjectId,
+    setDialog,
+    setPendingDeleteCatalogEntryId,
+    setPendingDeleteCatalogId,
+    setSelectedCatalogGroupId,
+    visibleCatalogs,
+  })
 
-  const attributesWorkspaceProps = {
+  const attributesWorkspaceProps = buildStylePreviewAttributesWorkspaceProps({
     attributeDefinitionDraft,
+    attributeDefinitionValidationErrors,
     attributeDefinitions,
     attributeGroupIconKey,
     attributeGroupName,
+    attributeGroupValidationErrors,
     attributeGroups,
     groupDisplayMode,
     editingAttributeDefinitionId,
-    language: previewLanguage,
     selectedAttributeGroupId,
     ui,
-    onCancelAttributeEdit: () => {
-      setEditingAttributeDefinitionId(null)
-      setAttributeDefinitionDraft(emptyAttributeDefinitionDraft)
-    },
-    onAttributeDefinitionDraftChange: setAttributeDefinitionDraft,
-    onAttributeGroupIconChange: setAttributeGroupIconKey,
-    onAttributeGroupNameChange: setAttributeGroupName,
-    onCreateAttribute: () => void saveAttributeDefinition(),
-    onCreateGroup: () => void saveAttributeGroup(),
-    onDeleteAttribute: (definition: typeof attributeDefinitions[number]) => {
-      setPendingDeleteAttributeDefinitionId(definition.id)
-      setDialog('confirmDeleteAttribute')
-    },
-    onDeleteGroup: (group: typeof attributeGroups[number]) => {
-      setPendingDeleteAttributeGroupId(group.id)
-      setDialog('confirmDeleteAttributeGroup')
-    },
-    onEditAttribute: openEditAttributeDefinition,
-    onEditGroup: openEditAttributeGroup,
-    onSelectGroup: setSelectedAttributeGroupId,
-  }
+    openEditAttributeDefinition,
+    openEditAttributeGroup,
+    previewLanguage,
+    saveAttributeDefinition,
+    saveAttributeGroup,
+    setAttributeDefinitionDraft,
+    setAttributeDefinitionValidationErrors,
+    setAttributeGroupIconKey,
+    setAttributeGroupName,
+    setDialog,
+    setEditingAttributeDefinitionId,
+    setPendingDeleteAttributeDefinitionId,
+    setPendingDeleteAttributeGroupId,
+    setSelectedAttributeGroupId,
+  })
 
-  const structuresWorkspaceProps = {
+  const structuresWorkspaceProps = buildStylePreviewStructuresWorkspaceProps({
     catalogEntriesByCatalogId,
-    catalogGroupsByCatalogId,
-    catalogs: visibleCatalogs,
-    errorMessage: messages.apiUnavailable,
+    detailMode,
+    apiUnavailableMessage: messages.apiUnavailable,
     ui,
-    onCatalogCreated: (catalog: typeof catalogs[number]) =>
-      setCatalogs((currentCatalogs) =>
-        currentCatalogs.some((currentCatalog) => currentCatalog.id === catalog.id)
-          ? currentCatalogs
-          : [...currentCatalogs, catalog],
-      ),
-    onCatalogEntriesCreated: (catalogId: number, entries: typeof catalogEntries) => {
-      setCatalogEntriesByCatalogId((currentEntries) => ({
-        ...currentEntries,
-        [catalogId]: [...(currentEntries[catalogId] ?? []), ...entries],
-      }))
-      if (selectedCatalogId === catalogId) {
-        setCatalogEntries((currentEntries) => [...currentEntries, ...entries])
-      }
-    },
-    onCatalogGroupsCreated: (catalogId: number, groups: typeof catalogGroups) => {
-      setCatalogGroupsByCatalogId((currentGroups) => ({
-        ...currentGroups,
-        [catalogId]: [...(currentGroups[catalogId] ?? []), ...groups],
-      }))
-      if (selectedCatalogId === catalogId) {
-        setCatalogGroups((currentGroups) => [...currentGroups, ...groups])
-      }
-    },
-    onError: showErrorMessage,
-    onMessage: showMessage,
-  }
+    setStructureDetailPanel,
+    showErrorMessage,
+    showMessage,
+    visibleCatalogs,
+  })
 
-  const projectExportWorkspaceProps = {
+  const projectExportWorkspaceProps = buildStylePreviewProjectExportWorkspaceProps({
     enabledObjectTypes,
-    errorMessage: messages.apiUnavailable,
+    apiUnavailableMessage: messages.apiUnavailable,
     objectsByType: temporalObjectsByType,
-    selectedProjectId: selectedProject?.id ?? selectedProjectId ?? 0,
+    selectedProjectId: selectedProject?.id ?? selectedProjectId,
+    selectedProjectRuntimeId: selectedProject?.id ?? selectedProjectId ?? 0,
     ui,
-    onBackToProject: () => navigateToPreview(selectedProject?.id ?? selectedProjectId, 'database', 'characters'),
-    onError: showErrorMessage,
-    onMessage: showMessage,
-  }
+    navigateToPreview,
+    showErrorMessage,
+    showMessage,
+  })
 
   const objectSectionLabel = isObjectSection(activeSection)
     ? getObjectSectionLabel(activeSection)
@@ -1537,25 +1309,21 @@ export function StylePreview() {
       ? ui.export
       : ui.catalogs
 
-  const objectCardsWorkspaceProps = {
-    activeObjectMenuId,
+  const objectCardsWorkspaceProps = buildStylePreviewObjectCardsWorkspaceProps({
     currentUser,
+    isObjectSectionActive: isObjectSection(activeSection),
     layoutMode,
-    sectionTitle: isObjectSection(activeSection) ? objectSectionLabel : ui.database,
     selectedObjectId: selectedTemporalObject?.id ?? null,
     ui,
-    viewSectionLabel: objectSectionLabel,
     visibleObjects: temporalSectionObjects,
-    onCreateObject: openCreateObjectDialog,
-    onDeleteObject: (storyObject: typeof temporalSectionObjects[number]) => {
-      setSelectedObjectId(storyObject.id)
-      setDialog('confirmDeleteObject')
-    },
-    onEditObject: openEditObjectDialog,
-    onLayoutModeChange: setLayoutMode,
-    onObjectMenuChange: setActiveObjectMenuId,
-    onOpenObject: openObjectDetail,
-  }
+    objectSectionLabel,
+    openCreateObjectDialog,
+    openEditObjectDialog,
+    openObjectDetail,
+    setDialog,
+    setLayoutMode,
+    setSelectedObjectId,
+  })
 
   const renderContent = () => (
     <StylePreviewContent
@@ -1661,9 +1429,18 @@ export function StylePreview() {
       onEditCatalogGroup: openEditCatalogGroup,
       onSelectAttributeGroup: setSelectedAttributeGroupId,
       onSelectCatalogGroup: setSelectedCatalogGroupId,
-      resetCatalogDraft,
-      resetCatalogFieldDraft,
-      resetCatalogGroupDraft,
+      resetCatalogDraft: () => {
+        setCatalogValidationErrors({})
+        resetCatalogDraft()
+      },
+      resetCatalogFieldDraft: () => {
+        setCatalogFieldValidationErrors({})
+        resetCatalogFieldDraft()
+      },
+      resetCatalogGroupDraft: () => {
+        setCatalogGroupValidationErrors({})
+        resetCatalogGroupDraft()
+      },
       setCatalogDialogTab,
       setPendingDeleteAttributeGroupId,
       setPendingDeleteCatalogId,
@@ -1683,6 +1460,7 @@ export function StylePreview() {
       selectedRelationEdge: selectedTemporalRelationEdge,
       selectedRelationObject,
       selectedTimelineEvent,
+      structureDetailPanel,
       timelineEventDetailProps,
     },
     detailPanelHandlers: {
@@ -1703,6 +1481,7 @@ export function StylePreview() {
       authEmail,
       authMode,
       authPassword,
+      authValidationErrors,
       currentUser,
       dialog,
       editingProjectId,
@@ -1713,6 +1492,7 @@ export function StylePreview() {
       projectPresetKeys,
       projectTemplatePackIds,
       projectVisibility,
+      validationErrors: projectValidationErrors,
       favoriteTemplatePacks,
       projects,
       ui,
@@ -1736,15 +1516,8 @@ export function StylePreview() {
     object: {
       dialog,
       editingObjectId,
-      objectAge,
-      objectCurrentStatus,
-      objectDescription,
       objectDetailProps,
       objectEditorProps,
-      objectImagePath,
-      objectName,
-      objectRole,
-      objectSurname,
       selectedObject: selectedTemporalObject,
       ui,
     },
@@ -1768,6 +1541,7 @@ export function StylePreview() {
       attributeDefinitions,
       attributeGroupIconKey,
       attributeGroupName,
+      attributeGroupValidationErrors,
       attributeGroups,
       dialog,
       editingAttributeGroupId,
@@ -1798,11 +1572,15 @@ export function StylePreview() {
       catalogHierarchyMode,
       catalogName,
       catalogSupportsHierarchy,
+      catalogValidationErrors,
       dialog,
       editingCatalogEntryId,
       editingCatalogFieldId,
       editingCatalogGroupId,
       editingCatalogId,
+      entryValidationErrors: catalogEntryValidationErrors,
+      fieldValidationErrors: catalogFieldValidationErrors,
+      groupValidationErrors: catalogGroupValidationErrors,
       language: previewLanguage,
       pendingDeleteCatalogEntryId,
       pendingDeleteCatalogId,
@@ -1814,6 +1592,13 @@ export function StylePreview() {
       textLinkTargets,
       ui,
       visibleCatalogs,
+      onCatalogEntryStructureAssignmentsChange: (catalogEntryId, assignments) =>
+        setStructureAssignments((currentAssignments) => [
+          ...currentAssignments.filter(
+            (assignment) => !(assignment.targetKind === 'catalogEntry' && assignment.targetId === catalogEntryId),
+          ),
+          ...assignments,
+        ]),
     },
     catalogHandlers: {
       onCatalogDescriptionChange: setCatalogDescription,
@@ -1867,4 +1652,5 @@ export function StylePreview() {
     </StylePreviewLayout>
   )
 }
+
 
