@@ -332,9 +332,11 @@
   }
 
   .sp-relations-page .sp-relations-legend {
-    top: 104px;
+    top: var(--sp-relations-legend-top, 104px);
+    bottom: 12px;
     left: 12px;
     width: min(230px, calc(100% - 24px));
+    max-height: calc(100% - var(--sp-relations-legend-top, 104px) - 12px);
   }
 }
 

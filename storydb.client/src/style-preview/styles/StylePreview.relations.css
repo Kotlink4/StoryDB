@@ -99,9 +99,13 @@
 .sp-relations-page .sp-relations-legend {
   position: absolute;
   z-index: 170;
-  top: 112px;
+  top: var(--sp-relations-legend-top, 112px);
+  bottom: 18px;
   left: 18px;
   width: 230px;
+  max-height: calc(100% - var(--sp-relations-legend-top, 112px) - 18px);
+  overflow: hidden;
+  grid-template-rows: repeat(7, auto) minmax(0, 1fr);
   background: var(--sp-overlay);
   box-shadow: 0 18px 46px var(--sp-shadow-soft);
   backdrop-filter: blur(14px);
@@ -159,6 +163,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
 }
 
 .sp-relation-types span {
@@ -168,6 +176,17 @@
   padding: 6px 9px;
   font-size: 12px;
   font-weight: 900;
+}
+
+.sp-relation-types-title {
+  flex: 0 0 100%;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--sp-muted) !important;
+  padding: 0 0 2px !important;
+  font-size: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .sp-graph {

@@ -4,7 +4,6 @@ import type { ValidationIssueMap } from '../validation'
 import { FieldError } from './FormValidation'
 import { getFieldValidationProps, useFirstInvalidFieldFocus } from './formValidationUtils'
 import { CoverDropzone } from './ImageInputs'
-import { ReadySolutionsPanel } from './ReadySolutionsPanel'
 import { PreviewDialog } from './StylePreviewPrimitives'
 
 export type ProjectDialogTab = 'details' | 'presets'
@@ -15,7 +14,6 @@ export function ProjectDialog({
   projectCoverImagePath,
   projectDialogTab,
   projectName,
-  projectPresetKeys,
   projectTemplatePackIds,
   projectVisibility,
   validationErrors,
@@ -24,7 +22,6 @@ export function ProjectDialog({
   onCoverFileSelected,
   onProjectDialogTabChange,
   onProjectNameChange,
-  onProjectPresetKeysChange,
   onProjectTemplatePackIdsChange,
   onProjectVisibilityChange,
   onSave,
@@ -73,7 +70,7 @@ export function ProjectDialog({
             type="button"
             onClick={() => onProjectDialogTabChange('presets')}
           >
-            {ui.readySolutions}
+            {ui.templatePacks}
           </button>
         </div>
 
@@ -115,7 +112,6 @@ export function ProjectDialog({
 
         {projectDialogTab === 'presets' && (
           <div className="ready-solutions-stack">
-            <ReadySolutionsPanel selectedKeys={projectPresetKeys} t={ui} onChange={onProjectPresetKeysChange} />
             <section className="ready-solutions-panel">
               <div className="ready-solutions-intro">
                 <strong>{ui.favoriteTemplatePacks}</strong>

@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRef } from 'react'
+import { useLayoutEffect } from 'react'
 
 import {
   Background,
@@ -157,6 +158,8 @@ export function RelationsPage({
   )
   const activeGraph = graphKind === 'structure' ? structureFlow.graph : visibleGraph
   const [flowNodes, setFlowNodes] = useState<RelationsFlowNode[]>(activeNodes)
+  const pageRef = useRef<HTMLDivElement | null>(null)
+  const overlayHeadRef = useRef<HTMLDivElement | null>(null)
   const lastRequestedGraphKeyRef = useRef<string | null>(null)
   const relationTypes = Array.from(new Set(visibleGraph.edges.map((edge) => getRelationLabel(edge.relationType, ui)))).sort()
   const focusOptions = [...graph.nodes].sort((left, right) => left.name.localeCompare(right.name))
@@ -178,6 +181,33 @@ export function RelationsPage({
   useEffect(() => {
     setFlowNodes(activeNodes)
   }, [activeNodes])
+
+  useLayoutEffect(() => {
+    const page = pageRef.current
+    const overlayHead = overlayHeadRef.current
+
+    if (page === null || overlayHead === null) {
+      return
+    }
+
+    const updateLegendOffset = () => {
+      const pageRect = page.getBoundingClientRect()
+      const headRect = overlayHead.getBoundingClientRect()
+      const legendTop = Math.max(112, Math.ceil(headRect.bottom - pageRect.top + 16))
+      page.style.setProperty('--sp-relations-legend-top', `${legendTop}px`)
+    }
+
+    updateLegendOffset()
+
+    const resizeObserver = new ResizeObserver(updateLegendOffset)
+    resizeObserver.observe(overlayHead)
+    window.addEventListener('resize', updateLegendOffset)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updateLegendOffset)
+    }
+  }, [focusedObjectId, focusedStructureNodeId, graphKind, graphMode, layoutStatus, selectedStructureId])
 
   useEffect(() => {
     if (lastRequestedGraphKeyRef.current === graphKey) {
@@ -288,9 +318,10 @@ export function RelationsPage({
   }
 
   return (
-    <div className="sp-relations-page">
+    <div className="sp-relations-page" ref={pageRef}>
       <RelationsPageControls
         activeGraph={activeGraph}
+        overlayRef={overlayHeadRef}
         focusOptions={focusOptions}
         focusedObjectId={focusedObjectId}
         focusedStructureNodeId={focusedStructureNodeId}
@@ -337,6 +368,7 @@ export function RelationsPage({
           )}
           {graphKind === 'relations' && relationTypes.length > 0 && (
             <div className="sp-relation-types">
+              <span className="sp-relation-types-title">{ui.relationTypes}</span>
               {relationTypes.map((relationType) => (
                 <span key={relationType}>{relationType}</span>
               ))}

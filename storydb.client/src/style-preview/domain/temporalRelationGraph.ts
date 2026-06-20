@@ -51,6 +51,8 @@ export function resolveRelationGraphTemporalState(
     edges.push(edge)
   }
 
+  graph.edges.forEach(pushEdge)
+
   const organizations = objectsByType.organizations
   objectsByType.characters.forEach((character) => {
     const surname = character.surname?.trim()

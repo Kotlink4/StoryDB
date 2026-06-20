@@ -1,3 +1,5 @@
+import type { Ref } from 'react'
+
 import { getRelationCategoryLabel } from '../../style-preview/domain/relationDisplay'
 import type { PreviewText } from '../../style-preview/domain/stylePreviewI18n'
 import type { RelationGraph, StoryObject, Structure } from '../../types'
@@ -20,6 +22,7 @@ type RelationsPageControlsProps = {
   layoutButtonLabel: string
   layoutStatus: string
   objects: StoryObject[]
+  overlayRef?: Ref<HTMLDivElement>
   selectedStructure: Structure | null
   structureFocusOptions: RelationGraph['nodes']
   structures: Structure[]
@@ -46,6 +49,7 @@ export function RelationsPageControls({
   layoutButtonLabel,
   layoutStatus,
   objects,
+  overlayRef,
   selectedStructure,
   structureFocusOptions,
   structures,
@@ -71,7 +75,7 @@ export function RelationsPageControls({
     : `${visibleGraph.nodes.length} ${ui.objectsCount} · ${visibleGraph.edges.length} ${ui.relationsCount} · ${layoutStatus}`
 
   return (
-    <div className="sp-relations-overlay-head">
+    <div className="sp-relations-overlay-head" ref={overlayRef}>
       <div>
         <h2>{ui.relations}</h2>
         <p>{graphSummary}</p>
