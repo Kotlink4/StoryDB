@@ -22,109 +22,133 @@ export function StructureNodeDraftList({
   isNodeDetailsSaving?: boolean
   isTopologyLocked?: boolean
 }) {
+  const childCountsByNodeClientId = new Map<string, number>()
+  nodes.forEach((node) => {
+    if (node.parentClientId === null) {
+      return
+    }
+
+    childCountsByNodeClientId.set(
+      node.parentClientId,
+      (childCountsByNodeClientId.get(node.parentClientId) ?? 0) + 1,
+    )
+  })
+
   return (
     <div className="sp-structure-node-list">
-      {nodes.map((node) => (
-        <article className="sp-structure-node-row" key={node.clientId}>
-          <label>
-            {ui.name}
-            <input
-              value={node.name}
-              onChange={(event) => onNodeChange(node.clientId, { name: event.target.value })}
-            />
-          </label>
-          <label>
-            {ui.description}
-            <input
-              value={node.description}
-              onChange={(event) => onNodeChange(node.clientId, { description: event.target.value })}
-            />
-          </label>
-          <label>
-            {ui.structureParentNode}
-            <select
-              disabled={isTopologyLocked}
-              value={node.parentClientId ?? ''}
-              onChange={(event) =>
-                onNodeChange(node.clientId, {
-                  parentClientId: event.target.value === '' ? null : event.target.value,
-                })
-              }
-            >
-              <option value="">{ui.noGroup}</option>
-              {nodes
-                .filter((parentNode) => parentNode.clientId !== node.clientId)
-                .map((parentNode) => (
-                  <option key={parentNode.clientId} value={parentNode.clientId}>
-                    {parentNode.name || ui.structureNode}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label>
-            {ui.structureNodeType}
-            <input
-              value={node.nodeType}
-              onChange={(event) => onNodeChange(node.clientId, { nodeType: event.target.value })}
-            />
-          </label>
-          <label>
-            {ui.structureLevelIndex}
-            <input
-              disabled={isTopologyLocked}
-              min="0"
-              type="number"
-              value={node.levelIndex}
-              onChange={(event) =>
-                onNodeChange(node.clientId, {
-                  levelIndex: Math.max(0, Number(event.target.value) || 0),
-                })
-              }
-            />
-          </label>
-          <label>
-            {ui.structureSortOrder}
-            <input
-              disabled={isTopologyLocked}
-              min="0"
-              type="number"
-              value={node.sortOrder}
-              onChange={(event) =>
-                onNodeChange(node.clientId, {
-                  sortOrder: Math.max(0, Number(event.target.value) || 0),
-                })
-              }
-            />
-          </label>
-          {assignmentCountsByNodeId !== undefined && /^\d+$/.test(node.clientId) && (
+      {nodes.map((node) => {
+        const assignmentCount = /^\d+$/.test(node.clientId)
+          ? assignmentCountsByNodeId?.get(Number(node.clientId)) ?? 0
+          : 0
+        const childCount = childCountsByNodeClientId.get(node.clientId) ?? 0
+        const isNodeLocked = isTopologyLocked || assignmentCount > 0 || childCount > 0
+
+        return (
+          <article className={`sp-structure-node-row${isNodeLocked ? ' locked' : ''}`} key={node.clientId}>
+            <label>
+              {ui.name}
+              <input
+                disabled={isNodeLocked}
+                value={node.name}
+                onChange={(event) => onNodeChange(node.clientId, { name: event.target.value })}
+              />
+            </label>
+            <label>
+              {ui.description}
+              <input
+                disabled={isNodeLocked}
+                value={node.description}
+                onChange={(event) => onNodeChange(node.clientId, { description: event.target.value })}
+              />
+            </label>
+            <label>
+              {ui.structureParentNode}
+              <select
+                disabled={isNodeLocked}
+                value={node.parentClientId ?? ''}
+                onChange={(event) =>
+                  onNodeChange(node.clientId, {
+                    parentClientId: event.target.value === '' ? null : event.target.value,
+                  })
+                }
+              >
+                <option value="">{ui.noGroup}</option>
+                {nodes
+                  .filter((parentNode) => parentNode.clientId !== node.clientId)
+                  .map((parentNode) => (
+                    <option key={parentNode.clientId} value={parentNode.clientId}>
+                      {parentNode.name || ui.structureNode}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              {ui.structureNodeType}
+              <input
+                disabled={isNodeLocked}
+                value={node.nodeType}
+                onChange={(event) => onNodeChange(node.clientId, { nodeType: event.target.value })}
+              />
+            </label>
+            <label>
+              {ui.structureLevelIndex}
+              <input
+                disabled={isNodeLocked}
+                min="0"
+                type="number"
+                value={node.levelIndex}
+                onChange={(event) =>
+                  onNodeChange(node.clientId, {
+                    levelIndex: Math.max(0, Number(event.target.value) || 0),
+                  })
+                }
+              />
+            </label>
+            <label>
+              {ui.structureSortOrder}
+              <input
+                disabled={isNodeLocked}
+                min="0"
+                type="number"
+                value={node.sortOrder}
+                onChange={(event) =>
+                  onNodeChange(node.clientId, {
+                    sortOrder: Math.max(0, Number(event.target.value) || 0),
+                  })
+                }
+              />
+            </label>
             <div className="sp-tags">
               <span>
-                {ui.structureAssignmentCount}: {assignmentCountsByNodeId.get(Number(node.clientId)) ?? 0}
+                {ui.structureAssignmentCount}: {assignmentCount}
+              </span>
+              <span>
+                {ui.structureChildNodes}: {childCount}
               </span>
             </div>
-          )}
-          <div className="sp-structure-node-actions">
-            {onNodeDetailsSave !== undefined && /^\d+$/.test(node.clientId) && (
+            <div className="sp-structure-node-actions">
+              {onNodeDetailsSave !== undefined && /^\d+$/.test(node.clientId) && (
+                <button
+                  className="sp-button"
+                  disabled={isNodeLocked || isNodeDetailsSaving || node.name.trim().length === 0}
+                  type="button"
+                  onClick={() => onNodeDetailsSave(node.clientId)}
+                >
+                  {ui.structureNodeDetailsSave}
+                </button>
+              )}
               <button
-                className="sp-button"
-                disabled={isNodeDetailsSaving || node.name.trim().length === 0}
+                className="sp-button danger"
+                disabled={isNodeLocked}
                 type="button"
-                onClick={() => onNodeDetailsSave(node.clientId)}
+                onClick={() => onNodeRemove(node.clientId)}
               >
-                {ui.structureNodeDetailsSave}
+                {ui.delete}
               </button>
-            )}
-            <button
-              className="sp-button danger"
-              disabled={isTopologyLocked}
-              type="button"
-              onClick={() => onNodeRemove(node.clientId)}
-            >
-              {ui.delete}
-            </button>
-          </div>
-        </article>
-      ))}
+            </div>
+          </article>
+        )
+      })}
     </div>
   )
 }

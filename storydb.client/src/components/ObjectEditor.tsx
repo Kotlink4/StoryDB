@@ -14,6 +14,7 @@ import type {
   HierarchyNode,
   ObjectTypeKey,
   StoryObject,
+  StructureAssignment,
   TimelineEvent,
 } from '../types'
 import type { ValidationIssueMap } from '../validation'
@@ -24,6 +25,7 @@ import { ObjectEditorCatalogsTab } from './object-editor/ObjectEditorCatalogsTab
 import { ObjectEditorHierarchyTab } from './object-editor/ObjectEditorHierarchyTab'
 import { ObjectRelationsEditor } from './object-editor/ObjectRelationsEditor'
 import { ObjectEditorTimelineTab } from './object-editor/ObjectEditorTimelineTab'
+import { OrganizationStructureView } from './object-detail/OrganizationStructureView'
 import { StructureMembershipView } from './object-detail/StructureMembershipView'
 export function ObjectEditor({
   activeType,
@@ -82,6 +84,8 @@ export function ObjectEditor({
   onOwnerOrganizationIdsChange,
   onSave,
   onSaveObjectAsTimelineChange,
+  onStructureAssignmentsChange,
+  onStructureWorkspaceChange,
   onTerritoryPlaceIdsChange,
   onTimelineEventUpdated,
   toggleNumberSelection,
@@ -142,6 +146,8 @@ export function ObjectEditor({
   onOwnerOrganizationIdsChange: (ids: number[]) => void
   onSave: () => void
   onSaveObjectAsTimelineChange: (value: boolean) => void
+  onStructureAssignmentsChange?: (storyObjectId: number, assignments: StructureAssignment[]) => void
+  onStructureWorkspaceChange?: () => void | Promise<void>
   onTerritoryPlaceIdsChange: (ids: number[]) => void
   onTimelineEventUpdated?: (event: TimelineEvent) => void
   toggleNumberSelection: (values: number[], value: number) => number[]
@@ -256,6 +262,16 @@ export function ObjectEditor({
             <strong>{ui.structure}</strong>
             <span>{ui.structureEditorSaveObjectHint}</span>
           </div>
+        ) : activeType === 'organizations' ? (
+          <OrganizationStructureView
+            mode="editor"
+            objectsByType={objectsByType}
+            selectedProjectId={selectedProjectId}
+            storyObject={editingObject}
+            ui={ui}
+            onAssignmentsChange={onStructureAssignmentsChange}
+            onStructureWorkspaceChange={onStructureWorkspaceChange}
+          />
         ) : (
           <StructureMembershipView
             catalogs={catalogs}
@@ -266,6 +282,7 @@ export function ObjectEditor({
             storyObject={editingObject}
             timelineEvents={timelineEvents}
             ui={ui}
+            onAssignmentsChange={onStructureAssignmentsChange}
             onTimelineEventUpdated={onTimelineEventUpdated}
           />
         )

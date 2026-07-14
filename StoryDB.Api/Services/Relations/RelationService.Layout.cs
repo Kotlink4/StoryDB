@@ -22,7 +22,19 @@ public sealed partial class RelationService
             .ThenByDescending(currentLayout => currentLayout.GeneratedAt)
             .FirstOrDefaultAsync();
 
-        return RelationServiceResult<RelationGraphLayoutDto?>.Success(layout is null ? null : ToLayoutDto(layout));
+        if (layout is null)
+        {
+            return RelationServiceResult<RelationGraphLayoutDto?>.Success(null);
+        }
+
+        var layoutDto = ToLayoutDto(layout);
+        var structureId = TryGetStructureGraphId(normalizedGraphKey);
+        if (structureId is not null)
+        {
+            layoutDto = await NormalizeStructureLayoutAsync(projectId, structureId.Value, layoutDto);
+        }
+
+        return RelationServiceResult<RelationGraphLayoutDto?>.Success(layoutDto);
     }
 
     public async Task<RelationServiceResult<RelationGraphLayoutDto>> SaveDefaultLayoutAsync(
@@ -61,7 +73,14 @@ public sealed partial class RelationService
 
         if (validNodeIds.Count != requestedNodeIds.Count)
         {
-            return RelationServiceResult<RelationGraphLayoutDto>.Invalid("Layout contains objects from another project or missing objects.");
+            if (TryGetStructureGraphId(normalizedGraphKey) is null)
+            {
+                return RelationServiceResult<RelationGraphLayoutDto>.Invalid("Layout contains objects from another project or missing objects.");
+            }
+
+            requestedItems = requestedItems
+                .Where(item => validNodeIds.Contains(item.StoryObjectId))
+                .ToList();
         }
 
         var now = DateTime.UtcNow;
@@ -219,6 +238,94 @@ public sealed partial class RelationService
     }
 
     private static int ToStructureNodeLayoutId(int id) => StructureNodeLayoutIdBase + id;
+
+    private static bool IsStructureNodeLayoutId(int id) =>
+        id > StructureNodeLayoutIdBase && id < CatalogEntryAssignmentLayoutIdBase;
+
+    private async Task<RelationGraphLayoutDto> NormalizeStructureLayoutAsync(
+        int projectId,
+        int structureId,
+        RelationGraphLayoutDto layout)
+    {
+        var structureNodes = await dbContext.StructureNodes
+            .AsNoTracking()
+            .Where(node =>
+                node.StructureId == structureId &&
+                node.Structure != null &&
+                node.Structure.ProjectId == projectId)
+            .Select(node => new StructureLayoutNode(node.Id, node.LevelIndex, node.SortOrder, node.Name))
+            .ToListAsync();
+        if (structureNodes.Count == 0)
+        {
+            return layout;
+        }
+
+        var orderedStructureNodes = structureNodes
+            .OrderBy(node => node.LevelIndex)
+            .ThenBy(node => node.SortOrder)
+            .ThenBy(node => node.Name)
+            .ThenBy(node => node.Id)
+            .ToList();
+        var currentStructureLayoutIds = orderedStructureNodes
+            .Select(node => ToStructureNodeLayoutId(node.Id))
+            .ToHashSet();
+        var currentItemsByLayoutId = layout.Items
+            .Where(item => currentStructureLayoutIds.Contains(item.StoryObjectId))
+            .GroupBy(item => item.StoryObjectId)
+            .ToDictionary(group => group.Key, group => group.Last());
+        var legacyStructureItems = layout.Items
+            .Where(item => IsStructureNodeLayoutId(item.StoryObjectId) && !currentStructureLayoutIds.Contains(item.StoryObjectId))
+            .OrderBy(item => item.StoryObjectId)
+            .ToList();
+
+        var wasNormalized = false;
+        var legacyIndex = 0;
+        var normalizedItems = new List<RelationGraphLayoutItemDto>();
+        foreach (var node in orderedStructureNodes)
+        {
+            var currentLayoutId = ToStructureNodeLayoutId(node.Id);
+            if (currentItemsByLayoutId.TryGetValue(currentLayoutId, out var currentItem))
+            {
+                normalizedItems.Add(currentItem);
+                continue;
+            }
+
+            if (legacyIndex < legacyStructureItems.Count)
+            {
+                normalizedItems.Add(legacyStructureItems[legacyIndex++] with { StoryObjectId = currentLayoutId });
+                wasNormalized = true;
+                continue;
+            }
+
+            wasNormalized = true;
+        }
+
+        foreach (var item in layout.Items)
+        {
+            if (currentStructureLayoutIds.Contains(item.StoryObjectId))
+            {
+                continue;
+            }
+
+            if (IsStructureNodeLayoutId(item.StoryObjectId))
+            {
+                wasNormalized = true;
+                continue;
+            }
+
+            normalizedItems.Add(item);
+        }
+
+        return layout with
+        {
+            IsStale = layout.IsStale || wasNormalized,
+            Items = normalizedItems
+                .OrderBy(item => item.StoryObjectId)
+                .ToList(),
+        };
+    }
+
+    private sealed record StructureLayoutNode(int Id, int LevelIndex, int SortOrder, string Name);
 
     private static string? NormalizeMembershipKey(string? value)
     {

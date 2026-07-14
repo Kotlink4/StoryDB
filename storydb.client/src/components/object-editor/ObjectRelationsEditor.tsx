@@ -1,4 +1,10 @@
-import type { ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { Trash2 } from 'lucide-react'
 
 import { getObjectFullName } from '../../style-preview/domain/objectDisplay'
 import {
@@ -47,6 +53,35 @@ export function ObjectRelationsEditor({
   onTerritoryPlaceIdsChange: (ids: number[]) => void
   toggleNumberSelection: (values: number[], value: number) => number[]
 }) {
+  const [expandedRelationshipKeys, setExpandedRelationshipKeys] = useState<Set<string>>(new Set())
+  const previousRelationshipKeysRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    const nextRelationshipKeys = draftCharacterRelationships.map(getDraftRelationshipKey)
+    const previousRelationshipKeys = previousRelationshipKeysRef.current
+
+    setExpandedRelationshipKeys((currentKeys) => {
+      const nextKeys = new Set<string>()
+
+      currentKeys.forEach((key) => {
+        if (nextRelationshipKeys.includes(key)) {
+          nextKeys.add(key)
+        }
+      })
+
+      draftCharacterRelationships.forEach((relationship, index) => {
+        const key = nextRelationshipKeys[index]
+
+        if (key !== undefined && relationship.id == null && !previousRelationshipKeys.has(key)) {
+          nextKeys.add(key)
+        }
+      })
+
+      return nextKeys
+    })
+    previousRelationshipKeysRef.current = new Set(nextRelationshipKeys)
+  }, [draftCharacterRelationships])
+
   const addRelationship = () =>
     onDraftCharacterRelationshipsChange([
       ...draftCharacterRelationships,
@@ -66,6 +101,8 @@ export function ObjectRelationsEditor({
     onDraftCharacterRelationshipsChange(
       draftCharacterRelationships.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
     )
+  const removeRelationship = (index: number) =>
+    onDraftCharacterRelationshipsChange(draftCharacterRelationships.filter((_, itemIndex) => itemIndex !== index))
   const getRelationshipCharacterId = (relationship: DraftCharacterRelationship) =>
     relationship.direction === 'incoming' ? relationship.sourceCharacterId : relationship.targetCharacterId
   const updateRelationshipCharacter = (index: number, characterId: string) => {
@@ -106,7 +143,38 @@ export function ObjectRelationsEditor({
           },
     )
   }
+  const toggleRelationshipExpanded = (key: string, isOpen: boolean) => {
+    setExpandedRelationshipKeys((currentKeys) => {
+      const nextKeys = new Set(currentKeys)
+
+      if (isOpen) {
+        nextKeys.add(key)
+      } else {
+        nextKeys.delete(key)
+      }
+
+      return nextKeys
+    })
+  }
   const relationshipCharacters = objectsByType.characters.filter((character) => character.id !== editingObjectId)
+  const getRelationshipCharacterName = (relationship: DraftCharacterRelationship) => {
+    const characterId = Number(getRelationshipCharacterId(relationship))
+    const character = Number.isNaN(characterId)
+      ? null
+      : relationshipCharacters.find((item) => item.id === characterId) ?? null
+
+    return character === null ? ui.character : getObjectFullName(character)
+  }
+  const getRelationshipSummary = (relationship: DraftCharacterRelationship) => {
+    const directionLabel = relationship.direction === 'incoming' ? ui.toThisCharacter : ui.fromThisCharacter
+    const relationType = relationship.relationType.trim() || ui.relationType
+
+    return {
+      directionLabel,
+      meta: `${ui.relationStrength}: ${relationship.strength || '0'} · ${ui.relationTension}: ${relationship.tension || '0'}`,
+      title: `${directionLabel}: ${getRelationshipCharacterName(relationship)} · ${relationType}`,
+    }
+  }
   const organizationMembers = getAutomaticOrganizationMembersBySurname(objectSurnameForm, objectsByType.characters)
   const organizationMemberItems = getOrganizationMemberItems(organizationMembers)
 
@@ -118,96 +186,120 @@ export function ObjectRelationsEditor({
             <button className="sp-button" type="button" onClick={addRelationship}>
               {ui.addCharacterRelationship}
             </button>
-            {draftCharacterRelationships.map((relationship, index) => (
-              <section className="sp-editor-block sp-relationship-editor" key={`${relationship.id ?? 'new'}-${index}`}>
-                <div className="sp-relationship-grid">
-                  <label className="sp-relationship-field">
-                    {ui.relationDirection}
-                    <select
-                      value={relationship.direction}
-                      onChange={(event) =>
-                        updateRelationshipDirection(index, event.target.value as DraftCharacterRelationship['direction'])
-                      }
+            {draftCharacterRelationships.map((relationship, index) => {
+              const relationshipKey = getDraftRelationshipKey(relationship, index)
+              const relationshipSummary = getRelationshipSummary(relationship)
+
+              return (
+                <details
+                  className="sp-editor-block sp-relationship-editor"
+                  key={relationshipKey}
+                  open={expandedRelationshipKeys.has(relationshipKey)}
+                  onToggle={(event) => toggleRelationshipExpanded(relationshipKey, event.currentTarget.open)}
+                >
+                  <summary>
+                    <span className="sp-relationship-chevron" aria-hidden="true" />
+                    <span className="sp-relationship-summary">
+                      <strong>{relationshipSummary.title}</strong>
+                      <span>{relationshipSummary.meta}</span>
+                    </span>
+                    <button
+                      className="sp-relationship-delete sp-relationship-summary-delete"
+                      type="button"
+                      aria-label={`${ui.delete}: ${relationshipSummary.title}`}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        removeRelationship(index)
+                      }}
                     >
-                      <option value="outgoing">{ui.fromThisCharacter}</option>
-                      <option value="incoming" disabled={editingObjectId === null}>
-                        {ui.toThisCharacter}
-                      </option>
-                    </select>
-                  </label>
-                  <label className="sp-relationship-field">
-                    {ui.character}
-                    <select
-                      value={getRelationshipCharacterId(relationship)}
-                      onChange={(event) => updateRelationshipCharacter(index, event.target.value)}
-                    >
-                      <option value="">{ui.characters}</option>
-                      {relationshipCharacters.map((character) => (
-                        <option key={character.id} value={character.id}>
-                          {getObjectFullName(character)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="sp-relationship-field">
-                    {ui.relationType}
-                    <input
-                      placeholder={ui.relationTypePlaceholder}
-                      value={relationship.relationType}
-                      onChange={(event) => updateRelationship(index, { relationType: event.target.value })}
-                    />
-                  </label>
-                  <button
-                    className="sp-relationship-delete"
-                    type="button"
-                    onClick={() =>
-                      onDraftCharacterRelationshipsChange(
-                        draftCharacterRelationships.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                  >
-                    {ui.delete}
-                  </button>
-                </div>
-                <div className="sp-relationship-stats">
-                  <label className="sp-relationship-field">
-                    {ui.relationStrength}
-                    <input
-                      min={0}
-                      max={100}
-                      type="number"
-                      value={relationship.strength}
-                      onChange={(event) => updateRelationship(index, { strength: event.target.value })}
-                    />
-                  </label>
-                  <label className="sp-relationship-field">
-                    {ui.relationTension}
-                    <input
-                      min={0}
-                      max={100}
-                      type="number"
-                      value={relationship.tension}
-                      onChange={(event) => updateRelationship(index, { tension: event.target.value })}
-                    />
-                  </label>
-                  <label className="sp-checkline sp-relationship-toggle">
-                    <input
-                      checked={relationship.isBidirectional}
-                      type="checkbox"
-                      onChange={(event) => updateRelationship(index, { isBidirectional: event.target.checked })}
-                    />
-                    {ui.relationBidirectional}
-                  </label>
-                </div>
-                <label className="sp-relationship-description">
-                  {ui.relationDescription}
-                  <textarea
-                    value={relationship.description}
-                    onChange={(event) => updateRelationship(index, { description: event.target.value })}
-                  />
-                </label>
-              </section>
-            ))}
+                      <Trash2 aria-hidden="true" size={15} />
+                      <span>{ui.delete}</span>
+                    </button>
+                  </summary>
+                  <div className="sp-relationship-body">
+                    <div className="sp-relationship-grid">
+                      <label className="sp-relationship-field">
+                        {ui.relationDirection}
+                        <select
+                          value={relationship.direction}
+                          onChange={(event) =>
+                            updateRelationshipDirection(
+                              index,
+                              event.target.value as DraftCharacterRelationship['direction'],
+                            )
+                          }
+                        >
+                          <option value="outgoing">{ui.fromThisCharacter}</option>
+                          <option value="incoming" disabled={editingObjectId === null}>
+                            {ui.toThisCharacter}
+                          </option>
+                        </select>
+                      </label>
+                      <label className="sp-relationship-field">
+                        {ui.character}
+                        <select
+                          value={getRelationshipCharacterId(relationship)}
+                          onChange={(event) => updateRelationshipCharacter(index, event.target.value)}
+                        >
+                          <option value="">{ui.characters}</option>
+                          {relationshipCharacters.map((character) => (
+                            <option key={character.id} value={character.id}>
+                              {getObjectFullName(character)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="sp-relationship-field">
+                        {ui.relationType}
+                        <input
+                          placeholder={ui.relationTypePlaceholder}
+                          value={relationship.relationType}
+                          onChange={(event) => updateRelationship(index, { relationType: event.target.value })}
+                        />
+                      </label>
+                    </div>
+                    <div className="sp-relationship-stats">
+                      <label className="sp-relationship-field">
+                        {ui.relationStrength}
+                        <input
+                          min={0}
+                          max={100}
+                          type="number"
+                          value={relationship.strength}
+                          onChange={(event) => updateRelationship(index, { strength: event.target.value })}
+                        />
+                      </label>
+                      <label className="sp-relationship-field">
+                        {ui.relationTension}
+                        <input
+                          min={0}
+                          max={100}
+                          type="number"
+                          value={relationship.tension}
+                          onChange={(event) => updateRelationship(index, { tension: event.target.value })}
+                        />
+                      </label>
+                      <label className="sp-checkline sp-relationship-toggle">
+                        <input
+                          checked={relationship.isBidirectional}
+                          type="checkbox"
+                          onChange={(event) => updateRelationship(index, { isBidirectional: event.target.checked })}
+                        />
+                        {ui.relationBidirectional}
+                      </label>
+                    </div>
+                    <label className="sp-relationship-description">
+                      {ui.relationDescription}
+                      <textarea
+                        value={relationship.description}
+                        onChange={(event) => updateRelationship(index, { description: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                </details>
+              )
+            })}
           </CollapsibleEditorSection>
           <CollapsibleEditorSection count={ownedItemIds.length} title={ui.characterOwnsItems}>
             <MultiObjectPicker
@@ -265,6 +357,9 @@ export function ObjectRelationsEditor({
     </div>
   )
 }
+
+const getDraftRelationshipKey = (relationship: DraftCharacterRelationship, index: number) =>
+  relationship.id == null ? `new-${index}` : `${relationship.direction}-${relationship.id}`
 
 function MultiObjectPicker({
   objects,

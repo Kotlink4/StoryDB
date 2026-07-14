@@ -35,6 +35,7 @@ export function StructureMembershipView({
   storyObject,
   timelineEvents,
   ui,
+  onAssignmentsChange,
   onTimelineEventUpdated,
 }: {
   catalogs: Catalog[]
@@ -45,6 +46,7 @@ export function StructureMembershipView({
   storyObject: StoryObject
   timelineEvents: TimelineEvent[]
   ui: PreviewText
+  onAssignmentsChange?: (storyObjectId: number, assignments: StructureAssignment[]) => void
   onTimelineEventUpdated?: (event: TimelineEvent) => void
 }) {
   const [assignments, setAssignments] = useState<StructureAssignment[]>([])
@@ -67,6 +69,10 @@ export function StructureMembershipView({
   const catalogsById = useMemo(
     () => new Map(catalogs.map((catalog) => [catalog.id, catalog])),
     [catalogs],
+  )
+  const structureUsagesById = useMemo(
+    () => new Map(structureUsages.map((usage) => [usage.id, usage])),
+    [structureUsages],
   )
   const temporalAssignments = useMemo(
     () =>
@@ -165,16 +171,17 @@ export function StructureMembershipView({
       toStructureAssignmentSnapshot,
     ],
   )
-  const getUsageLabel = useCallback(
+  const getUsageTargetLabel = useCallback(
     (usage: StructureUsage) => {
-      const targetLabel =
-        usage.targetKind === 'project'
-          ? ui.structureOwnerProject
-          : usage.targetKind === 'catalog'
-            ? catalogsById.get(usage.targetId)?.name ?? ui.structureOwnerCatalog
-            : objectsById.get(usage.targetId)?.name ?? ui.structureOwnerObject
+      if (usage.targetKind === 'project') {
+        return ui.structureOwnerProject
+      }
 
-      return `${usage.displayName ?? usage.structureName} · ${targetLabel}`
+      if (usage.targetKind === 'catalog') {
+        return catalogsById.get(usage.targetId)?.name ?? ui.structureOwnerCatalog
+      }
+
+      return objectsById.get(usage.targetId)?.name ?? ui.structureOwnerObject
     },
     [
       catalogsById,
@@ -184,10 +191,30 @@ export function StructureMembershipView({
       ui.structureOwnerProject,
     ],
   )
+  const getUsageLabel = useCallback(
+    (usage: StructureUsage) => `${getUsageTargetLabel(usage)} · ${usage.displayName ?? usage.structureName}`,
+    [getUsageTargetLabel],
+  )
+  const getAssignmentOwnerLabel = useCallback(
+    (assignment: StructureAssignment) => {
+      const usage = structureUsagesById.get(assignment.structureUsageId)
+      return usage === undefined ? assignment.structureName : getUsageTargetLabel(usage)
+    },
+    [getUsageTargetLabel, structureUsagesById],
+  )
+  const getAssignmentStructureLabel = useCallback(
+    (assignment: StructureAssignment) => {
+      const usage = structureUsagesById.get(assignment.structureUsageId)
+      const structureLabel = usage?.displayName ?? assignment.structureName
+
+      return `${structureLabel} · ${assignment.structureNodeName}`
+    },
+    [structureUsagesById],
+  )
 
   const loadMembershipData = useCallback(async () => {
     if (selectedProjectId === null) {
-      return
+      return null
     }
 
     setIsLoading(true)
@@ -224,8 +251,10 @@ export function StructureMembershipView({
           ? currentUsageId
           : String(usableUsages[0]?.id ?? ''),
       )
+      return loadedAssignments
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentLoadFailed))
+      return null
     } finally {
       setIsLoading(false)
     }
@@ -296,7 +325,10 @@ export function StructureMembershipView({
         sortOrder: assignments.length,
       })
       setRoleLabel('')
-      await loadMembershipData()
+      const loadedAssignments = await loadMembershipData()
+      if (loadedAssignments !== null) {
+        onAssignmentsChange?.(storyObject.id, loadedAssignments)
+      }
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
     } finally {
@@ -318,7 +350,10 @@ export function StructureMembershipView({
       }
 
       await deleteStructureAssignmentRequest(selectedProjectId, assignment.id)
-      await loadMembershipData()
+      const loadedAssignments = await loadMembershipData()
+      if (loadedAssignments !== null) {
+        onAssignmentsChange?.(storyObject.id, loadedAssignments)
+      }
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentDeleteFailed))
     } finally {
@@ -352,7 +387,10 @@ export function StructureMembershipView({
         notes: assignment.notes ?? '',
         sortOrder: assignment.sortOrder,
       })
-      await loadMembershipData()
+      const loadedAssignments = await loadMembershipData()
+      if (loadedAssignments !== null) {
+        onAssignmentsChange?.(storyObject.id, loadedAssignments)
+      }
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
     } finally {
@@ -376,21 +414,28 @@ export function StructureMembershipView({
         ) : (
           <div className="sp-structure-assignment-list">
             {temporalAssignments.map((assignment) => (
-              <div className="sp-row" key={assignment.id}>
-                <span>{assignment.structureName}</span>
+              <div className={`sp-row${isEditorMode ? '' : ' readonly'}`} key={assignment.id}>
+                <span title={getAssignmentOwnerLabel(assignment)}>{getAssignmentOwnerLabel(assignment)}</span>
                 <strong>
-                  {assignment.structureNodeName}
-                  <input
-                    aria-label={ui.role}
-                    defaultValue={assignment.roleLabel ?? ''}
-                    disabled={!isEditorMode || isSaving || (!isTimelineContextActive && assignment.id < 0)}
-                    placeholder={ui.role}
-                    onBlur={(event) => {
-                      if (isEditorMode) {
+                  <span className="sp-structure-assignment-title" title={getAssignmentStructureLabel(assignment)}>
+                    {getAssignmentStructureLabel(assignment)}
+                  </span>
+                  {isEditorMode ? (
+                    <input
+                      aria-label={ui.role}
+                      defaultValue={assignment.roleLabel ?? ''}
+                      disabled={isSaving || (!isTimelineContextActive && assignment.id < 0)}
+                      placeholder={ui.role}
+                      onBlur={(event) => {
                         void updateAssignmentRole(assignment, event.currentTarget.value)
-                      }
-                    }}
-                  />
+                      }}
+                    />
+                  ) : (
+                    assignment.roleLabel !== null &&
+                    assignment.roleLabel.trim().length > 0 && (
+                      <span className="sp-structure-assignment-role">{assignment.roleLabel}</span>
+                    )
+                  )}
                 </strong>
                 {isEditorMode && (
                   <button

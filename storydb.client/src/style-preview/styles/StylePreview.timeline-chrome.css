@@ -10,7 +10,7 @@
 .sp-timeline-overlay-actions,
 .sp-timeline-links-popover {
   position: absolute;
-  z-index: 180;
+  z-index: 240;
 }
 
 .sp-timeline-overlay-head {

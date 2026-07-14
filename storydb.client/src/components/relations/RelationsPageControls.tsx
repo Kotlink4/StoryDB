@@ -1,4 +1,5 @@
 import type { Ref } from 'react'
+import { EyeOff } from 'lucide-react'
 
 import { getRelationCategoryLabel } from '../../style-preview/domain/relationDisplay'
 import type { PreviewText } from '../../style-preview/domain/stylePreviewI18n'
@@ -34,6 +35,7 @@ type RelationsPageControlsProps = {
   onGenerateLayout: (graphKey: string, graph: RelationGraph) => void
   onGraphKindChange: (kind: RelationPageGraphKind) => void
   onGraphModeChange: (mode: RelationGraphMode) => void
+  onHidePanels: () => void
   onSelectedStructureIdChange: (structureId: number | null) => void
 }
 
@@ -61,6 +63,7 @@ export function RelationsPageControls({
   onGenerateLayout,
   onGraphKindChange,
   onGraphModeChange,
+  onHidePanels,
   onSelectedStructureIdChange,
 }: RelationsPageControlsProps) {
   const graphModeOptions: Array<{ label: string; value: RelationGraphMode }> = [
@@ -76,7 +79,7 @@ export function RelationsPageControls({
 
   return (
     <div className="sp-relations-overlay-head" ref={overlayRef}>
-      <div>
+      <div className="sp-relations-overlay-summary">
         <h2>{ui.relations}</h2>
         <p>{graphSummary}</p>
       </div>
@@ -172,6 +175,15 @@ export function RelationsPageControls({
           onClick={() => onGenerateLayout(graphKey, activeGraph)}
         >
           {isLayoutGenerating ? ui.layoutGenerating : layoutButtonLabel}
+        </button>
+        <button
+          className="sp-button sp-relations-panel-button"
+          type="button"
+          title={ui.hideRelationPanels}
+          onClick={onHidePanels}
+        >
+          <EyeOff aria-hidden="true" size={17} />
+          <span>{ui.hideRelationPanels}</span>
         </button>
       </div>
     </div>

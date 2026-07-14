@@ -114,6 +114,7 @@ type UseStylePreviewObjectCommandsOptions = {
   setObjectEditorTab: Dispatch<SetStateAction<ObjectEditorTab>>
   setObjectValidationErrors: Dispatch<SetStateAction<ValidationIssueMap>>
   setObjects: Dispatch<SetStateAction<StoryObject[]>>
+  setObjectsByType: Dispatch<SetStateAction<Record<ObjectTypeKey, StoryObject[]>>>
   setRelationGraph: Dispatch<SetStateAction<RelationGraph>>
   setRelationGraphLayout: Dispatch<SetStateAction<RelationGraphLayout | null>>
   setSelectedObjectId: Dispatch<SetStateAction<number | null>>
@@ -169,6 +170,7 @@ export function useStylePreviewObjectCommands({
   setObjectEditorTab,
   setObjectValidationErrors,
   setObjects,
+  setObjectsByType,
   setRelationGraph,
   setRelationGraphLayout,
   setSelectedObjectId,
@@ -180,6 +182,55 @@ export function useStylePreviewObjectCommands({
   territoryPlaceIds,
   timelineEvents,
 }: UseStylePreviewObjectCommandsOptions) {
+  const upsertObjectByType = (storyObject: StoryObject) => {
+    const objectTypeKey = isPreviewObjectSection(storyObject.typeKey)
+      ? storyObject.typeKey
+      : isObjectSection(activeSection)
+        ? activeSection
+        : null
+
+    if (objectTypeKey === null) {
+      return
+    }
+
+    setObjectsByType((currentObjectsByType) => {
+      const nextObjectsByType = { ...currentObjectsByType }
+
+      ;(Object.keys(nextObjectsByType) as ObjectTypeKey[]).forEach((typeKey) => {
+        nextObjectsByType[typeKey] = nextObjectsByType[typeKey].filter(
+          (currentObject) => currentObject.id !== storyObject.id,
+        )
+      })
+
+      const currentTypeObjects = currentObjectsByType[objectTypeKey] ?? []
+      const existingIndex = currentTypeObjects.findIndex((currentObject) => currentObject.id === storyObject.id)
+      const nextTypeObjects = [...(nextObjectsByType[objectTypeKey] ?? [])]
+
+      if (existingIndex >= 0) {
+        nextTypeObjects.splice(existingIndex, 0, storyObject)
+      } else {
+        nextTypeObjects.unshift(storyObject)
+      }
+
+      nextObjectsByType[objectTypeKey] = nextTypeObjects
+      return nextObjectsByType
+    })
+  }
+
+  const removeObjectByType = (objectId: number) => {
+    setObjectsByType((currentObjectsByType) => {
+      const nextObjectsByType = { ...currentObjectsByType }
+
+      ;(Object.keys(nextObjectsByType) as ObjectTypeKey[]).forEach((typeKey) => {
+        nextObjectsByType[typeKey] = nextObjectsByType[typeKey].filter(
+          (currentObject) => currentObject.id !== objectId,
+        )
+      })
+
+      return nextObjectsByType
+    })
+  }
+
   const uploadObjectImage = async (file: File | null) => {
     if (file === null) {
       return
@@ -229,6 +280,7 @@ export function useStylePreviewObjectCommands({
         setObjects((currentObjects) =>
           currentObjects.map((currentObject) => (currentObject.id === objectToEdit.id ? objectToEdit : currentObject)),
         )
+        upsertObjectByType(objectToEdit)
       } catch {
         showErrorMessage(messages.objectEditorLoadFailed)
       }
@@ -247,6 +299,7 @@ export function useStylePreviewObjectCommands({
     try {
       await deleteObjectRequest(selectedProjectId, selectedObject.id)
       setObjects((currentObjects) => currentObjects.filter((storyObject) => storyObject.id !== selectedObject.id))
+      removeObjectByType(selectedObject.id)
       setRelationGraph((currentGraph) => ({
         nodes: currentGraph.nodes.filter((node) => node.id !== selectedObject.id),
         edges: currentGraph.edges.filter(
@@ -274,6 +327,7 @@ export function useStylePreviewObjectCommands({
     setObjects((currentObjects) =>
       currentObjects.map((storyObject) => (storyObject.id === updatedObject.id ? updatedObject : storyObject)),
     )
+    upsertObjectByType(updatedObject)
     setSelectedObjectId(updatedObject.id)
   }
 
@@ -440,6 +494,7 @@ export function useStylePreviewObjectCommands({
       setObjects((currentObjects) =>
         currentObjects.map((storyObject) => (storyObject.id === optimisticObject.id ? optimisticObject : storyObject)),
       )
+      upsertObjectByType(optimisticObject)
       if (shouldSelectSavedObject) {
         setSelectedObjectId(optimisticObject.id)
       }
@@ -501,6 +556,7 @@ export function useStylePreviewObjectCommands({
               storyObject.id === saved.id ? mergeSavedObjectSummary(storyObject, saved) : storyObject,
             ),
       )
+      upsertObjectByType(saved)
       if (shouldSelectSavedObject) {
         setSelectedObjectId(saved.id)
         navigateToPreview(projectId, 'database', section, saved.id)
@@ -522,6 +578,7 @@ export function useStylePreviewObjectCommands({
           setObjects((currentObjects) =>
             currentObjects.map((storyObject) => (storyObject.id === loadedObject.id ? loadedObject : storyObject)),
           )
+          upsertObjectByType(loadedObject)
         })
         .catch(() => undefined)
       void fetchRelationGraph(projectId)
@@ -539,6 +596,7 @@ export function useStylePreviewObjectCommands({
         setObjects((currentObjects) =>
           currentObjects.map((storyObject) => (storyObject.id === previousObject.id ? previousObject : storyObject)),
         )
+        upsertObjectByType(previousObject)
         setSelectedObjectId(previousObject.id)
       }
       showErrorMessage(messages.objectSaveFailed)

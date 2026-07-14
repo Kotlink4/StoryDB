@@ -15,6 +15,7 @@ import {
   getStructureGraphLevelSpans,
   getStructureMapPosition,
   getStructureNodeLayoutId,
+  getStructureVisualLevelIndexes,
   normalizeMergedStructureFlow,
   type LevelPlacementState,
 } from './StructureGraphLayout'
@@ -25,7 +26,7 @@ export const buildStructureFlow = (
   objects: StoryObject[],
   onSelect: (storyObject: StoryObject) => void,
   onSelectStructureTarget: (target: StructureGraphTarget) => void,
-  _layoutPositions: Map<number, { x: number; y: number }>,
+  layoutPositions: Map<number, { x: number; y: number }>,
   mode: StructureGraphMode,
   focusedNodeId: number | null,
   ui: PreviewText,
@@ -47,6 +48,9 @@ export const buildStructureFlow = (
   const structureNodesById = new Map(structure.nodes.map((node) => [node.id, node]))
   const objectsById = new Map(objects.map((storyObject) => [storyObject.id, storyObject]))
   const orderedStructureNodes = getOrderedStructureNodes(structure)
+  const visualLevelIndexes = getStructureVisualLevelIndexes(orderedStructureNodes)
+  const getVisualLevelIndex = (node: Structure['nodes'][number]) =>
+    visualLevelIndexes.get(node.id) ?? node.levelIndex
   const structureAssignments = assignments.filter((assignment) => assignment.structureId === structure.id)
   const orderedStructureAssignments = structureAssignments.toSorted((left, right) =>
     left.structureNodeName.localeCompare(right.structureNodeName) ||
@@ -54,6 +58,7 @@ export const buildStructureFlow = (
     left.targetName.localeCompare(right.targetName),
   )
   const levelSpans = getStructureGraphLevelSpans({
+    getNodeLevelIndex: getVisualLevelIndex,
     orderedStructureAssignments,
     orderedStructureNodes,
     structureNodesById,
@@ -84,7 +89,8 @@ export const buildStructureFlow = (
   orderedStructureNodes
     .forEach((node) => {
       const layoutId = getStructureNodeLayoutId(node.id)
-      const levelSlot = getNextGroupedLevelSlot(levelPlacements, node.levelIndex, getGroupedStructureNodeKey(node))
+      const visualLevelIndex = getVisualLevelIndex(node)
+      const levelSlot = getNextGroupedLevelSlot(levelPlacements, visualLevelIndex, getGroupedStructureNodeKey(node))
       nodeKinds.set(layoutId, 'structure')
       graphNodes.push({
         id: layoutId,
@@ -97,7 +103,7 @@ export const buildStructureFlow = (
       nodes.push({
         id: String(layoutId),
         type: 'structureNode',
-        position: getStructureMapPosition(node.levelIndex, levelSlot, levelSpans),
+        position: getStructureMapPosition(visualLevelIndex, levelSlot, levelSpans),
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
         data: {
@@ -239,7 +245,7 @@ export const buildStructureFlow = (
           imagePath: storyObject?.imagePath ?? null,
           typeKey: (storyObject?.typeKey as RelationGraphNode['typeKey'] | undefined) ?? 'hierarchy',
         })
-        const assignmentLevel = structureNode.levelIndex + 1
+        const assignmentLevel = getVisualLevelIndex(structureNode) + 1
         const levelSlot = getNextGroupedLevelSlot(
           levelPlacements,
           assignmentLevel,
@@ -327,10 +333,11 @@ export const buildStructureFlow = (
         nodes,
       }
   const centeredFlow = centerStructureParentsByChildren(normalizedFlow)
+  const positionedFlow = applyStructureLayoutPositions(centeredFlow, layoutPositions)
 
   const visibleNodeIds = new Set<number>()
-  centeredFlow.graphNodes.forEach((node) => {
-    const kind = centeredFlow.nodeKinds.get(node.id)
+  positionedFlow.graphNodes.forEach((node) => {
+    const kind = positionedFlow.nodeKinds.get(node.id)
     if (
       mode === 'all' ||
       (mode === 'structure' && kind === 'structure') ||
@@ -340,9 +347,9 @@ export const buildStructureFlow = (
     }
   })
 
-  let visibleGraphEdges = centeredFlow.graphEdges.filter((edge) => visibleNodeIds.has(edge.sourceId) && visibleNodeIds.has(edge.targetId))
-  if (focusedNodeId !== null && centeredFlow.graphNodes.some((node) => node.id === focusedNodeId)) {
-    const focusedEdges = centeredFlow.graphEdges.filter((edge) => edge.sourceId === focusedNodeId || edge.targetId === focusedNodeId)
+  let visibleGraphEdges = positionedFlow.graphEdges.filter((edge) => visibleNodeIds.has(edge.sourceId) && visibleNodeIds.has(edge.targetId))
+  if (focusedNodeId !== null && positionedFlow.graphNodes.some((node) => node.id === focusedNodeId)) {
+    const focusedEdges = positionedFlow.graphEdges.filter((edge) => edge.sourceId === focusedNodeId || edge.targetId === focusedNodeId)
     visibleNodeIds.clear()
     visibleNodeIds.add(focusedNodeId)
     focusedEdges.forEach((edge) => {
@@ -353,19 +360,42 @@ export const buildStructureFlow = (
   }
 
   const visibleGraph = {
-    nodes: centeredFlow.graphNodes.filter((node) => visibleNodeIds.has(node.id)),
+    nodes: positionedFlow.graphNodes.filter((node) => visibleNodeIds.has(node.id)),
     edges: visibleGraphEdges,
   }
   const visibleEdgeIds = new Set(visibleGraphEdges.map((edge) => edge.id))
 
   return {
-    nodes: centeredFlow.nodes.filter((node) => visibleNodeIds.has(Number(node.id))),
-    edges: centeredFlow.edges.filter((edge) => visibleEdgeIds.has(edge.id)),
+    nodes: positionedFlow.nodes.filter((node) => visibleNodeIds.has(Number(node.id))),
+    edges: positionedFlow.edges.filter((edge) => visibleEdgeIds.has(edge.id)),
     graph: visibleGraph,
     allGraph: {
-      nodes: centeredFlow.graphNodes,
-      edges: centeredFlow.graphEdges,
+      nodes: positionedFlow.graphNodes,
+      edges: positionedFlow.graphEdges,
     },
+  }
+}
+
+const applyStructureLayoutPositions = (
+  flow: {
+    edges: Edge[]
+    graphEdges: RelationGraph['edges']
+    graphNodes: RelationGraph['nodes']
+    nodeKinds: Map<number, StructureFlowNodeKind>
+    nodes: RelationsFlowNode[]
+  },
+  layoutPositions: Map<number, { x: number; y: number }>,
+) => {
+  if (layoutPositions.size === 0) {
+    return flow
+  }
+
+  return {
+    ...flow,
+    nodes: flow.nodes.map((node) => ({
+      ...node,
+      position: layoutPositions.get(Number(node.id)) ?? node.position,
+    })),
   }
 }
 

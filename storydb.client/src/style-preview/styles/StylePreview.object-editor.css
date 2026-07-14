@@ -140,6 +140,70 @@
 }
 
 .sp-relationship-editor {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+
+.sp-relationship-editor > summary {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sp-relationship-editor > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sp-relationship-editor[open] > summary {
+  border-bottom: 1px solid var(--sp-line);
+}
+
+.sp-relationship-chevron {
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--sp-muted);
+  border-bottom: 2px solid var(--sp-muted);
+  transform: rotate(-45deg);
+  transition: transform 140ms ease;
+}
+
+.sp-relationship-editor[open] .sp-relationship-chevron {
+  transform: rotate(45deg);
+}
+
+.sp-relationship-summary {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.sp-relationship-summary strong,
+.sp-relationship-summary span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-relationship-summary strong {
+  color: var(--sp-ink);
+  font-size: 13px;
+}
+
+.sp-relationship-summary span {
+  color: var(--sp-muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.sp-relationship-body {
+  display: grid;
   gap: 14px;
   padding: 14px;
 }
@@ -199,8 +263,31 @@
 }
 
 .sp-relationship-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-width: 0;
-  align-self: end;
+  min-height: 34px;
+  border: 1px solid var(--sp-danger-border);
+  border-radius: 12px;
+  background: var(--sp-danger-bg);
+  color: var(--sp-danger-text);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.sp-relationship-summary-delete {
+  align-self: center;
+  width: auto;
+  white-space: nowrap;
+}
+
+.sp-relationship-summary-delete svg {
+  flex: 0 0 auto;
 }
 
 .sp-checkbox-grid {

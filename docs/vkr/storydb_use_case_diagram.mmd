@@ -1,0 +1,41 @@
+flowchart LR
+    Guest["Гость / читатель"]
+    Author["Автор"]
+    Admin["Администратор"]
+
+    subgraph System["Веб-приложение StoryDB"]
+        Auth(("Регистрация и вход"))
+        PublicView(("Просмотр публичного проекта"))
+        Project(("Создание и настройка проекта"))
+        Templates(("Использование шаблонов проекта"))
+        Objects(("Управление объектами мира"))
+        Attributes(("Настройка типов и атрибутов"))
+        Catalogs(("Работа с каталогами и справочниками"))
+        Relations(("Построение связей и структур"))
+        Timeline(("Ведение таймлайна событий"))
+        Media(("Загрузка изображений и галерей"))
+        Publish(("Публикация снимка проекта"))
+        Export(("Экспорт досье в DOCX"))
+        Audit(("Просмотр аудита и состояния системы"))
+        Storage(("Контроль проектов и хранилища"))
+    end
+
+    Guest --- Auth
+    Guest --- PublicView
+    Author --- Auth
+    Author --- Project
+    Author --- Templates
+    Author --- Objects
+    Author --- Attributes
+    Author --- Catalogs
+    Author --- Relations
+    Author --- Timeline
+    Author --- Media
+    Author --- Publish
+    Author --- Export
+    Admin --- Audit
+    Admin --- Storage
+    Project -. "<<include>>" .-> Templates
+    Objects -. "<<include>>" .-> Attributes
+    Objects -. "<<extend>>" .-> Catalogs
+    Publish -. "<<include>>" .-> PublicView

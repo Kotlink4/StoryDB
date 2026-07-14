@@ -174,14 +174,18 @@ export function useStylePreviewRelationCommands({
     }
   }
 
-  const generateRelationGraphLayout = async (graphKey: string, activeGraph: RelationGraph) => {
+  const generateRelationGraphLayout = async (
+    graphKey: string,
+    activeGraph: RelationGraph,
+    fixedPositions?: Map<number, { x: number; y: number }>,
+  ) => {
     if (selectedProjectId === null || activeGraph.nodes.length === 0) {
       return
     }
 
     setIsRelationLayoutGenerating(true)
     try {
-      const positions = await calculateRelationLayout(activeGraph, linkableObjects)
+      const positions = fixedPositions ?? await calculateRelationLayout(activeGraph, linkableObjects)
       const layout = await saveRelationGraphLayoutRequest(selectedProjectId, {
         graphKey,
         items: activeGraph.nodes.map((node) => {

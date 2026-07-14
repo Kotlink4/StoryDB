@@ -12,7 +12,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Eye } from 'lucide-react'
 
 import { getRelationLabel } from '../style-preview/domain/relationDisplay'
 import type { PreviewText } from '../style-preview/domain/stylePreviewI18n'
@@ -54,7 +54,11 @@ export type RelationsPageProps = {
   structures: Structure[]
   ui: PreviewText
   onCreateRelation: () => void
-  onGenerateLayout: (graphKey: string, graph: RelationGraph) => void
+  onGenerateLayout: (
+    graphKey: string,
+    graph: RelationGraph,
+    fixedPositions?: Map<number, { x: number; y: number }>,
+  ) => void
   onGraphKeyChange: (graphKey: string) => void
   onSaveNodePosition: (graphKey: string, graph: RelationGraph, storyObjectId: number, position: { x: number; y: number }) => void
   onSelectEdge: (edgeId: string) => void
@@ -86,6 +90,7 @@ export function RelationsPage({
   const [focusedStructureNodeId, setFocusedStructureNodeId] = useState<number | null>(null)
   const [selectedStructureTarget, setSelectedStructureTarget] = useState<StructureGraphTarget | null>(null)
   const [selectedStructureEdgeId, setSelectedStructureEdgeId] = useState<string | null>(null)
+  const [areGraphPanelsHidden, setAreGraphPanelsHidden] = useState(false)
   const selectedStructure = useMemo(
     () =>
       selectedStructureId === null
@@ -117,6 +122,7 @@ export function RelationsPage({
       ),
     [activeLayout],
   )
+  const emptyLayoutPositions = useMemo(() => new Map<number, { x: number; y: number }>(), [])
   const { nodes, edges } = useMemo(
     () => buildRelationFlow(visibleGraph, objects, onSelect, layoutPositions, selectedEdgeId, ui),
     [layoutPositions, objects, onSelect, selectedEdgeId, ui, visibleGraph],
@@ -149,6 +155,35 @@ export function RelationsPage({
       structureAssignments,
       ui,
     ],
+  )
+  const strictStructureFlow = useMemo(
+    () =>
+      buildStructureFlow(
+        selectedStructure,
+        structureAssignments,
+        objects,
+        onSelect,
+        selectStructureTarget,
+        emptyLayoutPositions,
+        structureGraphMode,
+        focusedStructureNodeId,
+        ui,
+      ),
+    [
+      emptyLayoutPositions,
+      focusedStructureNodeId,
+      objects,
+      onSelect,
+      selectStructureTarget,
+      selectedStructure,
+      structureGraphMode,
+      structureAssignments,
+      ui,
+    ],
+  )
+  const strictStructureLayoutPositions = useMemo(
+    () => new Map(strictStructureFlow.nodes.map((node) => [Number(node.id), node.position])),
+    [strictStructureFlow.nodes],
   )
   const activeNodes = graphKind === 'structure' ? structureFlow.nodes : nodes
   const activeEdges = graphKind === 'structure' ? structureFlow.edges : edges
@@ -207,7 +242,15 @@ export function RelationsPage({
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateLegendOffset)
     }
-  }, [focusedObjectId, focusedStructureNodeId, graphKind, graphMode, layoutStatus, selectedStructureId])
+  }, [
+    areGraphPanelsHidden,
+    focusedObjectId,
+    focusedStructureNodeId,
+    graphKind,
+    graphMode,
+    layoutStatus,
+    selectedStructureId,
+  ])
 
   useEffect(() => {
     if (lastRequestedGraphKeyRef.current === graphKey) {
@@ -318,35 +361,54 @@ export function RelationsPage({
   }
 
   return (
-    <div className="sp-relations-page" ref={pageRef}>
-      <RelationsPageControls
-        activeGraph={activeGraph}
-        overlayRef={overlayHeadRef}
-        focusOptions={focusOptions}
-        focusedObjectId={focusedObjectId}
-        focusedStructureNodeId={focusedStructureNodeId}
-        graphKind={graphKind}
-        graphKey={graphKey}
-        graphMode={graphMode}
-        isLayoutGenerating={isLayoutGenerating}
-        layoutButtonLabel={layoutButtonLabel}
-        layoutStatus={layoutStatus}
-        objects={objects}
-        selectedStructure={selectedStructure}
-        structureFocusOptions={structureFocusOptions}
-        structures={structures}
-        ui={ui}
-        visibleGraph={visibleGraph}
-        onCreateRelation={onCreateRelation}
-        onFocusedObjectIdChange={setFocusedObjectId}
-        onFocusedStructureNodeIdChange={setFocusedStructureNodeId}
-        onGenerateLayout={onGenerateLayout}
-        onGraphKindChange={setGraphKind}
-        onGraphModeChange={setGraphMode}
-        onSelectedStructureIdChange={setSelectedStructureId}
-      />
+    <div className={`sp-relations-page${areGraphPanelsHidden ? ' is-clean-graph' : ''}`} ref={pageRef}>
+      {areGraphPanelsHidden ? (
+        <button
+          className="sp-button sp-relations-panel-toggle"
+          type="button"
+          title={ui.showRelationPanels}
+          onClick={() => setAreGraphPanelsHidden(false)}
+        >
+          <Eye aria-hidden="true" size={17} />
+          <span>{ui.showRelationPanels}</span>
+        </button>
+      ) : (
+        <RelationsPageControls
+          activeGraph={activeGraph}
+          overlayRef={overlayHeadRef}
+          focusOptions={focusOptions}
+          focusedObjectId={focusedObjectId}
+          focusedStructureNodeId={focusedStructureNodeId}
+          graphKind={graphKind}
+          graphKey={graphKey}
+          graphMode={graphMode}
+          isLayoutGenerating={isLayoutGenerating}
+          layoutButtonLabel={layoutButtonLabel}
+          layoutStatus={layoutStatus}
+          objects={objects}
+          selectedStructure={selectedStructure}
+          structureFocusOptions={structureFocusOptions}
+          structures={structures}
+          ui={ui}
+          visibleGraph={visibleGraph}
+          onCreateRelation={onCreateRelation}
+          onFocusedObjectIdChange={setFocusedObjectId}
+          onFocusedStructureNodeIdChange={setFocusedStructureNodeId}
+          onGenerateLayout={(nextGraphKey, nextGraph) =>
+            onGenerateLayout(
+              nextGraphKey,
+              nextGraph,
+              graphKind === 'structure' ? strictStructureLayoutPositions : undefined,
+            )
+          }
+          onGraphKindChange={setGraphKind}
+          onGraphModeChange={setGraphMode}
+          onHidePanels={() => setAreGraphPanelsHidden(true)}
+          onSelectedStructureIdChange={setSelectedStructureId}
+        />
+      )}
       <div className="sp-relations-workspace">
-        <aside className="sp-relations-legend">
+        {!areGraphPanelsHidden && <aside className="sp-relations-legend">
           <strong>{ui.relations}</strong>
           {graphKind === 'relations' ? (
             <>
@@ -374,7 +436,7 @@ export function RelationsPage({
               ))}
             </div>
           )}
-        </aside>
+        </aside>}
         <div className="sp-graph">
           {flowNodes.length === 0 ? (
             <div className="sp-empty">

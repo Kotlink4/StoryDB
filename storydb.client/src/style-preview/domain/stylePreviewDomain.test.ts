@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { getObjectFullName, getOrganizationSurname, relationGraphNodeToStoryObject } from './objectDisplay'
 import { getFilteredStoryObjects } from './objectFilters'
+import { getOrganizationMemberSurname } from './organizationComposition'
 import {
   calculateObjectGridColumns,
   calculateObjectListVirtualWindow,
@@ -97,6 +98,7 @@ describe('style preview display helpers', () => {
 
     expect(getObjectFullName({ name: 'Lilia', surname: ' Crowell ' })).toBe('Lilia Crowell')
     expect(getOrganizationSurname({ name: 'House Crowell', surnameForm: 'Crowell' })).toBe('Crowell')
+    expect(getOrganizationMemberSurname({ name: 'House Crowell', surnameForm: null } as StoryObject)).toBe('House Crowell')
     expect(getInitials('House Crowell', 2)).toBe('HC')
     expect(relationGraphNodeToStoryObject(node).currentStatus).toBeNull()
     expect(getRelationLabel('territoryOwner', ui)).toBe('Owner')

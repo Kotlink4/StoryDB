@@ -1,0 +1,22 @@
+flowchart LR
+    Reader["Читатель"]
+    Author["Автор"]
+    Admin["Администратор"]
+
+    subgraph System["Веб-приложение StoryDB"]
+        Auth(("Регистрация и вход"))
+        Projects(("Управление проектами"))
+        WorldBase(("Наполнение базы произведения"))
+        Publish(("Публикация проекта"))
+        PublicView(("Просмотр опубликованного проекта"))
+        Export(("Экспорт материалов"))
+        AdminPanel(("Администрирование системы"))
+    end
+
+    Reader --- PublicView
+    Author --- Auth
+    Author --- Projects
+    Author --- WorldBase
+    Author --- Publish
+    Author --- Export
+    Admin --- AdminPanel

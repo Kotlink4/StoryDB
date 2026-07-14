@@ -40,11 +40,17 @@
 
 .sp-workspace.with-detail .sp-relations-overlay-head {
   right: 456px;
+  align-items: stretch;
+  flex-direction: column;
 }
 
 .sp-relations-overlay-head h2,
 .sp-relations-overlay-head p {
   margin: 0;
+}
+
+.sp-relations-overlay-summary {
+  min-width: 0;
 }
 
 .sp-relations-overlay-head h2 {
@@ -53,20 +59,44 @@
 
 .sp-relations-overlay-head p {
   color: var(--sp-muted);
+  line-height: 1.35;
 }
 
 .sp-relations-overlay-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
+}
+
+.sp-workspace.with-detail .sp-relations-overlay-actions {
+  justify-content: flex-start;
+}
+
+@media (min-width: 1500px) {
+  .sp-workspace.with-detail .sp-relations-overlay-head {
+    align-items: flex-start;
+    flex-direction: row;
+  }
+
+  .sp-workspace.with-detail .sp-relations-overlay-summary {
+    flex: 0 0 360px;
+    max-width: 360px;
+  }
+
+  .sp-workspace.with-detail .sp-relations-overlay-actions {
+    justify-content: flex-end;
+  }
 }
 
 .sp-graph-control {
   display: grid;
+  flex: 1 1 180px;
   gap: 4px;
   min-width: 150px;
+  max-width: 260px;
   color: var(--sp-muted);
   font-size: 11px;
   font-weight: 900;
@@ -74,6 +104,8 @@
 }
 
 .sp-graph-control select {
+  width: 100%;
+  min-width: 0;
   min-height: 38px;
   border: 1px solid var(--sp-line);
   border-radius: 999px;
@@ -84,6 +116,33 @@
   font-size: 13px;
   font-weight: 800;
   text-transform: none;
+}
+
+.sp-relations-overlay-actions .sp-button {
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+
+.sp-relations-panel-button,
+.sp-relations-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sp-relations-panel-button svg,
+.sp-relations-panel-toggle svg {
+  flex: 0 0 auto;
+}
+
+.sp-relations-panel-toggle {
+  position: absolute;
+  z-index: 190;
+  top: 18px;
+  left: 18px;
+  box-shadow: 0 14px 34px var(--sp-shadow-soft);
+  backdrop-filter: blur(14px);
 }
 
 .sp-relations-legend {
@@ -161,6 +220,8 @@
 
 .sp-relation-types {
   display: flex;
+  align-content: flex-start;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 6px;
   min-height: 0;
@@ -206,6 +267,20 @@
   inset: 0;
   min-height: 0;
   height: auto;
+}
+
+@media (max-width: 760px) {
+  .sp-relations-panel-toggle {
+    top: 12px;
+    left: 12px;
+  }
+
+  .sp-relations-panel-button span,
+  .sp-relations-panel-toggle span {
+    max-width: 118px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .sp-graph .react-flow__controls {

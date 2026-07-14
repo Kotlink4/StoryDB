@@ -20,6 +20,7 @@ import type { PreviewSection } from '../domain/stylePreviewRouting'
 import {
   loadCatalogWorkspaceData,
   loadObjectEditorWorkspaceData,
+  loadRelationWorkspaceData,
 } from './workspaceDataLoaders'
 import { useStylePreviewClientCache } from './useStylePreviewClientCache'
 import { useStylePreviewCatalogListData } from './useStylePreviewCatalogListData'
@@ -188,6 +189,36 @@ export function useStylePreviewWorkspaceData({
     setStructureUsages,
     showErrorMessage,
   })
+
+  const refreshRelationWorkspaceData = useCallback(async () => {
+    if (selectedProjectId === null) {
+      return
+    }
+
+    const loadedWorkspace = await loadRelationWorkspaceData(selectedProjectId)
+
+    setRelationGraph(loadedWorkspace.relationGraph)
+    if (!loadedWorkspace.graphLoaded) {
+      showErrorMessage(messages.graphLoadFailed)
+    }
+    setStructureAssignments(loadedWorkspace.structureAssignments)
+    setStructures(loadedWorkspace.structures)
+    setStructureUsages(loadedWorkspace.structureUsages)
+    setRelationGraphLayout((currentLayout) =>
+      currentLayout === null ? null : { ...currentLayout, isStale: true },
+    )
+    void writeProjectClientCachePatch(selectedProjectId, {
+      ...(loadedWorkspace.graphLoaded ? { relationGraph: loadedWorkspace.relationGraph } : {}),
+      structureAssignments: loadedWorkspace.structureAssignments,
+      structures: loadedWorkspace.structures,
+      structureUsages: loadedWorkspace.structureUsages,
+    })
+  }, [
+    messages.graphLoadFailed,
+    selectedProjectId,
+    setRelationGraphLayout,
+    showErrorMessage,
+  ])
 
   useStylePreviewTextLinkTargetsData({
     selectedProjectId,
@@ -466,6 +497,7 @@ export function useStylePreviewWorkspaceData({
     hierarchyGroups,
     hierarchyNodesByGroupId,
     loadRelationGraphLayout,
+    refreshRelationWorkspaceData,
     loadObjectEditorData,
     objects,
     objectsByType,

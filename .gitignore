@@ -296,6 +296,9 @@ StoryDB.Api/storydb.sqlite*
 # Local StoryDB image export artifacts
 tmp/storydb-image-export/*.tar
 
+# Local server backup archives
+server-backups/
+
 # Visual Studio 6 build log
 *.plg
 

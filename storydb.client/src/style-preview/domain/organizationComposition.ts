@@ -4,7 +4,7 @@ import { getObjectFullName, getOrganizationSurname } from './objectDisplay'
 const normalizeNamePart = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? ''
 
 export const getOrganizationMemberSurname = (organization: StoryObject) =>
-  organization.surnameForm?.trim() ?? ''
+  getOrganizationSurname(organization)
 
 export const getAutomaticOrganizationMembersBySurname = (surnameValue: string, characters: StoryObject[]) => {
   const surname = normalizeNamePart(surnameValue)

@@ -143,7 +143,11 @@ export function buildStylePreviewRelationsPageProps({
   ui,
 }: {
   detailMode: DetailMode
-  generateRelationGraphLayout: (graphKey: string, graph: RelationGraph) => Promise<void>
+  generateRelationGraphLayout: (
+    graphKey: string,
+    graph: RelationGraph,
+    fixedPositions?: Map<number, { x: number; y: number }>,
+  ) => Promise<void>
   graph: RelationGraph
   isLayoutGenerating: boolean
   layout: RelationGraphLayout | null
@@ -174,7 +178,8 @@ export function buildStylePreviewRelationsPageProps({
     selectedEdgeId,
     ui,
     onCreateRelation: () => setDialog('relationLink'),
-    onGenerateLayout: (graphKey, nextGraph) => void generateRelationGraphLayout(graphKey, nextGraph),
+    onGenerateLayout: (graphKey, nextGraph, fixedPositions) =>
+      void generateRelationGraphLayout(graphKey, nextGraph, fixedPositions),
     onGraphKeyChange: (graphKey) => void loadRelationGraphLayout(graphKey),
     onSaveNodePosition: (graphKey, nextGraph, storyObjectId, position) =>
       void saveRelationGraphNodePosition(graphKey, nextGraph, storyObjectId, position),
@@ -184,6 +189,7 @@ export function buildStylePreviewRelationsPageProps({
 }
 
 export function buildStylePreviewTimelinePageProps({
+  canEdit,
   deleteTimelineLink,
   generateTimelineLayout,
   isGenerating,
@@ -198,6 +204,7 @@ export function buildStylePreviewTimelinePageProps({
   timelineEvents,
   ui,
 }: {
+  canEdit: boolean
   deleteTimelineLink: (linkId: number) => Promise<void>
   generateTimelineLayout: () => Promise<void>
   isGenerating: boolean
@@ -213,6 +220,7 @@ export function buildStylePreviewTimelinePageProps({
   ui: PreviewText
 }): TimelinePageProps {
   return {
+    canEdit,
     events: timelineEvents,
     isGenerating,
     layout,
@@ -221,10 +229,10 @@ export function buildStylePreviewTimelinePageProps({
     selectedEvent,
     timeline,
     ui,
-    onCreate: openTimelineEventEditor,
-    onCreateLink: () => setDialog('timelineLink'),
+    onCreate: canEdit ? openTimelineEventEditor : undefined,
+    onCreateLink: canEdit ? () => setDialog('timelineLink') : undefined,
     onDeleteLink: (linkId) => void deleteTimelineLink(linkId),
-    onGenerate: () => void generateTimelineLayout(),
+    onGenerate: canEdit ? () => void generateTimelineLayout() : undefined,
     onSelectEvent: openTimelineEventDetail,
   }
 }

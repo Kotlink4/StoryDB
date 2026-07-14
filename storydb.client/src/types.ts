@@ -191,6 +191,7 @@ export type StructureSummary = Omit<Structure, 'nodes' | 'edges'> & {
   nodeCount: number
   edgeCount: number
   usageCount: number
+  assignmentCount: number
 }
 
 export type StructureNode = {

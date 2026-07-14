@@ -1,3 +1,5 @@
+import { useRef, type PointerEvent } from 'react'
+
 import type { PreviewText } from '../../style-preview/domain/stylePreviewI18n'
 
 type TimelineEventCounts = {
@@ -8,6 +10,7 @@ type TimelineEventCounts = {
 }
 
 type TimelinePageHeaderProps = {
+  canEdit: boolean
   eventCount: number
   eventCounts: TimelineEventCounts
   isGenerating: boolean
@@ -18,13 +21,14 @@ type TimelinePageHeaderProps = {
   modeLabel: string
   timelineStatus: string
   ui: PreviewText
-  onCreate: () => void
-  onCreateLink: () => void
-  onGenerate: () => void
+  onCreate?: () => void
+  onCreateLink?: () => void
+  onGenerate?: () => void
   onToggleLinksPopover: () => void
 }
 
 export function TimelinePageHeader({
+  canEdit,
   eventCount,
   eventCounts,
   isGenerating,
@@ -40,6 +44,31 @@ export function TimelinePageHeader({
   onGenerate,
   onToggleLinksPopover,
 }: TimelinePageHeaderProps) {
+  const createOpenedFromPointerRef = useRef(false)
+  const openCreateFromPointer = (event: PointerEvent<HTMLButtonElement>) => {
+    if (onCreate === undefined || event.button !== 0) {
+      return
+    }
+
+    createOpenedFromPointerRef.current = true
+    window.setTimeout(() => {
+      createOpenedFromPointerRef.current = false
+    }, 0)
+    onCreate()
+  }
+  const openCreateFromClick = () => {
+    if (onCreate === undefined) {
+      return
+    }
+
+    if (createOpenedFromPointerRef.current) {
+      createOpenedFromPointerRef.current = false
+      return
+    }
+
+    onCreate()
+  }
+
   return (
     <>
       <div className="sp-timeline-overlay-head">
@@ -58,9 +87,11 @@ export function TimelinePageHeader({
         </div>
       </div>
       <div className="sp-timeline-overlay-actions">
-        <button className="sp-button" type="button" disabled={isGenerating} onClick={onGenerate}>
-          {isGenerating ? ui.layoutGenerating : layoutButtonLabel}
-        </button>
+        {canEdit && onGenerate !== undefined && (
+          <button className="sp-button" type="button" disabled={isGenerating} onClick={onGenerate}>
+            {isGenerating ? ui.layoutGenerating : layoutButtonLabel}
+          </button>
+        )}
         <button
           className="sp-button"
           type="button"
@@ -70,12 +101,21 @@ export function TimelinePageHeader({
           {ui.timelineEventLinks}
           <span className="sp-button-count">{linkCount}</span>
         </button>
-        <button className="sp-button" type="button" disabled={eventCount < 2} onClick={onCreateLink}>
-          {ui.linkEvents}
-        </button>
-        <button className="sp-button primary" type="button" onClick={onCreate}>
-          {ui.newEvent}
-        </button>
+        {canEdit && onCreateLink !== undefined && (
+          <button className="sp-button" type="button" disabled={eventCount < 2} onClick={onCreateLink}>
+            {ui.linkEvents}
+          </button>
+        )}
+        {canEdit && onCreate !== undefined && (
+          <button
+            className="sp-button primary"
+            type="button"
+            onClick={openCreateFromClick}
+            onPointerDown={openCreateFromPointer}
+          >
+            {ui.newEvent}
+          </button>
+        )}
       </div>
     </>
   )

@@ -9,7 +9,7 @@ import {
   publishPublishedProjectSnapshotRequest,
   resolveAssetVariantUrl,
 } from '../api'
-import type { StoryProject } from '../types'
+import type { StoryProject, StructureAssignment } from '../types'
 import { StylePreviewContent } from '../components/StylePreviewContent'
 import { StylePreviewLayout } from '../components/StylePreviewLayout'
 import {
@@ -381,6 +381,7 @@ export function StylePreview() {
     hierarchyGroups,
     hierarchyNodesByGroupId,
     loadRelationGraphLayout,
+    refreshRelationWorkspaceData,
     loadObjectEditorData,
     objects,
     objectsByType,
@@ -399,6 +400,7 @@ export function StylePreview() {
     setCatalogGroups,
     setCatalogs,
     setObjects,
+    setObjectsByType,
     setRelationGraph,
     setRelationGraphLayout,
     setSelectedAttributeGroupId,
@@ -565,11 +567,18 @@ export function StylePreview() {
     () => Object.values(snapshotObjectsByType).some((typeObjects) => typeObjects.length > 0),
     [snapshotObjectsByType],
   )
-  const readBaseObjectsByType = hasSnapshotObjects ? snapshotObjectsByType : objectsByType
-  const readCatalogs = projectSnapshot?.data.catalogs ?? visibleCatalogs
-  const readCatalogEntriesByCatalogId = projectSnapshot?.data.catalogEntriesByCatalogId ?? catalogEntriesByCatalogId
-  const readCatalogGroupsByCatalogId = projectSnapshot?.data.catalogGroupsByCatalogId ?? catalogGroupsByCatalogId
-  const readCatalogFieldsByCatalogId = projectSnapshot?.data.catalogFieldsByCatalogId ?? catalogFieldsByCatalogId
+  const shouldReadProjectSnapshot = projectSnapshot !== null && !canEditSelectedProject
+  const readBaseObjectsByType = shouldReadProjectSnapshot && hasSnapshotObjects ? snapshotObjectsByType : objectsByType
+  const readCatalogs = shouldReadProjectSnapshot ? projectSnapshot.data.catalogs : visibleCatalogs
+  const readCatalogEntriesByCatalogId = shouldReadProjectSnapshot
+    ? projectSnapshot.data.catalogEntriesByCatalogId
+    : catalogEntriesByCatalogId
+  const readCatalogGroupsByCatalogId = shouldReadProjectSnapshot
+    ? projectSnapshot.data.catalogGroupsByCatalogId
+    : catalogGroupsByCatalogId
+  const readCatalogFieldsByCatalogId = shouldReadProjectSnapshot
+    ? projectSnapshot.data.catalogFieldsByCatalogId
+    : catalogFieldsByCatalogId
   const readSelectedCatalog = useMemo(
     () => readCatalogs.find((catalog) => catalog.id === selectedCatalogId) ?? readCatalogs[0] ?? selectedCatalog,
     [readCatalogs, selectedCatalog, selectedCatalogId],
@@ -591,21 +600,31 @@ export function StylePreview() {
     [readCatalogEntriesByCatalogId, selectedCatalogEntry, selectedCatalogEntryId],
   )
   const readAttributeDefinitions = isObjectSection(activeSection)
-    ? projectSnapshot?.data.attributeDefinitionsByType[activeSection] ?? attributeDefinitions
+    ? shouldReadProjectSnapshot
+      ? projectSnapshot.data.attributeDefinitionsByType[activeSection] ?? []
+      : attributeDefinitions
     : attributeDefinitions
   const readAttributeGroups = isObjectSection(activeSection)
-    ? projectSnapshot?.data.attributeGroupsByType[activeSection] ?? attributeGroups
+    ? shouldReadProjectSnapshot
+      ? projectSnapshot.data.attributeGroupsByType[activeSection] ?? []
+      : attributeGroups
     : attributeGroups
-  const readTimelineEvents = projectSnapshot?.data.timelineEvents ?? visibleTimelineEvents
-  const readTimelineInfo = projectSnapshot?.data.timelineInfo ?? timelineInfo
-  const readTimelineLayout = projectSnapshot?.data.timelineLayout ?? timelineLayout
-  const readTimelineLayoutRules = projectSnapshot?.data.timelineLayoutRules ?? timelineLayoutRules
-  const readTimelineLinks = projectSnapshot?.data.timelineLinks ?? timelineLinks
-  const readRelationGraph = projectSnapshot?.data.relationGraph ?? relationGraph
-  const readRelationGraphLayout = projectSnapshot?.data.relationGraphLayout ?? relationGraphLayout
-  const readStructures = projectSnapshot?.data.structures ?? structures
-  const readStructureAssignments = projectSnapshot?.data.structureAssignments ?? structureAssignments
-  const readStructureUsages = projectSnapshot?.data.structureUsages ?? structureUsages
+  const readTimelineEvents = shouldReadProjectSnapshot ? projectSnapshot.data.timelineEvents : visibleTimelineEvents
+  const readTimelineInfo = shouldReadProjectSnapshot ? projectSnapshot.data.timelineInfo : timelineInfo
+  const readTimelineLayout = shouldReadProjectSnapshot ? projectSnapshot.data.timelineLayout : timelineLayout
+  const readTimelineLayoutRules = shouldReadProjectSnapshot
+    ? projectSnapshot.data.timelineLayoutRules
+    : timelineLayoutRules
+  const readTimelineLinks = shouldReadProjectSnapshot ? projectSnapshot.data.timelineLinks : timelineLinks
+  const readRelationGraph = shouldReadProjectSnapshot ? projectSnapshot.data.relationGraph : relationGraph
+  const readRelationGraphLayout = shouldReadProjectSnapshot
+    ? projectSnapshot.data.relationGraphLayout
+    : relationGraphLayout
+  const readStructures = shouldReadProjectSnapshot ? projectSnapshot.data.structures : structures
+  const readStructureAssignments = shouldReadProjectSnapshot
+    ? projectSnapshot.data.structureAssignments
+    : structureAssignments
+  const readStructureUsages = shouldReadProjectSnapshot ? projectSnapshot.data.structureUsages : structureUsages
   const readSelectedTimelineEvent = useMemo(
     () =>
       selectedTimelineEventId === null
@@ -824,6 +843,7 @@ export function StylePreview() {
     setObjectEditorTab,
     setObjectValidationErrors,
     setObjects,
+    setObjectsByType,
     setRelationGraph,
     setRelationGraphLayout,
     setSelectedObjectId,
@@ -1077,6 +1097,19 @@ export function StylePreview() {
     showErrorMessage,
   })
 
+  const updateObjectStructureAssignments = useCallback(
+    (storyObjectId: number, assignments: StructureAssignment[]) => {
+      setStructureAssignments((currentAssignments) => [
+        ...currentAssignments.filter(
+          (assignment) => !(assignment.targetKind === 'storyObject' && assignment.targetId === storyObjectId),
+        ),
+        ...assignments,
+      ])
+      setRelationGraphLayout((currentLayout) => (currentLayout === null ? null : { ...currentLayout, isStale: true }))
+    },
+    [setRelationGraphLayout, setStructureAssignments],
+  )
+
   const objectEditorProps = buildStylePreviewObjectEditorProps({
     activeSection,
     attributeDefinitions,
@@ -1136,6 +1169,8 @@ export function StylePreview() {
     territoryPlaceIds,
     timelineEvents,
     uploadObjectImage,
+    updateObjectStructureAssignments,
+    refreshRelationWorkspaceData,
     validationErrors: objectValidationErrors,
   })
 
@@ -1166,6 +1201,8 @@ export function StylePreview() {
     textLinkTargets,
     timelineEvents: readTimelineEvents,
     ui,
+    updateObjectStructureAssignments,
+    refreshRelationWorkspaceData,
     uploadGalleryImage,
   })
 
@@ -1178,6 +1215,7 @@ export function StylePreview() {
 
   const timelineEventDetailProps = buildStylePreviewTimelineEventDetailProps({
     addTimelineGalleryImage,
+    canEdit: canEditSelectedProject,
     deleteTimelineGalleryImage,
     events: readTimelineEvents,
     galleryImageCaption: timelineGalleryImageCaption,
@@ -1325,6 +1363,7 @@ export function StylePreview() {
   })
 
   const timelinePageProps = buildStylePreviewTimelinePageProps({
+    canEdit: canEditSelectedProject,
     timelineEvents: readTimelineEvents,
     isGenerating: isTimelineGenerating,
     layout: readTimelineLayout,
@@ -1458,8 +1497,8 @@ export function StylePreview() {
     catalogEntriesByCatalogId: readCatalogEntriesByCatalogId,
     detailMode,
     apiUnavailableMessage: messages.apiUnavailable,
-    snapshotStructures: projectSnapshot?.data.structures ?? null,
-    snapshotStructureUsages: projectSnapshot?.data.structureUsages ?? null,
+    snapshotStructures: shouldReadProjectSnapshot ? projectSnapshot.data.structures : null,
+    snapshotStructureUsages: shouldReadProjectSnapshot ? projectSnapshot.data.structureUsages : null,
     ui,
     setStructureDetailPanel,
     showErrorMessage,
@@ -1470,7 +1509,7 @@ export function StylePreview() {
   const projectExportWorkspaceProps = buildStylePreviewProjectExportWorkspaceProps({
     enabledObjectTypes,
     apiUnavailableMessage: messages.apiUnavailable,
-    objectsByType: projectSnapshot?.data.objectsByType ?? temporalObjectsByType,
+    objectsByType: shouldReadProjectSnapshot ? projectSnapshot.data.objectsByType : temporalObjectsByType,
     selectedProjectId: selectedProject?.id ?? selectedProjectId,
     selectedProjectRuntimeId: selectedProject?.id ?? selectedProjectId ?? 0,
     ui,

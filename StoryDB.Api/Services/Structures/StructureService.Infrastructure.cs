@@ -7,8 +7,9 @@ namespace StoryDB.Api.Services.Structures;
 
 public sealed partial class StructureService
 {
-    private void InvalidateRelationGraphCache(int projectId)
+    private Task InvalidateRelationGraphCache(int projectId)
     {
+        var now = DateTime.UtcNow;
         cacheSingleFlight.Remove(ProjectCacheKeys.RelationGraph(projectId));
         cacheSingleFlight.Remove(ProjectCacheKeys.Catalogs(projectId));
         cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.CatalogDetailsPrefix(projectId));
@@ -16,6 +17,12 @@ public sealed partial class StructureService
         cacheSingleFlight.RemoveByPrefix(ProjectCacheKeys.StructureDetailsPrefix(projectId));
         cacheSingleFlight.Remove(ProjectCacheKeys.StructureUsages(projectId));
         cacheSingleFlight.Remove(ProjectCacheKeys.StructureAssignments(projectId));
+
+        return dbContext.RelationGraphLayouts
+            .Where(layout => layout.ProjectId == projectId && !layout.IsStale)
+            .ExecuteUpdateAsync(updates => updates
+                .SetProperty(layout => layout.IsStale, true)
+                .SetProperty(layout => layout.UpdatedAt, now));
     }
 
     private async Task ReplaceStructureItems(Structure structure, StructureRequest request, DateTime now)
@@ -72,6 +79,182 @@ public sealed partial class StructureService
         await dbContext.SaveChangesAsync();
     }
 
+    private async Task SyncStructureItems(Structure structure, StructureRequest request, DateTime now)
+    {
+        var existingNodesById = structure.Nodes.ToDictionary(node => node.Id);
+        var savedNodesByClientId = new Dictionary<string, StructureNode>();
+        var requestedExistingNodeIds = new HashSet<int>();
+
+        foreach (var requestedNode in request.Nodes.OrderBy(node => node.LevelIndex).ThenBy(node => node.SortOrder))
+        {
+            var clientId = requestedNode.ClientId.Trim();
+            if (int.TryParse(clientId, out var nodeId) && existingNodesById.TryGetValue(nodeId, out var existingNode))
+            {
+                existingNode.Name = requestedNode.Name.Trim();
+                existingNode.Description = NormalizeOptionalText(requestedNode.Description);
+                existingNode.NodeType = NormalizeOptionalText(requestedNode.NodeType);
+                existingNode.Color = NormalizeOptionalText(requestedNode.Color);
+                existingNode.IconKey = NormalizeOptionalText(requestedNode.IconKey);
+                existingNode.LinkedCatalogEntryId = null;
+                existingNode.LinkedCatalogEntryGroupId = null;
+                existingNode.LevelIndex = requestedNode.LevelIndex;
+                existingNode.SortOrder = requestedNode.SortOrder;
+                existingNode.UpdatedAt = now;
+
+                savedNodesByClientId[clientId] = existingNode;
+                requestedExistingNodeIds.Add(nodeId);
+                continue;
+            }
+
+            var node = new StructureNode
+            {
+                StructureId = structure.Id,
+                Name = requestedNode.Name.Trim(),
+                Description = NormalizeOptionalText(requestedNode.Description),
+                NodeType = NormalizeOptionalText(requestedNode.NodeType),
+                Color = NormalizeOptionalText(requestedNode.Color),
+                IconKey = NormalizeOptionalText(requestedNode.IconKey),
+                LinkedCatalogEntryId = null,
+                LinkedCatalogEntryGroupId = null,
+                LevelIndex = requestedNode.LevelIndex,
+                SortOrder = requestedNode.SortOrder,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+
+            dbContext.StructureNodes.Add(node);
+            savedNodesByClientId[clientId] = node;
+        }
+
+        await dbContext.SaveChangesAsync();
+
+        dbContext.StructureEdges.RemoveRange(structure.Edges);
+
+        var removedNodeIds = existingNodesById.Keys
+            .Where(nodeId => !requestedExistingNodeIds.Contains(nodeId))
+            .ToHashSet();
+        if (removedNodeIds.Count > 0)
+        {
+            dbContext.StructureNodes.RemoveRange(structure.Nodes.Where(node => removedNodeIds.Contains(node.Id)));
+        }
+
+        foreach (var requestedNode in request.Nodes)
+        {
+            var node = savedNodesByClientId[requestedNode.ClientId.Trim()];
+            var nextParentNodeId = string.IsNullOrWhiteSpace(requestedNode.ParentClientId)
+                ? (int?)null
+                : savedNodesByClientId[requestedNode.ParentClientId!.Trim()].Id;
+            if (node.ParentNodeId != nextParentNodeId)
+            {
+                node.ParentNodeId = nextParentNodeId;
+                node.UpdatedAt = now;
+            }
+        }
+
+        foreach (var requestedEdge in request.Edges.Select((edge, index) => new { Edge = edge, Index = index }))
+        {
+            dbContext.StructureEdges.Add(new StructureEdge
+            {
+                StructureId = structure.Id,
+                SourceNodeId = savedNodesByClientId[requestedEdge.Edge.SourceClientId.Trim()].Id,
+                TargetNodeId = savedNodesByClientId[requestedEdge.Edge.TargetClientId.Trim()].Id,
+                RelationType = requestedEdge.Edge.RelationType.Trim(),
+                Description = NormalizeOptionalText(requestedEdge.Edge.Description),
+                SortOrder = requestedEdge.Edge.SortOrder >= 0 ? requestedEdge.Edge.SortOrder : requestedEdge.Index,
+                CreatedAt = now,
+                UpdatedAt = now,
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task<string?> ValidateLockedStructureNodes(int projectId, Structure structure, StructureRequest request)
+    {
+        var existingNodesById = structure.Nodes.ToDictionary(node => node.Id);
+        var requestedExistingNodesById = new Dictionary<int, StructureNodeRequest>();
+
+        foreach (var requestedNode in request.Nodes)
+        {
+            var clientId = requestedNode.ClientId.Trim();
+            if (!int.TryParse(clientId, out var nodeId))
+            {
+                continue;
+            }
+
+            if (!existingNodesById.ContainsKey(nodeId))
+            {
+                return "Structure node was not found.";
+            }
+
+            requestedExistingNodesById[nodeId] = requestedNode;
+        }
+
+        var assignmentCountsByNodeId = await dbContext.StructureAssignments
+            .Where(assignment =>
+                assignment.ProjectId == projectId &&
+                assignment.StructureUsage!.StructureId == structure.Id)
+            .GroupBy(assignment => assignment.StructureNodeId)
+            .Select(group => new { NodeId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(group => group.NodeId, group => group.Count);
+        var childCountsByNodeId = structure.Nodes
+            .Where(node => node.ParentNodeId is not null)
+            .GroupBy(node => node.ParentNodeId!.Value)
+            .ToDictionary(group => group.Key, group => group.Count());
+
+        foreach (var existingNode in structure.Nodes)
+        {
+            var isLocked =
+                assignmentCountsByNodeId.GetValueOrDefault(existingNode.Id) > 0 ||
+                childCountsByNodeId.GetValueOrDefault(existingNode.Id) > 0;
+            if (!isLocked)
+            {
+                continue;
+            }
+
+            if (!requestedExistingNodesById.TryGetValue(existingNode.Id, out var requestedNode))
+            {
+                return "Structure node has object assignments or child nodes and cannot be removed.";
+            }
+
+            if (LockedStructureNodeChanged(existingNode, requestedNode, existingNodesById))
+            {
+                return "Structure node has object assignments or child nodes and cannot be edited.";
+            }
+        }
+
+        return null;
+    }
+
+    private static bool LockedStructureNodeChanged(
+        StructureNode existingNode,
+        StructureNodeRequest requestedNode,
+        IReadOnlyDictionary<int, StructureNode> existingNodesById) =>
+        existingNode.Name != requestedNode.Name.Trim() ||
+        existingNode.Description != NormalizeOptionalText(requestedNode.Description) ||
+        existingNode.NodeType != NormalizeOptionalText(requestedNode.NodeType) ||
+        existingNode.Color != NormalizeOptionalText(requestedNode.Color) ||
+        existingNode.IconKey != NormalizeOptionalText(requestedNode.IconKey) ||
+        existingNode.LevelIndex != requestedNode.LevelIndex ||
+        existingNode.SortOrder != requestedNode.SortOrder ||
+        LockedStructureNodeParentChanged(existingNode, requestedNode, existingNodesById);
+
+    private static bool LockedStructureNodeParentChanged(
+        StructureNode existingNode,
+        StructureNodeRequest requestedNode,
+        IReadOnlyDictionary<int, StructureNode> existingNodesById)
+    {
+        if (string.IsNullOrWhiteSpace(requestedNode.ParentClientId))
+        {
+            return existingNode.ParentNodeId is not null;
+        }
+
+        var parentClientId = requestedNode.ParentClientId.Trim();
+        return !int.TryParse(parentClientId, out var parentNodeId) ||
+            !existingNodesById.ContainsKey(parentNodeId) ||
+            existingNode.ParentNodeId != parentNodeId;
+    }
+
     private async Task ClearPrimaryUsage(int projectId, string targetKind, int targetId, int? exceptUsageId = null)
     {
         var primaryUsages = await dbContext.StructureUsages
@@ -102,6 +285,16 @@ public sealed partial class StructureService
         dbContext.StructureAssignments.AnyAsync(assignment =>
             assignment.ProjectId == projectId &&
             assignment.StructureUsage!.StructureId == structureId);
+
+    private Task<bool> StructureNodeHasAssignments(int projectId, int nodeId) =>
+        dbContext.StructureAssignments.AnyAsync(assignment =>
+            assignment.ProjectId == projectId &&
+            assignment.StructureNodeId == nodeId);
+
+    private Task<bool> StructureNodeHasChildren(int structureId, int nodeId) =>
+        dbContext.StructureNodes.AnyAsync(node =>
+            node.StructureId == structureId &&
+            node.ParentNodeId == nodeId);
 
     private Task<bool> CatalogExists(int projectId, int catalogId) =>
         dbContext.Catalogs.AnyAsync(catalog =>

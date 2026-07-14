@@ -96,7 +96,7 @@ export function useStylePreviewLinkTargets({
 
       if (storyObject.typeKey === 'organizations') {
         const organizationSurname = getOrganizationSurname(storyObject)
-        if (organizationSurname.length > 0 && organizationSurname !== storyObject.name.trim()) {
+        if (organizationSurname.length > 0) {
           targets.push({
             key: `organization-surname-${storyObject.id}-${organizationSurname}`,
             label: organizationSurname,

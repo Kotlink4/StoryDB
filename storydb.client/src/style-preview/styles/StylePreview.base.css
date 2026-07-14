@@ -468,6 +468,13 @@
   margin-bottom: 12px;
 }
 
+.sp-detail-actions > a.sp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .sp-cards.list .sp-card {
   grid-template-columns: 96px minmax(0, 1fr);
   contain-intrinsic-size: 100% 150px;
@@ -556,12 +563,26 @@
 
 .sp-cards.list .sp-card-body {
   margin-top: 0;
+  padding-right: 48px;
 }
 
 .sp-card h3 {
   margin: 0 0 5px;
   color: var(--sp-ink);
   font-size: 16px;
+}
+
+.sp-card-title,
+.sp-card-meta {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-card-meta {
+  color: var(--sp-muted);
 }
 
 .sp-card p {

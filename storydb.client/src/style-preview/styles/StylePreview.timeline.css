@@ -554,21 +554,47 @@
   display: none;
 }
 
-.sp-timeline-item.era strong {
+.sp-timeline-item.era .sp-timeline-era-label {
   position: absolute;
   top: var(--era-label-y);
   left: 12px;
-  display: block;
+  display: grid;
+  gap: 6px;
   max-width: min(720px, calc(100% - 24px));
-  color: color-mix(in srgb, var(--sp-ink) 42%, transparent);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.sp-timeline-item.era .sp-timeline-era-label strong {
+  display: block;
+  color: color-mix(in srgb, var(--sp-ink) 46%, transparent);
   font-size: clamp(28px, 4vw, 54px);
   line-height: 0.98;
-  text-transform: uppercase;
   white-space: normal;
 }
 
+.sp-timeline-item.era .sp-timeline-era-label:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--event-color) 42%, transparent);
+  outline-offset: 6px;
+}
+
+.sp-timeline-item.era.is-selected .sp-timeline-era-label strong,
+.sp-timeline-item.era .sp-timeline-era-label:hover strong {
+  color: color-mix(in srgb, var(--sp-ink) 72%, transparent);
+}
+
 .sp-timeline-item.era span {
-  display: none;
+  display: block;
+  max-width: 220px;
+  color: color-mix(in srgb, var(--sp-ink) 42%, transparent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .sp-timeline-item.chapter {

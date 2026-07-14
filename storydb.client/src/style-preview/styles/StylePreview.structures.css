@@ -326,6 +326,10 @@ button.sp-structure-route {
   padding: 12px;
 }
 
+.sp-structure-node-row.locked {
+  border-style: dashed;
+}
+
 .sp-structure-node-row.compact {
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 92px 92px auto;
 }
@@ -356,6 +360,7 @@ button.sp-structure-route {
 .sp-structure-node-actions {
   display: flex;
   align-items: flex-end;
+  gap: 8px;
   justify-content: flex-end;
 }
 
@@ -441,9 +446,31 @@ button.sp-structure-route {
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.1fr) auto;
 }
 
+.sp-structure-assignment-list .sp-row.readonly {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.1fr);
+}
+
 .sp-structure-assignment-list .sp-row strong {
   display: grid;
   gap: 6px;
+  min-width: 0;
+}
+
+.sp-structure-assignment-list .sp-row > span,
+.sp-structure-assignment-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-structure-assignment-title {
+  display: block;
+}
+
+.sp-structure-assignment-role {
+  color: var(--sp-muted);
+  font-size: 12px;
 }
 
 .sp-structure-assignment-list .sp-row input,
@@ -665,6 +692,10 @@ button.sp-structure-route {
   grid-template-columns: minmax(0, 1fr) minmax(90px, 0.8fr) auto;
   align-items: center;
   gap: 8px;
+}
+
+.sp-structure-node-member-card > div > .sp-structure-node-member.readonly {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .sp-structure-node-member > span {

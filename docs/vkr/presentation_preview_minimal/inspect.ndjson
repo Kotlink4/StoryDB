@@ -1,0 +1,118 @@
+{"kind":"layout","layoutId":"a6be7153-9423-4d4f-b99a-690941bfcf7c","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"abc7684f-e6b5-4ed0-a635-9ec5f6674833","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/zl2kbx","slide":1,"title":"Разработка веб-приложения для авторов художественных произведений","textShapes":5}
+{"kind":"textbox","id":"sh/val87ed8","slide":1,"textChars":65,"textLines":1}
+{"kind":"textbox","id":"sh/dcbulwva","slide":1,"textChars":7,"textLines":1}
+{"kind":"textbox","id":"sh/2x4nap4r","slide":1,"textChars":50,"textLines":2}
+{"kind":"textbox","id":"sh/k3q5o7qp","slide":1,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/donyd0z6","slide":1,"textChars":1,"textLines":1}
+{"kind":"slide","id":"sl/x2zkh6","slide":2,"title":"Актуальность","textShapes":4}
+{"kind":"textbox","id":"sh/z61032ls","slide":2,"textChars":12,"textLines":1}
+{"kind":"textbox","id":"sh/a9w3m94f","slide":2,"textChars":288,"textLines":4}
+{"kind":"textbox","id":"sh/sfil0rqd","slide":2,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/h0fepkzu","slide":2,"textChars":1,"textLines":1}
+{"kind":"slide","id":"sl/ov72wd","slide":3,"title":"Цель и задачи работы","textShapes":5}
+{"kind":"textbox","id":"sh/ji5snelo","slide":3,"textChars":20,"textLines":1}
+{"kind":"textbox","id":"sh/ulwval87","slide":3,"textChars":166,"textLines":1}
+{"kind":"textbox","id":"sh/j6tovaho","slide":3,"textChars":196,"textLines":5}
+{"kind":"textbox","id":"sh/1cfa9w3m","slide":3,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/qh0fepkz","slide":3,"textChars":1,"textLines":1}
+{"kind":"slide","id":"sl/93fviv","slide":4,"title":"Основные требования","textShapes":4}
+{"kind":"textbox","id":"sh/z61032ls","slide":4,"textChars":19,"textLines":1}
+{"kind":"textbox","id":"sh/a9w3m94f","slide":4,"textChars":250,"textLines":6}
+{"kind":"textbox","id":"sh/sfil0rqd","slide":4,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/h0fepkzu","slide":4,"textChars":1,"textLines":1}
+{"kind":"slide","id":"sl/enfsmb","slide":5,"title":"Сравнение с аналогами","textShapes":4}
+{"kind":"textbox","id":"sh/rqd4vmtw","slide":5,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/re1w7mp0","slide":5,"textChars":101,"textLines":1}
+{"kind":"textbox","id":"sh/9knih4by","slide":5,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/2p8nqxs7","slide":5,"textChars":1,"textLines":1}
+{"kind":"slide","id":"sl/8bo5zs","slide":6,"title":"Контекстная диаграмма","textShapes":3}
+{"kind":"textbox","id":"sh/t83itgfm","slide":6,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/bq1oryts","slide":6,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/47y1kre1","slide":6,"textChars":1,"textLines":1}
+{"kind":"image","id":"im/gfmlkjm1","slide":6,"name":"","alt":"Контекстная диаграмма StoryDB","bbox":[70,125,1140,500]}
+{"kind":"slide","id":"sl/m7uzlf","slide":7,"title":"Архитектура приложения","textShapes":4}
+{"kind":"textbox","id":"sh/dcbulwva","slide":7,"textChars":22,"textLines":1}
+{"kind":"textbox","id":"sh/k3q5o7qp","slide":7,"textChars":135,"textLines":4}
+{"kind":"textbox","id":"sh/kf6dcbul","slide":7,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/d0z61032","slide":7,"textChars":1,"textLines":1}
+{"kind":"image","id":"im/fu18jqh0","slide":7,"name":"","alt":"Архитектура StoryDB","bbox":[520,130,650,450]}
+{"kind":"slide","id":"sl/gfru2f","slide":8,"title":"Модель данных","textShapes":4}
+{"kind":"textbox","id":"sh/mhk3q5o7","slide":8,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/bq1oryts","slide":8,"textChars":134,"textLines":3}
+{"kind":"textbox","id":"sh/bm58z25k","slide":8,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/m1cfa9w3","slide":8,"textChars":1,"textLines":1}
+{"kind":"image","id":"im/sneloj2t","slide":8,"name":"","alt":"Укрупненная схема базы данных StoryDB","bbox":[500,135,700,475]}
+{"kind":"slide","id":"sl/a5dgfo","slide":9,"title":"БД: пользователи и проекты","textShapes":4}
+{"kind":"textbox","id":"sh/2x4nap4r","slide":9,"textChars":26,"textLines":1}
+{"kind":"textbox","id":"sh/dcbulwva","slide":9,"textChars":60,"textLines":1}
+{"kind":"textbox","id":"sh/v6psfil0","slide":9,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/2lszqtcj","slide":9,"textChars":1,"textLines":1}
+{"kind":"image","id":"im/3m94fu18","slide":9,"name":"","alt":"Фрагмент базы данных: пользователи и проекты","bbox":[90,124,1100,465]}
+{"kind":"slide","id":"sl/sgz9t4","slide":10,"title":"БД: объекты художественного мира","textShapes":4}
+{"kind":"textbox","id":"sh/bulwval8","slide":10,"textChars":32,"textLines":1}
+{"kind":"textbox","id":"sh/032lszqt","slide":10,"textChars":72,"textLines":1}
+{"kind":"textbox","id":"sh/il0rqd4v","slide":10,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/b6xkf6dc","slide":10,"textChars":2,"textLines":1}
+{"kind":"image","id":"im/itgfmlkj","slide":10,"name":"","alt":"Фрагмент базы данных: объекты художественного мира","bbox":[70,124,1140,465]}
+{"kind":"slide","id":"sl/2k8qwe","slide":11,"title":"БД: каталоги и справочники","textShapes":4}
+{"kind":"textbox","id":"sh/q1orytsv","slide":11,"textChars":26,"textLines":1}
+{"kind":"textbox","id":"sh/1gvy90je","slide":11,"textChars":68,"textLines":1}
+{"kind":"textbox","id":"sh/fa9w3m94","slide":11,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/qpg3ex0n","slide":11,"textChars":2,"textLines":1}
+{"kind":"image","id":"im/7ed8bat4","slide":11,"name":"","alt":"Фрагмент базы данных: каталоги и справочники","bbox":[90,124,1100,465]}
+{"kind":"slide","id":"sl/lx2pbu","slide":12,"title":"БД: структуры","textShapes":4}
+{"kind":"textbox","id":"sh/3q5o7qpg","slide":12,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/w3m94fu1","slide":12,"textChars":53,"textLines":1}
+{"kind":"textbox","id":"sh/at47y1kr","slide":12,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/3ex0nuxc","slide":12,"textChars":2,"textLines":1}
+{"kind":"image","id":"im/a5gbq1or","slide":12,"name":"","alt":"Фрагмент базы данных: структуры","bbox":[90,124,1100,465]}
+{"kind":"slide","id":"sl/3hrumq","slide":13,"title":"БД: таймлайн","textShapes":4}
+{"kind":"textbox","id":"sh/2x4nap4r","slide":13,"textChars":12,"textLines":1}
+{"kind":"textbox","id":"sh/dcbulwva","slide":13,"textChars":72,"textLines":1}
+{"kind":"textbox","id":"sh/v6psfil0","slide":13,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/2lszqtcj","slide":13,"textChars":2,"textLines":1}
+{"kind":"image","id":"im/za1gvy90","slide":13,"name":"","alt":"Фрагмент базы данных: таймлайн","bbox":[90,124,1100,465]}
+{"kind":"slide","id":"sl/2zbnby","slide":14,"title":"БД: медиа и раскладки","textShapes":4}
+{"kind":"textbox","id":"sh/tsvu9kni","slide":14,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/mp0bi9s3","slide":14,"textChars":80,"textLines":1}
+{"kind":"textbox","id":"sh/4nap4r65","slide":14,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/t83itgfm","slide":14,"textChars":2,"textLines":1}
+{"kind":"image","id":"im/k3q5o7qp","slide":14,"name":"","alt":"Фрагмент базы данных: медиа и раскладки","bbox":[90,124,1100,465]}
+{"kind":"slide","id":"sl/el8ap5","slide":15,"title":"Рабочая область","textShapes":4}
+{"kind":"textbox","id":"sh/tgfmlkjm","slide":15,"textChars":15,"textLines":1}
+{"kind":"textbox","id":"sh/47y1kre1","slide":15,"textChars":130,"textLines":3}
+{"kind":"textbox","id":"sh/4byhgn29","slide":15,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/twra5gbq","slide":15,"textChars":2,"textLines":1}
+{"kind":"image","id":"im/vu9knih4","slide":15,"name":"","alt":"Рабочая область с персонажами","bbox":[485,125,700,420]}
+{"kind":"slide","id":"sl/b3r5ng","slide":16,"title":"Редактирование объектов и каталогов","textShapes":4}
+{"kind":"textbox","id":"sh/d8v6psfi","slide":16,"textChars":35,"textLines":1}
+{"kind":"textbox","id":"sh/o7qpg3ex","slide":16,"textChars":89,"textLines":1}
+{"kind":"textbox","id":"sh/pwb2hwfy","slide":16,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/0bi9s36h","slide":16,"textChars":2,"textLines":1}
+{"kind":"image","id":"im/sfil0rqd","slide":16,"name":"","alt":"Окно редактирования объекта","bbox":[80,135,540,340]}
+{"kind":"image","id":"im/a9w3m94f","slide":16,"name":"","alt":"Список организаций","bbox":[660,135,540,340]}
+{"kind":"slide","id":"sl/hyvgd0","slide":17,"title":"Связи и временная линия","textShapes":4}
+{"kind":"textbox","id":"sh/q1orytsv","slide":17,"textChars":23,"textLines":1}
+{"kind":"textbox","id":"sh/fa9w3m94","slide":17,"textChars":94,"textLines":1}
+{"kind":"textbox","id":"sh/wjudg7ad","slide":17,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/p4r65wju","slide":17,"textChars":2,"textLines":1}
+{"kind":"image","id":"im/fmlkjm1c","slide":17,"name":"","alt":"Граф связей","bbox":[80,135,540,340]}
+{"kind":"image","id":"im/xs72x4na","slide":17,"name":"","alt":"Таймлайн проекта","bbox":[660,135,540,340]}
+{"kind":"slide","id":"sl/5z0xy4","slide":18,"title":"Технологии реализации","textShapes":4}
+{"kind":"textbox","id":"sh/s36hcrmh","slide":18,"textChars":21,"textLines":1}
+{"kind":"textbox","id":"sh/hgn29gr2","slide":18,"textChars":223,"textLines":6}
+{"kind":"textbox","id":"sh/za1gvy90","slide":18,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/ap4r65wj","slide":18,"textChars":2,"textLines":1}
+{"kind":"slide","id":"sl/rpztz2","slide":19,"title":"Тестирование","textShapes":4}
+{"kind":"textbox","id":"sh/i5sneloj","slide":19,"textChars":12,"textLines":1}
+{"kind":"textbox","id":"sh/7y1kre1w","slide":19,"textChars":268,"textLines":5}
+{"kind":"textbox","id":"sh/p4r65wju","slide":19,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/wjudg7ad","slide":19,"textChars":2,"textLines":1}
+{"kind":"slide","id":"sl/ilydnf","slide":20,"title":"Результат работы","textShapes":4}
+{"kind":"textbox","id":"sh/yhgn29gr","slide":20,"textChars":16,"textLines":1}
+{"kind":"textbox","id":"sh/nuxc3ylc","slide":20,"textChars":297,"textLines":5}
+{"kind":"textbox","id":"sh/5wjudg7a","slide":20,"textChars":13,"textLines":1}
+{"kind":"textbox","id":"sh/gbq1oryt","slide":20,"textChars":2,"textLines":1}
+{"kind":"notice","message":"Truncated: omitted 0 lines. Increase maxChars or narrow target."}

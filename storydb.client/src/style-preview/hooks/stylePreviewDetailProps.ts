@@ -66,6 +66,8 @@ export function buildStylePreviewObjectDetailProps({
   textLinkTargets,
   timelineEvents,
   ui,
+  updateObjectStructureAssignments,
+  refreshRelationWorkspaceData,
   uploadGalleryImage,
 }: {
   addGalleryImage: () => Promise<void>
@@ -94,6 +96,8 @@ export function buildStylePreviewObjectDetailProps({
   textLinkTargets: TextLinkTarget[]
   timelineEvents: TimelineEvent[]
   ui: ObjectDetailProps['ui']
+  updateObjectStructureAssignments: NonNullable<ObjectDetailProps['onStructureAssignmentsChange']>
+  refreshRelationWorkspaceData: NonNullable<ObjectDetailProps['onStructureWorkspaceChange']>
   uploadGalleryImage: (file: File | null) => Promise<void>
 }): ObjectDetailProps {
   return {
@@ -121,6 +125,8 @@ export function buildStylePreviewObjectDetailProps({
     onGalleryImageUpload: (file) => void uploadGalleryImage(file),
     onDossierTimelineEventIdChange: setDossierTimelineEventId,
     onOpenTimelineEvent: openTimelineEventFromDossier,
+    onStructureAssignmentsChange: updateObjectStructureAssignments,
+    onStructureWorkspaceChange: refreshRelationWorkspaceData,
     onTabChange: setDossierTab,
     onTimelineEventUpdated: (timelineEvent) =>
       updateTimelineEventAndMarkLayoutStale({
@@ -152,6 +158,7 @@ export function buildStylePreviewRelationDetailProps({
 
 export function buildStylePreviewTimelineEventDetailProps({
   addTimelineGalleryImage,
+  canEdit,
   deleteTimelineGalleryImage,
   events,
   galleryImageCaption,
@@ -169,6 +176,7 @@ export function buildStylePreviewTimelineEventDetailProps({
   uploadTimelineGalleryImage,
 }: {
   addTimelineGalleryImage: () => Promise<void>
+  canEdit: boolean
   deleteTimelineGalleryImage: (imageId: number) => Promise<void>
   events: TimelineEvent[]
   galleryImageCaption: string
@@ -192,15 +200,17 @@ export function buildStylePreviewTimelineEventDetailProps({
     links,
     objects: linkableObjects,
     ui,
-    onAddGalleryImage: () => void addTimelineGalleryImage(),
-    onDelete: (eventId) => {
-      setPendingDeleteTimelineEventId(eventId)
-      setDialog('confirmDeleteTimelineEvent')
-    },
-    onDeleteGalleryImage: (imageId) => void deleteTimelineGalleryImage(imageId),
-    onEdit: openTimelineEventEditor,
-    onGalleryCaptionChange: setTimelineGalleryImageCaption,
-    onGalleryImageUpload: (file) => void uploadTimelineGalleryImage(file),
+    onAddGalleryImage: canEdit ? () => void addTimelineGalleryImage() : undefined,
+    onDelete: canEdit
+      ? (eventId) => {
+          setPendingDeleteTimelineEventId(eventId)
+          setDialog('confirmDeleteTimelineEvent')
+        }
+      : undefined,
+    onDeleteGalleryImage: canEdit ? (imageId) => void deleteTimelineGalleryImage(imageId) : undefined,
+    onEdit: canEdit ? openTimelineEventEditor : undefined,
+    onGalleryCaptionChange: canEdit ? setTimelineGalleryImageCaption : undefined,
+    onGalleryImageUpload: canEdit ? (file) => void uploadTimelineGalleryImage(file) : undefined,
     onOpenEvent: openTimelineEventDetail,
     onOpenObject: openObjectDetail,
   }

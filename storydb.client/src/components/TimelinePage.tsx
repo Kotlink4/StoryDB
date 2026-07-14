@@ -47,6 +47,7 @@ import { TimelineLinksPopover } from './timeline/TimelineLinksPopover'
 import TimelineViewportWorker from '../workers/timelineViewportWorker?worker'
 
 export type TimelinePageProps = {
+  canEdit: boolean
   events: TimelineEvent[]
   isGenerating: boolean
   layout: TimelineLayout | null
@@ -55,14 +56,15 @@ export type TimelinePageProps = {
   selectedEvent: TimelineEvent | null
   timeline: TimelineInfo | null
   ui: PreviewText
-  onCreate: () => void
-  onCreateLink: () => void
+  onCreate?: () => void
+  onCreateLink?: () => void
   onDeleteLink: (linkId: number) => void
-  onGenerate: () => void
+  onGenerate?: () => void
   onSelectEvent: (eventId: number) => void
 }
 
 export function TimelinePage({
+  canEdit,
   events,
   isGenerating,
   layout,
@@ -354,6 +356,7 @@ export function TimelinePage({
   return (
     <div className="sp-timeline-page">
       <TimelinePageHeader
+        canEdit={canEdit}
         eventCount={events.length}
         eventCounts={eventCounts}
         isGenerating={isGenerating}
@@ -551,17 +554,20 @@ export function TimelinePage({
                     </span>
                   ) : event.eventType === 'point' ? (
                     null
+                  ) : event.eventType === 'era' ? (
+                    <button
+                      className="sp-timeline-era-label"
+                      type="button"
+                      aria-label={`${event.title}: ${timeLabel}`}
+                      onClick={() => onSelectEvent(event.id)}
+                    >
+                      <strong>{event.title}</strong>
+                      <span>{timeLabel}</span>
+                    </button>
                   ) : (
                     <>
                       <i className="sp-timeline-item-marker" />
                       <strong>{event.title}</strong>
-                      {event.eventType !== 'duration' && <span>{timeLabel}</span>}
-                      {event.description !== null &&
-                        event.description.trim().length > 0 &&
-                        event.eventType !== 'era' &&
-                        event.eventType !== 'duration' && (
-                        <em>{event.description}</em>
-                      )}
                     </>
                   )}
                 </article>

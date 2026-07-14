@@ -1,0 +1,1448 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/enfsmb",
+    "id": "enfsmb",
+    "slide": 5,
+    "layoutId": "abc7684f-e6b5-4ed0-a635-9ec5f6674833",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "a6be7153-9423-4d4f-b99a-690941bfcf7c",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#FFFFFF",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Arial"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "abc7684f-e6b5-4ed0-a635-9ec5f6674833",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "a6be7153-9423-4d4f-b99a-690941bfcf7c",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "a6be7153-9423-4d4f-b99a-690941bfcf7c",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/rqd4vmtw",
+      "id": "1",
+      "bbox": [
+        72,
+        42,
+        1136,
+        60
+      ],
+      "geometry": "rect",
+      "text": "Сравнение с аналогами",
+      "textPreview": "Сравнение с аналогами",
+      "resolvedFontSize": 35,
+      "resolvedTextStyle": {
+        "fontSize": 35,
+        "typeface": "Arial",
+        "color": "#111827",
+        "bold": true,
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Сравнение с аналогами"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Сравнение с аналогами",
+          "resolvedTextStyle": {
+            "fontSize": 35,
+            "typeface": "Arial",
+            "color": "#111827",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Сравнение с аналогами",
+              "fontSize": 35,
+              "typeface": "Arial",
+              "color": "#111827",
+              "bold": true,
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/kb6xkf6d",
+      "id": "2",
+      "bbox": [
+        72,
+        110,
+        1136,
+        1.2
+      ],
+      "geometry": "rect",
+      "fillColor": "#E5E7EB",
+      "lineColor": "#E5E7EB",
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9w3m94fu",
+      "id": "3",
+      "bbox": [
+        72,
+        110,
+        118,
+        2.4
+      ],
+      "geometry": "rect",
+      "fillColor": "#1F4E79",
+      "lineColor": "#1F4E79",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "table",
+      "scope": "slide",
+      "aid": "tb/b6xkf6dc",
+      "id": "4",
+      "bbox": [
+        62,
+        128,
+        1156,
+        450
+      ],
+      "text": "Система | Назначение | База мира | Связи | Таймлайн | Комментарий\nWorld Anvil | worldbuilding | да | да | да | публикация и ведение мира\nCampfire | среда автора | да | част. | да | готовые модули\nNotebook.ai | база мира | да | част. | да | шаблоны сущностей\nKanka | мир и кампании | да | да | да | акцент на RPG\nPlottr | план сюжета | част. | част. | да | сцены и линии сюжета\nStoryDB | проект ВКР | да | да | да | каталоги, структуры, граф, таймлайн",
+      "textPreview": "Система | Назначение | База мира | Связи | Таймлайн | Комментарий | World Anvil | worldbuilding | да | да | да | публикация и ведение мир...",
+      "rows": 7,
+      "cols": 6,
+      "cells": [
+        {
+          "index": 1,
+          "row": 1,
+          "column": 1,
+          "bbox": [
+            62,
+            128,
+            150,
+            42
+          ],
+          "text": "Система",
+          "textPreview": "Система",
+          "fillColor": "#F8FAFC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Система",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Система"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "row": 1,
+          "column": 2,
+          "bbox": [
+            212,
+            128,
+            190,
+            42
+          ],
+          "text": "Назначение",
+          "textPreview": "Назначение",
+          "fillColor": "#F8FAFC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Назначение",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Назначение"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 3,
+          "bbox": [
+            402,
+            128,
+            105,
+            42
+          ],
+          "text": "База мира",
+          "textPreview": "База мира",
+          "fillColor": "#F8FAFC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "База мира",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "База мира"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "row": 1,
+          "column": 4,
+          "bbox": [
+            507,
+            128,
+            100,
+            42
+          ],
+          "text": "Связи",
+          "textPreview": "Связи",
+          "fillColor": "#F8FAFC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Связи",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Связи"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "row": 1,
+          "column": 5,
+          "bbox": [
+            607,
+            128,
+            115,
+            42
+          ],
+          "text": "Таймлайн",
+          "textPreview": "Таймлайн",
+          "fillColor": "#F8FAFC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Таймлайн",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Таймлайн"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "row": 1,
+          "column": 6,
+          "bbox": [
+            722,
+            128,
+            496,
+            42
+          ],
+          "text": "Комментарий",
+          "textPreview": "Комментарий",
+          "fillColor": "#F8FAFC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Комментарий",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Комментарий"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "row": 2,
+          "column": 1,
+          "bbox": [
+            62,
+            170,
+            150,
+            68
+          ],
+          "text": "World Anvil",
+          "textPreview": "World Anvil",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "World Anvil",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "World Anvil"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "row": 2,
+          "column": 2,
+          "bbox": [
+            212,
+            170,
+            190,
+            68
+          ],
+          "text": "worldbuilding",
+          "textPreview": "worldbuilding",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "worldbuilding",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "worldbuilding"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 9,
+          "row": 2,
+          "column": 3,
+          "bbox": [
+            402,
+            170,
+            105,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "row": 2,
+          "column": 4,
+          "bbox": [
+            507,
+            170,
+            100,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 11,
+          "row": 2,
+          "column": 5,
+          "bbox": [
+            607,
+            170,
+            115,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 12,
+          "row": 2,
+          "column": 6,
+          "bbox": [
+            722,
+            170,
+            496,
+            68
+          ],
+          "text": "публикация и ведение мира",
+          "textPreview": "публикация и ведение мира",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "публикация и ведение мира",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "публикация и ведение мира"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 13,
+          "row": 3,
+          "column": 1,
+          "bbox": [
+            62,
+            238,
+            150,
+            68
+          ],
+          "text": "Campfire",
+          "textPreview": "Campfire",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Campfire",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Campfire"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 14,
+          "row": 3,
+          "column": 2,
+          "bbox": [
+            212,
+            238,
+            190,
+            68
+          ],
+          "text": "среда автора",
+          "textPreview": "среда автора",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "среда автора",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "среда автора"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 15,
+          "row": 3,
+          "column": 3,
+          "bbox": [
+            402,
+            238,
+            105,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 16,
+          "row": 3,
+          "column": 4,
+          "bbox": [
+            507,
+            238,
+            100,
+            68
+          ],
+          "text": "част.",
+          "textPreview": "част.",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "част.",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "част."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 17,
+          "row": 3,
+          "column": 5,
+          "bbox": [
+            607,
+            238,
+            115,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 18,
+          "row": 3,
+          "column": 6,
+          "bbox": [
+            722,
+            238,
+            496,
+            68
+          ],
+          "text": "готовые модули",
+          "textPreview": "готовые модули",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "готовые модули",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "готовые модули"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 19,
+          "row": 4,
+          "column": 1,
+          "bbox": [
+            62,
+            306,
+            150,
+            68
+          ],
+          "text": "Notebook.ai",
+          "textPreview": "Notebook.ai",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Notebook.ai",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Notebook.ai"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 20,
+          "row": 4,
+          "column": 2,
+          "bbox": [
+            212,
+            306,
+            190,
+            68
+          ],
+          "text": "база мира",
+          "textPreview": "база мира",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "база мира",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "база мира"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 21,
+          "row": 4,
+          "column": 3,
+          "bbox": [
+            402,
+            306,
+            105,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 22,
+          "row": 4,
+          "column": 4,
+          "bbox": [
+            507,
+            306,
+            100,
+            68
+          ],
+          "text": "част.",
+          "textPreview": "част.",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "част.",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "част."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 23,
+          "row": 4,
+          "column": 5,
+          "bbox": [
+            607,
+            306,
+            115,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 24,
+          "row": 4,
+          "column": 6,
+          "bbox": [
+            722,
+            306,
+            496,
+            68
+          ],
+          "text": "шаблоны сущностей",
+          "textPreview": "шаблоны сущностей",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "шаблоны сущностей",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "шаблоны сущностей"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 25,
+          "row": 5,
+          "column": 1,
+          "bbox": [
+            62,
+            374,
+            150,
+            68
+          ],
+          "text": "Kanka",
+          "textPreview": "Kanka",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Kanka",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Kanka"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 26,
+          "row": 5,
+          "column": 2,
+          "bbox": [
+            212,
+            374,
+            190,
+            68
+          ],
+          "text": "мир и кампании",
+          "textPreview": "мир и кампании",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "мир и кампании",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "мир и кампании"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 27,
+          "row": 5,
+          "column": 3,
+          "bbox": [
+            402,
+            374,
+            105,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 28,
+          "row": 5,
+          "column": 4,
+          "bbox": [
+            507,
+            374,
+            100,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 29,
+          "row": 5,
+          "column": 5,
+          "bbox": [
+            607,
+            374,
+            115,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 30,
+          "row": 5,
+          "column": 6,
+          "bbox": [
+            722,
+            374,
+            496,
+            68
+          ],
+          "text": "акцент на RPG",
+          "textPreview": "акцент на RPG",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "акцент на RPG",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "акцент на RPG"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 31,
+          "row": 6,
+          "column": 1,
+          "bbox": [
+            62,
+            442,
+            150,
+            68
+          ],
+          "text": "Plottr",
+          "textPreview": "Plottr",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "Plottr",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "Plottr"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 32,
+          "row": 6,
+          "column": 2,
+          "bbox": [
+            212,
+            442,
+            190,
+            68
+          ],
+          "text": "план сюжета",
+          "textPreview": "план сюжета",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "план сюжета",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "план сюжета"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 33,
+          "row": 6,
+          "column": 3,
+          "bbox": [
+            402,
+            442,
+            105,
+            68
+          ],
+          "text": "част.",
+          "textPreview": "част.",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "част.",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "част."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 34,
+          "row": 6,
+          "column": 4,
+          "bbox": [
+            507,
+            442,
+            100,
+            68
+          ],
+          "text": "част.",
+          "textPreview": "част.",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "част.",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "част."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 35,
+          "row": 6,
+          "column": 5,
+          "bbox": [
+            607,
+            442,
+            115,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 36,
+          "row": 6,
+          "column": 6,
+          "bbox": [
+            722,
+            442,
+            496,
+            68
+          ],
+          "text": "сцены и линии сюжета",
+          "textPreview": "сцены и линии сюжета",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "сцены и линии сюжета",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "сцены и линии сюжета"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 37,
+          "row": 7,
+          "column": 1,
+          "bbox": [
+            62,
+            510,
+            150,
+            68
+          ],
+          "text": "StoryDB",
+          "textPreview": "StoryDB",
+          "fillColor": "#EAF2F8",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "StoryDB",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "StoryDB"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 38,
+          "row": 7,
+          "column": 2,
+          "bbox": [
+            212,
+            510,
+            190,
+            68
+          ],
+          "text": "проект ВКР",
+          "textPreview": "проект ВКР",
+          "fillColor": "#EAF2F8",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "проект ВКР",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "проект ВКР"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 39,
+          "row": 7,
+          "column": 3,
+          "bbox": [
+            402,
+            510,
+            105,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "fillColor": "#EAF2F8",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 40,
+          "row": 7,
+          "column": 4,
+          "bbox": [
+            507,
+            510,
+            100,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "fillColor": "#EAF2F8",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 41,
+          "row": 7,
+          "column": 5,
+          "bbox": [
+            607,
+            510,
+            115,
+            68
+          ],
+          "text": "да",
+          "textPreview": "да",
+          "fillColor": "#EAF2F8",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "да",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "да"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 42,
+          "row": 7,
+          "column": 6,
+          "bbox": [
+            722,
+            510,
+            496,
+            68
+          ],
+          "text": "каталоги, структуры, граф, таймлайн",
+          "textPreview": "каталоги, структуры, граф, таймлайн",
+          "fillColor": "#EAF2F8",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "каталоги, структуры, граф, таймлайн",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "каталоги, структуры, граф, таймлайн"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/re1w7mp0",
+      "id": "5",
+      "bbox": [
+        82,
+        610,
+        1080,
+        44
+      ],
+      "geometry": "rect",
+      "text": "Вывод: StoryDB закрывает основные функции аналогов и делает акцент на единой предметной базе проекта.",
+      "textPreview": "Вывод: StoryDB закрывает основные функции аналогов и делает акцент на единой предметной базе проекта.",
+      "resolvedFontSize": 19,
+      "resolvedTextStyle": {
+        "fontSize": 19,
+        "typeface": "Arial",
+        "color": "#111827",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Вывод: StoryDB закрывает основные функции аналогов и делает акцент на единой предметной базе проекта."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Вывод: StoryDB закрывает основные функции аналогов и делает акцент на единой предметной базе проекта.",
+          "resolvedTextStyle": {
+            "fontSize": 19,
+            "typeface": "Arial",
+            "color": "#111827",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Вывод: StoryDB закрывает основные функции аналогов и делает акцент на единой предметной базе проекта.",
+              "fontSize": 19,
+              "typeface": "Arial",
+              "color": "#111827",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/kzupwb2h",
+      "id": "6",
+      "bbox": [
+        72,
+        666,
+        1136,
+        1
+      ],
+      "geometry": "rect",
+      "fillColor": "#E5E7EB",
+      "lineColor": "#E5E7EB",
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9knih4by",
+      "id": "7",
+      "bbox": [
+        72,
+        678,
+        220,
+        22
+      ],
+      "geometry": "rect",
+      "text": "StoryDB · ВКР",
+      "textPreview": "StoryDB · ВКР",
+      "resolvedFontSize": 13,
+      "resolvedTextStyle": {
+        "fontSize": 13,
+        "typeface": "Arial",
+        "color": "#4B5563",
+        "alignment": "left",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "StoryDB · ВКР"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "StoryDB · ВКР",
+          "resolvedTextStyle": {
+            "fontSize": 13,
+            "typeface": "Arial",
+            "color": "#4B5563",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "StoryDB · ВКР",
+              "fontSize": 13,
+              "typeface": "Arial",
+              "color": "#4B5563",
+              "alignment": "left"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/2p8nqxs7",
+      "id": "8",
+      "bbox": [
+        1170,
+        672,
+        38,
+        24
+      ],
+      "geometry": "rect",
+      "text": "5",
+      "textPreview": "5",
+      "resolvedFontSize": 14,
+      "resolvedTextStyle": {
+        "fontSize": 14,
+        "typeface": "Arial",
+        "color": "#4B5563",
+        "alignment": "right",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "5"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "5",
+          "resolvedTextStyle": {
+            "fontSize": 14,
+            "typeface": "Arial",
+            "color": "#4B5563",
+            "alignment": "right"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "5",
+              "fontSize": 14,
+              "typeface": "Arial",
+              "color": "#4B5563",
+              "alignment": "right"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

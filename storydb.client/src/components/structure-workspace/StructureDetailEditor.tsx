@@ -154,7 +154,7 @@ export function StructureDetailEditor({
                 <button
                   className="sp-button primary"
                   type="button"
-                  disabled={isDetailSaving || selectedDraft.name.trim().length === 0 || isSelectedTopologyLocked}
+                  disabled={isDetailSaving || selectedDraft.name.trim().length === 0 || hasSelectedStructureTimelineReferences}
                   onClick={onSelectedStructureSave}
                 >
                   {isDetailSaving ? ui.saving : ui.save}
@@ -338,7 +338,12 @@ export function StructureDetailEditor({
                   <p>{ui.structureNodesHint}</p>
                 </div>
                 {schemaMode === 'edit' && (
-                  <button className="sp-button" disabled={isSelectedTopologyLocked} type="button" onClick={onSelectedNodeAdd}>
+                  <button
+                    className="sp-button"
+                    disabled={hasSelectedStructureTimelineReferences}
+                    type="button"
+                    onClick={onSelectedNodeAdd}
+                  >
                     {ui.structureAddNode}
                   </button>
                 )}
@@ -367,7 +372,7 @@ export function StructureDetailEditor({
                         onNodeDetailsSave={onSelectedNodeDetailsSave}
                         onNodeRemove={onSelectedNodeRemove}
                         isNodeDetailsSaving={isDetailSaving}
-                        isTopologyLocked={isSelectedTopologyLocked}
+                        isTopologyLocked={hasSelectedStructureTimelineReferences}
                       />
                       <StructureEdgeDraftSection
                         edges={selectedDraft.edges}

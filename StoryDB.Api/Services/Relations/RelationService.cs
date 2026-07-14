@@ -48,7 +48,8 @@ public sealed partial class RelationService(
                 var edges = new List<RelationGraphEdgeDto>();
                 var organizationsBySurnameForm = nodes
             .Where(node => node.TypeKey == "organizations")
-            .Select(node => new { Node = node, Key = NormalizeMembershipKey(node.SurnameForm) })
+            .Select(node => new { Node = node, Key = NormalizeMembershipKey(
+                string.IsNullOrWhiteSpace(node.SurnameForm) ? node.Name : node.SurnameForm) })
             .Where(item => item.Key is not null)
             .GroupBy(item => item.Key!, StringComparer.Ordinal)
             .ToDictionary(

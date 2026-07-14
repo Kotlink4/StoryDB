@@ -6,6 +6,7 @@ import {
   createStructureRequest,
   deleteStructureAssignmentRequest,
   deleteStructureUsageRequest,
+  fetchStructureAssignments,
   getApiErrorMessage,
   makeStructureUsageIndividualRequest,
   updateStructureAssignmentRequest,
@@ -31,15 +32,21 @@ import {
   prepareOrganizationStructureNodes,
 } from './structurePanelUtils'
 export function OrganizationStructureView({
+  mode = 'readonly',
   objectsByType,
   selectedProjectId,
   storyObject,
   ui,
+  onAssignmentsChange,
+  onStructureWorkspaceChange,
 }: {
+  mode?: 'readonly' | 'editor'
   objectsByType: Record<ObjectTypeKey, StoryObject[]>
   selectedProjectId: number | null
   storyObject: StoryObject
   ui: PreviewText
+  onAssignmentsChange?: (storyObjectId: number, assignments: StructureAssignment[]) => void
+  onStructureWorkspaceChange?: () => void | Promise<void>
 }) {
   const [availableStructures, setAvailableStructures] = useState<StructureSummary[]>([])
   const [assignmentObjectId, setAssignmentObjectId] = useState('')
@@ -49,6 +56,7 @@ export function OrganizationStructureView({
   const [individualStructureNodes, setIndividualStructureNodes] = useState<StructureNodeDraft[]>(() =>
     createStarterOrganizationNodes(ui),
   )
+  const [isIndividualStructureBuilderOpen, setIsIndividualStructureBuilderOpen] = useState(false)
   const [selectedStructureId, setSelectedStructureId] = useState('')
   const [structureAssignments, setStructureAssignments] = useState<Record<number, StructureAssignment[]>>({})
   const [structureDetails, setStructureDetails] = useState<Record<number, Structure>>({})
@@ -56,22 +64,38 @@ export function OrganizationStructureView({
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isEditorMode = mode === 'editor'
   const unassignedStructures = availableStructures.filter(
     (structure) => !structureUsages.some((usage) => usage.structureId === structure.id),
   )
   const assignableObjects = useMemo(
     () =>
-      Object.values(objectsByType)
-        .flat()
-        .filter((object) => object.id !== storyObject.id)
+      [...objectsByType.characters]
         .sort((left, right) => left.name.localeCompare(right.name)),
-    [objectsByType, storyObject.id],
+    [objectsByType.characters],
   )
   const assignmentUsage = structureUsages.find((usage) => String(usage.id) === assignmentUsageId) ?? null
   const assignmentStructure = assignmentUsage === null ? null : structureDetails[assignmentUsage.structureId] ?? null
   const assignmentNodes = assignmentStructure?.nodes ?? emptyStructureNodes
   const canCreateIndividualStructure =
     !isSaving && individualStructureNodes.some((node) => node.name.trim().length > 0)
+
+  const refreshAssignmentsForStoryObjects = useCallback(
+    async (storyObjectIds: number[]) => {
+      if (selectedProjectId === null || onAssignmentsChange === undefined) {
+        return
+      }
+
+      const uniqueStoryObjectIds = Array.from(new Set(storyObjectIds.filter((id) => id > 0)))
+      await Promise.all(
+        uniqueStoryObjectIds.map(async (storyObjectId) => {
+          const assignments = await fetchStructureAssignments(selectedProjectId, { storyObjectId })
+          onAssignmentsChange(storyObjectId, assignments)
+        }),
+      )
+    },
+    [onAssignmentsChange, selectedProjectId],
+  )
 
   const loadStructureData = useCallback(async () => {
     if (selectedProjectId === null) {
@@ -109,12 +133,18 @@ export function OrganizationStructureView({
     }
   }, [selectedProjectId, storyObject.id, ui.structureAssignFailed])
 
+  const refreshStructureWorkspace = useCallback(async () => {
+    await loadStructureData()
+    await onStructureWorkspaceChange?.()
+  }, [loadStructureData, onStructureWorkspaceChange])
+
   useEffect(() => {
     void loadStructureData()
   }, [loadStructureData])
 
   useEffect(() => {
     setIndividualStructureNodes(createStarterOrganizationNodes(ui))
+    setIsIndividualStructureBuilderOpen(false)
   }, [storyObject.id, ui])
 
   useEffect(() => {
@@ -148,7 +178,8 @@ export function OrganizationStructureView({
         notes: '',
         isPrimary: structureUsages.length === 0,
       })
-      await loadStructureData()
+      setIsIndividualStructureBuilderOpen(false)
+      await refreshStructureWorkspace()
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignFailed))
     } finally {
@@ -170,7 +201,7 @@ export function OrganizationStructureView({
         description: '',
         ownerKind: 'object',
         ownerId: storyObject.id,
-        applicationScope: 'organizations',
+        applicationScope: 'characters',
         layoutKind: 'levels',
         nodeBindingMode: 'none',
         catalogSyncMode: 'manual',
@@ -186,7 +217,8 @@ export function OrganizationStructureView({
         isPrimary: structureUsages.length === 0,
       })
       setIndividualStructureNodes(createStarterOrganizationNodes(ui))
-      await loadStructureData()
+      setIsIndividualStructureBuilderOpen(false)
+      await refreshStructureWorkspace()
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureCreateFailed))
     } finally {
@@ -225,8 +257,11 @@ export function OrganizationStructureView({
     setIsSaving(true)
     setError(null)
     try {
+      const affectedStoryObjectIds = (structureAssignments[usage.id] ?? [])
+        .map((assignment) => assignment.storyObjectId ?? assignment.targetId)
       await makeStructureUsageIndividualRequest(selectedProjectId, usage.id)
-      await loadStructureData()
+      await refreshStructureWorkspace()
+      await refreshAssignmentsForStoryObjects(affectedStoryObjectIds)
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureMakeIndividualFailed))
     } finally {
@@ -249,7 +284,7 @@ export function OrganizationStructureView({
         notes: usage.notes ?? '',
         isPrimary: true,
       })
-      await loadStructureData()
+      await refreshStructureWorkspace()
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureUsageUpdateFailed))
     } finally {
@@ -266,7 +301,7 @@ export function OrganizationStructureView({
     setError(null)
     try {
       await deleteStructureUsageRequest(selectedProjectId, usage.id)
-      await loadStructureData()
+      await refreshStructureWorkspace()
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureDisconnectFailed))
     } finally {
@@ -289,15 +324,18 @@ export function OrganizationStructureView({
     setError(null)
     try {
       const assignments = structureAssignments[assignmentUsage.id] ?? []
-      await assignObjectToStructureRequest(selectedProjectId, assignmentUsage.id, {
+      const assignment = await assignObjectToStructureRequest(selectedProjectId, assignmentUsage.id, {
         structureNodeId: Number(assignmentStructureNodeId),
         storyObjectId: Number(assignmentObjectId),
+        targetKind: 'storyObject',
+        targetId: Number(assignmentObjectId),
         roleLabel: assignmentRoleLabel,
         notes: '',
         sortOrder: assignments.length,
       })
       setAssignmentRoleLabel('')
-      await loadStructureData()
+      await refreshStructureWorkspace()
+      await refreshAssignmentsForStoryObjects([assignment.storyObjectId ?? assignment.targetId])
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
     } finally {
@@ -313,8 +351,10 @@ export function OrganizationStructureView({
     setIsSaving(true)
     setError(null)
     try {
+      const affectedStoryObjectId = assignment.storyObjectId ?? assignment.targetId
       await deleteStructureAssignmentRequest(selectedProjectId, assignment.id)
-      await loadStructureData()
+      await refreshStructureWorkspace()
+      await refreshAssignmentsForStoryObjects([affectedStoryObjectId])
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentDeleteFailed))
     } finally {
@@ -330,14 +370,17 @@ export function OrganizationStructureView({
     setIsSaving(true)
     setError(null)
     try {
-      await updateStructureAssignmentRequest(selectedProjectId, assignment.id, {
+      const updatedAssignment = await updateStructureAssignmentRequest(selectedProjectId, assignment.id, {
         structureNodeId: assignment.structureNodeId,
         storyObjectId: assignment.storyObjectId,
+        targetKind: assignment.targetKind,
+        targetId: assignment.targetId,
         roleLabel: nextRoleLabel,
         notes: assignment.notes ?? '',
         sortOrder: assignment.sortOrder,
       })
-      await loadStructureData()
+      await refreshStructureWorkspace()
+      await refreshAssignmentsForStoryObjects([updatedAssignment.storyObjectId ?? updatedAssignment.targetId])
     } catch (error) {
       setError(getApiErrorMessage(error, ui.structureAssignmentSaveFailed))
     } finally {
@@ -362,72 +405,86 @@ export function OrganizationStructureView({
       {error !== null && <p className="sp-editor-error">{error}</p>}
       {isLoading && <p className="sp-editor-hint">{ui.loading}</p>}
 
-      <div className="sp-structure-connect-panel">
-        <label>
-          {ui.structureTemplate}
-          <select
-            disabled={unassignedStructures.length === 0 || isSaving}
-            value={selectedStructureId}
-            onChange={(event) => setSelectedStructureId(event.target.value)}
-          >
-            {unassignedStructures.length === 0 ? (
-              <option value="">{ui.noStructures}</option>
-            ) : (
-              unassignedStructures.map((structure) => (
-                <option key={structure.id} value={structure.id}>
-                  {structure.name}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
-        <div className="sp-organization-structure-builder">
-          <div className="sp-structure-nodes-head">
-            <div>
-              <h3>{ui.structureQuickBuilder}</h3>
-              <p>{ui.structureQuickBuilderHint}</p>
-            </div>
-            <div className="sp-detail-actions">
-              <button className="sp-button" disabled={isSaving} type="button" onClick={addIndividualStructureNode}>
-                {ui.structureAddNode}
-              </button>
-              <button className="sp-button" disabled={isSaving} type="button" onClick={resetIndividualStructureNodes}>
-                {ui.structureResetStarterNodes}
-              </button>
-            </div>
+      {isEditorMode && (
+        <div className="sp-structure-connect-panel">
+          <label>
+            {ui.structureTemplate}
+            <select
+              disabled={unassignedStructures.length === 0 || isSaving}
+              value={selectedStructureId}
+              onChange={(event) => setSelectedStructureId(event.target.value)}
+            >
+              {unassignedStructures.length === 0 ? (
+                <option value="">{ui.noStructures}</option>
+              ) : (
+                unassignedStructures.map((structure) => (
+                  <option key={structure.id} value={structure.id}>
+                    {structure.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <div className="sp-detail-actions">
+            <button
+              className="sp-button primary"
+              disabled={unassignedStructures.length === 0 || isSaving}
+              type="button"
+              onClick={() => void assignExistingStructure()}
+            >
+              {ui.structureAssignExisting}
+            </button>
+            <button
+              className="sp-button"
+              disabled={isSaving}
+              type="button"
+              onClick={() => setIsIndividualStructureBuilderOpen((isOpen) => !isOpen)}
+            >
+              {isIndividualStructureBuilderOpen ? ui.cancel : ui.structureCreateIndividual}
+            </button>
           </div>
-          <OrganizationStructureNodeDraftList
-            nodes={individualStructureNodes}
-            ui={ui}
-            onNodeChange={updateIndividualStructureNode}
-            onNodeRemove={removeIndividualStructureNode}
-          />
+          {isIndividualStructureBuilderOpen && (
+            <div className="sp-organization-structure-builder">
+              <div className="sp-structure-nodes-head">
+                <div>
+                  <h3>{ui.structureQuickBuilder}</h3>
+                  <p>{ui.structureQuickBuilderHint}</p>
+                </div>
+                <div className="sp-detail-actions">
+                  <button className="sp-button" disabled={isSaving} type="button" onClick={addIndividualStructureNode}>
+                    {ui.structureAddNode}
+                  </button>
+                  <button className="sp-button" disabled={isSaving} type="button" onClick={resetIndividualStructureNodes}>
+                    {ui.structureResetStarterNodes}
+                  </button>
+                </div>
+              </div>
+              <OrganizationStructureNodeDraftList
+                nodes={individualStructureNodes}
+                ui={ui}
+                onNodeChange={updateIndividualStructureNode}
+                onNodeRemove={removeIndividualStructureNode}
+              />
+              <div className="sp-detail-actions">
+                <button
+                  className="sp-button primary"
+                  disabled={!canCreateIndividualStructure}
+                  type="button"
+                  onClick={() => void createIndividualStructure()}
+                >
+                  {ui.structureCreateIndividual}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="sp-detail-actions">
-          <button
-            className="sp-button"
-            disabled={unassignedStructures.length === 0 || isSaving}
-            type="button"
-            onClick={() => void assignExistingStructure()}
-          >
-            {ui.structureAssignExisting}
-          </button>
-          <button
-            className="sp-button primary"
-            disabled={!canCreateIndividualStructure}
-            type="button"
-            onClick={() => void createIndividualStructure()}
-          >
-            {ui.structureCreateIndividual}
-          </button>
-        </div>
-      </div>
+      )}
 
-      {structureUsages.length > 0 && (
+      {isEditorMode && structureUsages.length > 0 && (
         <div className="sp-structure-assignment-editor">
           <div>
             <strong>{ui.structureAssignmentEditor}</strong>
-            <p className="sp-editor-hint">{ui.structureAssignmentEditorHint}</p>
+            <p className="sp-editor-hint">{ui.organizationStructureAssignmentEditorHint}</p>
           </div>
           <div className="sp-structure-membership-controls">
             <label>
@@ -463,7 +520,7 @@ export function OrganizationStructureView({
               </select>
             </label>
             <label>
-              {ui.structureAssignmentTarget}
+              {ui.character}
               <select
                 disabled={assignableObjects.length === 0 || isSaving}
                 value={assignmentObjectId}
@@ -474,7 +531,7 @@ export function OrganizationStructureView({
                 ) : (
                   assignableObjects.map((object) => (
                     <option key={object.id} value={object.id}>
-                      {object.name} · {object.typeKey}
+                      {object.name}
                     </option>
                   ))
                 )}
@@ -503,6 +560,7 @@ export function OrganizationStructureView({
 
       <OrganizationStructureUsageList
         isSaving={isSaving}
+        mode={mode}
         structureAssignments={structureAssignments}
         structureDetails={structureDetails}
         structureUsages={structureUsages}

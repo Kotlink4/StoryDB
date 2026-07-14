@@ -15,6 +15,7 @@ import {
   resolveStructureAssignmentsTemporalState,
   type TemporalResolverContext,
 } from './temporalState'
+import { getOrganizationSurname } from './objectDisplay'
 
 const getObjectEdgeKey = (edge: Pick<RelationGraphEdge, 'category' | 'sourceId' | 'targetId' | 'relationType'>) =>
   `${edge.category}:${edge.sourceId}:${edge.targetId}:${edge.relationType}`
@@ -62,7 +63,7 @@ export function resolveRelationGraphTemporalState(
     }
 
     organizations
-      .filter((organization) => organization.surnameForm?.trim().toLocaleLowerCase() === surname.toLocaleLowerCase())
+      .filter((organization) => getOrganizationSurname(organization).toLocaleLowerCase() === surname.toLocaleLowerCase())
       .forEach((organization) => {
         pushEdge({
           id: `temporal-membership:${character.id}:${organization.id}`,

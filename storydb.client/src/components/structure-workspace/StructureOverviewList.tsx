@@ -32,7 +32,7 @@ export function StructureOverviewList({
   return (
     <div className="sp-cards sp-structure-list">
       {structures.map((structure) => {
-        const canDeleteStructure = structure.usageCount === 0 && structure.timelineReferenceCount === 0
+        const canDeleteStructure = structure.assignmentCount === 0 && structure.timelineReferenceCount === 0
 
         return (
           <article
@@ -55,6 +55,9 @@ export function StructureOverviewList({
                   <span>{structure.layoutKind}</span>
                   <span>{ui.structureNodesCount}: {structure.nodeCount}</span>
                   <span>{ui.structureUsageCount}: {structure.usageCount}</span>
+                  {structure.assignmentCount > 0 && (
+                    <span>{ui.structureAssignmentCount}: {structure.assignmentCount}</span>
+                  )}
                   {structure.timelineReferenceCount > 0 && (
                     <span>{ui.structureTimelineReferenceCount}: {structure.timelineReferenceCount}</span>
                   )}

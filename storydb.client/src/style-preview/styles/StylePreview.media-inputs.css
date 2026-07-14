@@ -72,6 +72,13 @@
   width: min(280px, 100%);
 }
 
+.sp-timeline-event-form .sp-cover-field.event-image {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  justify-self: stretch;
+  width: 100%;
+}
+
 .sp-form .sp-cover-field.catalog-entry-image {
   grid-column: 2;
   grid-row: 1 / span 2;
@@ -112,6 +119,10 @@
 .sp-form .sp-cover-field.event-landscape .sp-cover-dropzone {
   aspect-ratio: 4 / 3;
   min-height: 0;
+}
+
+.sp-timeline-event-form .sp-cover-field.event-landscape .sp-cover-dropzone {
+  aspect-ratio: 16 / 5;
 }
 
 .sp-form .sp-cover-field.object-portrait .sp-cover-dropzone img,

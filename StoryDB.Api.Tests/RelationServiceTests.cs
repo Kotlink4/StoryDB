@@ -86,6 +86,94 @@ public sealed class RelationServiceTests
             result.Value.Items.Select(item => item.StoryObjectId).Order().ToArray());
     }
 
+    [Fact]
+    public async Task SaveDefaultLayoutAsync_IgnoresStaleStructureAssignmentTargets()
+    {
+        await using var database = await RelationTestDatabase.CreateAsync();
+        var service = database.CreateService();
+        var structure = await database.CreateStructureAsync();
+        var node = structure.Nodes.Single();
+        var storyObject = await database.CreateStoryObjectAsync("Removed assignment");
+        var graphKey = $"structure:{structure.Id}:all";
+        var layoutNodeId = StructureNodeLayoutIdBase + node.Id;
+
+        var result = await service.SaveDefaultLayoutAsync(
+            database.ProjectId,
+            new RelationGraphLayoutRequest(
+                graphKey,
+                [
+                    new RelationGraphLayoutItemRequest(
+                        layoutNodeId,
+                        120,
+                        80,
+                        24,
+                        48,
+                        false),
+                    new RelationGraphLayoutItemRequest(
+                        storyObject.Id,
+                        330,
+                        120,
+                        240,
+                        148,
+                        true),
+                ]));
+
+        Assert.Equal(RelationServiceStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal(layoutNodeId, Assert.Single(result.Value.Items).StoryObjectId);
+    }
+
+    [Fact]
+    public async Task GetDefaultLayoutAsync_RemapsRecreatedStructureNodeItems()
+    {
+        await using var database = await RelationTestDatabase.CreateAsync();
+        var service = database.CreateService();
+        var structure = await database.CreateStructureAsync();
+        var originalNode = structure.Nodes.Single();
+        var graphKey = $"structure:{structure.Id}:all";
+        var originalLayoutNodeId = StructureNodeLayoutIdBase + originalNode.Id;
+
+        var saveResult = await service.SaveDefaultLayoutAsync(
+            database.ProjectId,
+            new RelationGraphLayoutRequest(
+                graphKey,
+                [
+                    new RelationGraphLayoutItemRequest(
+                        originalLayoutNodeId,
+                        330,
+                        120,
+                        240,
+                        148,
+                        false),
+                ]));
+        Assert.Equal(RelationServiceStatus.Success, saveResult.Status);
+
+        var now = DateTime.UtcNow;
+        database.Context.StructureNodes.RemoveRange(database.Context.StructureNodes.Where(node => node.StructureId == structure.Id));
+        await database.Context.SaveChangesAsync();
+        var recreatedNode = new StructureNode
+        {
+            StructureId = structure.Id,
+            Name = originalNode.Name,
+            LevelIndex = originalNode.LevelIndex,
+            SortOrder = originalNode.SortOrder,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        database.Context.StructureNodes.Add(recreatedNode);
+        await database.Context.SaveChangesAsync();
+
+        var result = await service.GetDefaultLayoutAsync(database.ProjectId, graphKey);
+
+        Assert.Equal(RelationServiceStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        var item = Assert.Single(result.Value.Items);
+        Assert.Equal(StructureNodeLayoutIdBase + recreatedNode.Id, item.StoryObjectId);
+        Assert.Equal(330, item.X);
+        Assert.Equal(120, item.Y);
+        Assert.True(result.Value.IsStale);
+    }
+
     private sealed class RelationTestDatabase : IAsyncDisposable
     {
         private readonly SqliteConnection connection;

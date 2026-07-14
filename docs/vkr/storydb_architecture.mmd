@@ -1,0 +1,11 @@
+flowchart LR
+    User["Пользователь"]
+    Client["React-клиент<br/>интерфейс в браузере"]
+    Api["ASP.NET Core API<br/>бизнес-логика и REST-запросы"]
+    Db["PostgreSQL<br/>основные данные проекта"]
+    Storage["Хранилище файлов<br/>изображения и варианты"]
+
+    User -->|работа в браузере| Client
+    Client -->|HTTP/JSON| Api
+    Api -->|EF Core| Db
+    Api -->|загрузка файлов| Storage

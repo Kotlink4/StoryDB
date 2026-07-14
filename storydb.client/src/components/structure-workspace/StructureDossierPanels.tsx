@@ -213,6 +213,12 @@ export function StructureMapPreview({
   const levelIndexes = Array.from(new Set(nodes.map((node) => node.levelIndex))).sort((left, right) => left - right)
   const getNodeName = (clientId: string) =>
     nodes.find((node) => node.clientId === clientId)?.name.trim() || ui.structureNode
+  const orderedFocusedEdges = focusedEdges.toSorted(
+    (left, right) =>
+      left.sortOrder - right.sortOrder ||
+      getNodeName(left.sourceClientId).localeCompare(getNodeName(right.sourceClientId)) ||
+      getNodeName(left.targetClientId).localeCompare(getNodeName(right.targetClientId)),
+  )
 
   return (
     <section className="sp-structure-map-preview">
@@ -268,6 +274,26 @@ export function StructureMapPreview({
           </section>
         ))}
       </div>
+
+      {orderedFocusedEdges.length > 0 && (
+        <div className="sp-structure-route-preview" aria-label={ui.structureEdges}>
+          {orderedFocusedEdges.map((edge, index) => (
+            <div
+              className={
+                selectedNodeClientId !== null &&
+                (edge.sourceClientId === selectedNodeClientId || edge.targetClientId === selectedNodeClientId)
+                  ? 'sp-structure-route active'
+                  : 'sp-structure-route'
+              }
+              key={`${edge.sourceClientId}-${edge.targetClientId}-${edge.sortOrder}-${index}`}
+            >
+              <span>{getNodeName(edge.sourceClientId)}</span>
+              <strong>{edge.relationType.trim() || ui.structureEdgeDefaultType}</strong>
+              <span>{getNodeName(edge.targetClientId)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
     </section>
   )

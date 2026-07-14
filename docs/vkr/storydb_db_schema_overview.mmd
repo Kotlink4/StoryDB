@@ -1,0 +1,44 @@
+erDiagram
+    AppUser ||--o{ Project : owns
+    AppUser ||--o{ AuditLog : creates
+    Project ||--o{ AuditLog : logs
+    Project ||--o{ ObjectType : contains
+    Project ||--o{ StoryObject : contains
+    ObjectType ||--o{ StoryObject : classifies
+    ObjectType ||--o{ AttributeDefinition : configures
+    StoryObject ||--o{ ObjectAttribute : has
+    AttributeDefinition ||--o{ ObjectAttribute : defines
+    AttributeGroup ||--o{ AttributeDefinition : groups
+    StoryObject ||--o{ ObjectRelation : source_or_target
+    StoryObject ||--o{ CharacterRelationship : character_link
+    StoryObject ||--o{ ObjectGalleryImage : gallery
+
+    Project ||--o{ Catalog : contains
+    Catalog ||--o{ CatalogEntry : entries
+    Catalog ||--o{ CatalogEntryGroup : groups
+    CatalogEntryGroup ||--o{ CatalogEntry : groups
+    Catalog ||--o{ CatalogFieldDefinition : fields
+    CatalogFieldDefinition ||--o{ CatalogEntryFieldValue : stores
+    CatalogEntry ||--o{ CatalogEntryFieldValue : values
+
+    Project ||--o{ Structure : contains
+    Structure ||--o{ StructureNode : nodes
+    StructureNode ||--o{ StructureEdge : source_or_target
+    Structure ||--o{ StructureUsage : used_by
+    StructureUsage ||--o{ StructureAssignment : assigns
+    StructureNode ||--o{ StructureAssignment : receives
+
+    Project ||--o{ Timeline : contains
+    Timeline ||--o{ TimelineEvent : events
+    TimelineEvent ||--o{ TimelineEventLink : source_or_target
+    TimelineEvent ||--o{ TimelineParticipant : participants
+    TimelineEvent ||--o{ TimelineChange : changes
+    Timeline ||--o{ TimelineLayout : layouts
+    TimelineLayout ||--o{ TimelineLayoutItem : items
+
+    Project ||--o{ ProjectSnapshot : snapshots
+    Project ||--o{ MediaAsset : media
+    MediaAsset ||--o{ MediaAssetVariant : variants
+    Project ||--o{ RelationGraphLayout : graph_layouts
+    RelationGraphLayout ||--o{ RelationGraphLayoutItem : items
+    StoryObject ||--o{ RelationGraphLayoutItem : placed

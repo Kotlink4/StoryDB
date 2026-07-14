@@ -31,6 +31,7 @@ public record StructureSummaryDto(
     int NodeCount,
     int EdgeCount,
     int UsageCount,
+    int AssignmentCount,
     int TimelineReferenceCount);
 
 public record StructureUsageDto(

@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   assignObjectToStructureRequest,
   createStructureRequest,
@@ -75,6 +76,14 @@ export function StructuresWorkspace({
   onError: (message: string) => void
   onMessage: (message: string) => void
 }) {
+  const location = useLocation()
+  const routeStructureId = useMemo(() => {
+    const value = new URLSearchParams(location.search).get('structureId')
+    const parsed = Number(value)
+
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+  }, [location.search])
+  const openedRouteStructureKeyRef = useRef('')
   const [draft, setDraft] = useState<StructureDraft>(() => emptyStructureDraft(selectedProject.id))
   const [isSaving, setIsSaving] = useState(false)
   const [isDetailSaving, setIsDetailSaving] = useState(false)
@@ -140,6 +149,7 @@ export function StructuresWorkspace({
         edgeCount: structure.edges.length,
         nodeCount: structure.nodes.length,
         usageCount: snapshotStructureUsages?.filter((usage) => usage.structureId === structure.id).length ?? 0,
+        assignmentCount: 0,
       })) ?? null,
     [snapshotStructureUsages, snapshotStructures],
   )
@@ -220,7 +230,7 @@ export function StructuresWorkspace({
     }
   }
 
-  const openStructure = async (structureId: number) => {
+  const openStructure = useCallback(async (structureId: number) => {
     setSelectedStructureId(structureId)
     setIsDetailLoading(true)
     try {
@@ -236,19 +246,40 @@ export function StructuresWorkspace({
       setSystemMode('view')
       setSchemaMode('view')
       setActiveStructurePage((currentPage) => (currentPage === 'overview' ? 'system' : currentPage))
+      return true
     } catch (error) {
       onError(getApiErrorMessage(error, errorMessage))
+      return false
     } finally {
       setIsDetailLoading(false)
     }
-  }
+  }, [errorMessage, onError, selectedProject.id])
+
+  useEffect(() => {
+    if (routeStructureId === null) {
+      openedRouteStructureKeyRef.current = ''
+      return
+    }
+
+    const routeStructureKey = `${selectedProject.id}:${routeStructureId}`
+    if (openedRouteStructureKeyRef.current === routeStructureKey) {
+      return
+    }
+
+    openedRouteStructureKeyRef.current = routeStructureKey
+    void openStructure(routeStructureId).then((isOpened) => {
+      if (isOpened) {
+        setActiveStructurePage('schema')
+      }
+    })
+  }, [openStructure, routeStructureId, selectedProject.id])
 
   const saveSelectedStructure = async () => {
     if (
       selectedStructureId === null ||
       selectedDraft === null ||
       selectedDraft.name.trim().length === 0 ||
-      selectedStructureAssignments.length > 0
+      selectedStructureTimelineReferenceCount > 0
     ) {
       return
     }

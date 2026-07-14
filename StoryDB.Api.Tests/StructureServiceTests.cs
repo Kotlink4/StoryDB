@@ -176,7 +176,7 @@ public sealed class StructureServiceTests
     }
 
     [Fact]
-    public async Task UpdateStructureNodeDetailsAsync_AllowsDossierEditWhenStructureHasAssignments()
+    public async Task UpdateStructureNodeDetailsAsync_BlocksAssignedNodes()
     {
         await using var database = await StructureTestDatabase.CreateAsync();
         var service = database.CreateService();
@@ -247,12 +247,263 @@ public sealed class StructureServiceTests
             nodeId,
             new StructureNodeDetailsRequest("New rank", "New description", "title", "#0ea5e9", "star"));
 
-        Assert.Equal(StructureServiceStatus.Success, nodeUpdate.Status);
-        Assert.Equal("New rank", nodeUpdate.Value!.Name);
-        Assert.Equal("New description", nodeUpdate.Value.Description);
-        Assert.Equal("title", nodeUpdate.Value.NodeType);
-        Assert.Equal("#0ea5e9", nodeUpdate.Value.Color);
-        Assert.Equal("star", nodeUpdate.Value.IconKey);
+        Assert.Equal(StructureServiceStatus.Invalid, nodeUpdate.Status);
+        Assert.Equal("Structure node has object assignments or child nodes and cannot be edited.", nodeUpdate.Error);
+    }
+
+    [Fact]
+    public async Task UpdateStructureAsync_AllowsEditingUnassignedLeafNodesWhenStructureHasAssignments()
+    {
+        await using var database = await StructureTestDatabase.CreateAsync();
+        var service = database.CreateService();
+
+        var structureResult = await service.CreateStructureAsync(
+            database.ProjectId,
+            CreateStructureRequest(
+                catalogSyncMode: "manual",
+                linkedCatalogId: null,
+                nodeBindingMode: "none",
+                nodes:
+                [
+                    new StructureNodeRequest(
+                        "node-a",
+                        null,
+                        null,
+                        null,
+                        "Assigned rank",
+                        "Used by an object.",
+                        "rank",
+                        "#64748b",
+                        "crown",
+                        0,
+                        0),
+                    new StructureNodeRequest(
+                        "node-b",
+                        null,
+                        null,
+                        null,
+                        "Free rank",
+                        null,
+                        "rank",
+                        null,
+                        null,
+                        0,
+                        1),
+                ]));
+        Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
+
+        var assignedNodeId = structureResult.Value!.Nodes.Single(node => node.Name == "Assigned rank").Id;
+        var freeNodeId = structureResult.Value.Nodes.Single(node => node.Name == "Free rank").Id;
+        var storyObjectId = await database.CreateStoryObjectAsync("Aria");
+        var usageResult = await service.GetStructureUsagesAsync(
+            database.ProjectId,
+            "project",
+            database.ProjectId,
+            structureResult.Value.Id);
+        Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
+        var usage = Assert.Single(usageResult.Value!);
+
+        var assignmentResult = await service.AssignObjectToStructureAsync(
+            database.ProjectId,
+            usage.Id,
+            new StructureAssignmentRequest(assignedNodeId, storyObjectId, "storyObject", storyObjectId, "leader", null, 0));
+        Assert.Equal(StructureServiceStatus.Success, assignmentResult.Status);
+
+        var update = await service.UpdateStructureAsync(
+            database.ProjectId,
+            structureResult.Value.Id,
+            CreateStructureRequest(
+                catalogSyncMode: "manual",
+                linkedCatalogId: null,
+                nodeBindingMode: "none",
+                nodes:
+                [
+                    new StructureNodeRequest(
+                        assignedNodeId.ToString(),
+                        null,
+                        null,
+                        null,
+                        "Assigned rank",
+                        "Used by an object.",
+                        "rank",
+                        "#64748b",
+                        "crown",
+                        0,
+                        0),
+                    new StructureNodeRequest(
+                        freeNodeId.ToString(),
+                        null,
+                        null,
+                        null,
+                        "Renamed free rank",
+                        "Editable because it has no assignments or children.",
+                        "rank",
+                        "#0ea5e9",
+                        "star",
+                        0,
+                        1),
+                    new StructureNodeRequest(
+                        "node-new",
+                        null,
+                        null,
+                        null,
+                        "New free rank",
+                        null,
+                        "rank",
+                        null,
+                        null,
+                        0,
+                        2),
+                ]));
+
+        Assert.Equal(StructureServiceStatus.Success, update.Status);
+        Assert.Contains(update.Value!.Nodes, node => node.Id == assignedNodeId && node.Name == "Assigned rank");
+        Assert.Contains(update.Value.Nodes, node => node.Id == freeNodeId && node.Name == "Renamed free rank");
+        Assert.Contains(update.Value.Nodes, node => node.Name == "New free rank");
+
+        var assignments = await service.GetStructureAssignmentsAsync(
+            database.ProjectId,
+            null,
+            structureResult.Value.Id,
+            null,
+            null,
+            null,
+            null);
+        Assert.Equal(StructureServiceStatus.Success, assignments.Status);
+        Assert.Equal(assignedNodeId, Assert.Single(assignments.Value!).StructureNodeId);
+    }
+
+    [Fact]
+    public async Task UpdateStructureAsync_BlocksNodesWithChildren()
+    {
+        await using var database = await StructureTestDatabase.CreateAsync();
+        var service = database.CreateService();
+
+        var structureResult = await service.CreateStructureAsync(
+            database.ProjectId,
+            CreateStructureRequest(
+                catalogSyncMode: "manual",
+                linkedCatalogId: null,
+                nodeBindingMode: "none",
+                nodes:
+                [
+                    new StructureNodeRequest("node-a", null, null, null, "Parent", null, null, null, null, 0, 0),
+                    new StructureNodeRequest("node-b", "node-a", null, null, "Child", null, null, null, null, 1, 0),
+                ]));
+        Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
+
+        var parentNodeId = structureResult.Value!.Nodes.Single(node => node.Name == "Parent").Id;
+        var childNodeId = structureResult.Value.Nodes.Single(node => node.Name == "Child").Id;
+        var update = await service.UpdateStructureAsync(
+            database.ProjectId,
+            structureResult.Value.Id,
+            CreateStructureRequest(
+                catalogSyncMode: "manual",
+                linkedCatalogId: null,
+                nodeBindingMode: "none",
+                nodes:
+                [
+                    new StructureNodeRequest(
+                        parentNodeId.ToString(),
+                        null,
+                        null,
+                        null,
+                        "Renamed parent",
+                        null,
+                        null,
+                        null,
+                        null,
+                        0,
+                        0),
+                    new StructureNodeRequest(
+                        childNodeId.ToString(),
+                        parentNodeId.ToString(),
+                        null,
+                        null,
+                        "Child",
+                        null,
+                        null,
+                        null,
+                        null,
+                        1,
+                        0),
+                ]));
+
+        Assert.Equal(StructureServiceStatus.Invalid, update.Status);
+        Assert.Equal("Structure node has object assignments or child nodes and cannot be edited.", update.Error);
+    }
+
+    [Fact]
+    public async Task DeleteStructureAsync_AllowsDefaultProjectUsageWithoutAssignments()
+    {
+        await using var database = await StructureTestDatabase.CreateAsync();
+        var service = database.CreateService();
+
+        var structureResult = await service.CreateStructureAsync(
+            database.ProjectId,
+            CreateStructureRequest(
+                catalogSyncMode: "manual",
+                linkedCatalogId: null,
+                nodeBindingMode: "none"));
+        Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
+
+        var usageResult = await service.GetStructureUsagesAsync(
+            database.ProjectId,
+            "project",
+            database.ProjectId,
+            structureResult.Value!.Id);
+        Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
+        Assert.Single(usageResult.Value!);
+
+        var delete = await service.DeleteStructureAsync(database.ProjectId, structureResult.Value.Id);
+        Assert.Equal(StructureServiceStatus.Success, delete.Status);
+
+        var loaded = await service.GetStructureAsync(database.ProjectId, structureResult.Value.Id);
+        Assert.Equal(StructureServiceStatus.NotFound, loaded.Status);
+    }
+
+    [Fact]
+    public async Task DeleteStructureAsync_BlocksObjectAssignments()
+    {
+        await using var database = await StructureTestDatabase.CreateAsync();
+        var service = database.CreateService();
+
+        var structureResult = await service.CreateStructureAsync(
+            database.ProjectId,
+            CreateStructureRequest(
+                catalogSyncMode: "manual",
+                linkedCatalogId: null,
+                nodeBindingMode: "none",
+                nodes:
+                [
+                    new StructureNodeRequest("node-a", null, null, null, "Rank", null, null, null, null, 0, 0),
+                ]));
+        Assert.Equal(StructureServiceStatus.Success, structureResult.Status);
+
+        var usageResult = await service.GetStructureUsagesAsync(
+            database.ProjectId,
+            "project",
+            database.ProjectId,
+            structureResult.Value!.Id);
+        Assert.Equal(StructureServiceStatus.Success, usageResult.Status);
+        var usage = Assert.Single(usageResult.Value!);
+        var storyObjectId = await database.CreateStoryObjectAsync("Aria");
+        var assignmentResult = await service.AssignObjectToStructureAsync(
+            database.ProjectId,
+            usage.Id,
+            new StructureAssignmentRequest(
+                structureResult.Value.Nodes.Single().Id,
+                storyObjectId,
+                "storyObject",
+                storyObjectId,
+                "leader",
+                null,
+                0));
+        Assert.Equal(StructureServiceStatus.Success, assignmentResult.Status);
+
+        var delete = await service.DeleteStructureAsync(database.ProjectId, structureResult.Value.Id);
+        Assert.Equal(StructureServiceStatus.Invalid, delete.Status);
+        Assert.Equal("Structure has object assignments. Remove assignments before deleting the structure.", delete.Error);
     }
 
     [Fact]
@@ -313,7 +564,7 @@ public sealed class StructureServiceTests
 
         var delete = await service.DeleteStructureAsync(database.ProjectId, structureResult.Value.Id);
         Assert.Equal(StructureServiceStatus.Invalid, delete.Status);
-        Assert.Equal("Structure is used by one or more targets and cannot be deleted.", delete.Error);
+        Assert.Equal("Structure is referenced by timeline events and cannot be deleted.", delete.Error);
 
         var nodeUpdate = await service.UpdateStructureNodeDetailsAsync(
             database.ProjectId,

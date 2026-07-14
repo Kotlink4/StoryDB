@@ -96,18 +96,33 @@ export const getOrderedStructureNodes = (structure: Structure) => {
   return orderedNodes
 }
 
+export const getStructureVisualLevelIndexes = (orderedStructureNodes: Structure['nodes']) => {
+  const visualIndexByLevel = new Map(
+    Array.from(new Set(orderedStructureNodes.map((node) => node.levelIndex)))
+      .sort((left, right) => left - right)
+      .map((levelIndex, visualIndex) => [levelIndex, visualIndex]),
+  )
+
+  return new Map(
+    orderedStructureNodes.map((node) => [node.id, visualIndexByLevel.get(node.levelIndex) ?? node.levelIndex]),
+  )
+}
+
 export const getStructureGraphLevelSpans = ({
+  getNodeLevelIndex,
   orderedStructureAssignments,
   orderedStructureNodes,
   structureNodesById,
 }: {
+  getNodeLevelIndex?: (node: Structure['nodes'][number]) => number
   orderedStructureAssignments: StructureAssignment[]
   orderedStructureNodes: Structure['nodes']
   structureNodesById: Map<number, Structure['nodes'][number]>
 }) => {
+  const resolveNodeLevelIndex = getNodeLevelIndex ?? ((node: Structure['nodes'][number]) => node.levelIndex)
   const placements = new Map<number, LevelPlacementState>()
   orderedStructureNodes.forEach((node) => {
-    getNextGroupedLevelSlot(placements, node.levelIndex, getStructureNodeGroupKey(node))
+    getNextGroupedLevelSlot(placements, resolveNodeLevelIndex(node), getStructureNodeGroupKey(node))
   })
 
   const placedAssignmentTargetKeys = new Set<string>()
@@ -119,7 +134,11 @@ export const getStructureGraphLevelSpans = ({
     }
 
     placedAssignmentTargetKeys.add(targetKey)
-    getNextGroupedLevelSlot(placements, structureNode.levelIndex + 1, `assignment-parent:${assignment.structureNodeId}`)
+    getNextGroupedLevelSlot(
+      placements,
+      resolveNodeLevelIndex(structureNode) + 1,
+      `assignment-parent:${assignment.structureNodeId}`,
+    )
   })
 
   return getPlacementLevelSpans(placements)

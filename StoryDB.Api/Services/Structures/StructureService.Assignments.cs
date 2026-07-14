@@ -100,7 +100,7 @@ public sealed partial class StructureService
 
         dbContext.StructureUsages.Add(usage);
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureUsageDto>.Success(await GetStructureUsageDto(usage.Id));
     }
@@ -167,7 +167,7 @@ public sealed partial class StructureService
         usage.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureUsageDto>.Success(await GetStructureUsageDto(usage.Id));
     }
@@ -271,7 +271,7 @@ public sealed partial class StructureService
         usage.UpdatedAt = now;
 
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureUsageDto>.Success(await GetStructureUsageDto(usage.Id));
     }
@@ -302,7 +302,7 @@ public sealed partial class StructureService
 
         dbContext.StructureUsages.Remove(usage);
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult.Success();
     }

@@ -74,6 +74,7 @@ public sealed partial class StructureService
                 structure.Nodes.Count,
                 structure.Edges.Count,
                 structure.Usages.Count,
+                structure.Usages.SelectMany(usage => usage.Assignments).Count(),
                 0))
             .ToListAsync();
 

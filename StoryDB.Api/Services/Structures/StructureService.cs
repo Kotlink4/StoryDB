@@ -50,7 +50,7 @@ public sealed partial class StructureService(
         await dbContext.SaveChangesAsync();
         await ReplaceStructureItems(structure, request, now);
         await EnsureProjectStructureUsage(projectId, structure.Id, now);
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureDto>.Success(await GetStructureDto(structure.Id));
     }
@@ -104,16 +104,16 @@ public sealed partial class StructureService(
             return StructureServiceResult<StructureDto>.Invalid(validationError);
         }
 
-        if (await StructureHasAssignments(projectId, structureId))
-        {
-            return StructureServiceResult<StructureDto>.Invalid(
-                "Structure has object assignments. Remove assignments before editing the structure.");
-        }
-
         if (await StructureHasTimelineReferences(projectId, structureId))
         {
             return StructureServiceResult<StructureDto>.Invalid(
                 "Structure is referenced by timeline events. Remove timeline references before editing the structure topology.");
+        }
+
+        var lockedNodeError = await ValidateLockedStructureNodes(projectId, structure, request);
+        if (lockedNodeError is not null)
+        {
+            return StructureServiceResult<StructureDto>.Invalid(lockedNodeError);
         }
 
         var now = DateTime.UtcNow;
@@ -128,11 +128,8 @@ public sealed partial class StructureService(
         structure.LinkedCatalogId = null;
         structure.UpdatedAt = now;
 
-        dbContext.StructureEdges.RemoveRange(structure.Edges);
-        dbContext.StructureNodes.RemoveRange(structure.Nodes);
-        await dbContext.SaveChangesAsync();
-        await ReplaceStructureItems(structure, request, now);
-        InvalidateRelationGraphCache(projectId);
+        await SyncStructureItems(structure, request, now);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureDto>.Success(await GetStructureDto(structure.Id));
     }
@@ -162,7 +159,7 @@ public sealed partial class StructureService(
         structure.UpdatedAt = now;
 
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureDto>.Success(await GetStructureDto(structure.Id));
     }
@@ -191,6 +188,12 @@ public sealed partial class StructureService(
             return StructureServiceResult<StructureNodeDto>.Invalid(validationError);
         }
 
+        if (await StructureNodeHasAssignments(projectId, node.Id) || await StructureNodeHasChildren(structureId, node.Id))
+        {
+            return StructureServiceResult<StructureNodeDto>.Invalid(
+                "Structure node has object assignments or child nodes and cannot be edited.");
+        }
+
         node.Name = request.Name.Trim();
         node.Description = NormalizeOptionalText(request.Description);
         node.NodeType = NormalizeOptionalText(request.NodeType);
@@ -201,7 +204,7 @@ public sealed partial class StructureService(
         node.Structure!.UpdatedAt = node.UpdatedAt;
 
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureNodeDto>.Success(ToStructureNodeDto(node));
     }
@@ -217,11 +220,10 @@ public sealed partial class StructureService(
             return StructureServiceResult.NotFound();
         }
 
-        if (await dbContext.StructureUsages.AnyAsync(usage =>
-            usage.ProjectId == projectId &&
-            usage.StructureId == structureId))
+        if (await StructureHasAssignments(projectId, structureId))
         {
-            return StructureServiceResult.Invalid("Structure is used by one or more targets and cannot be deleted.");
+            return StructureServiceResult.Invalid(
+                "Structure has object assignments. Remove assignments before deleting the structure.");
         }
 
         if (await StructureHasTimelineReferences(projectId, structureId))
@@ -230,9 +232,15 @@ public sealed partial class StructureService(
                 "Structure is referenced by timeline events and cannot be deleted.");
         }
 
+        var usages = await dbContext.StructureUsages
+            .Where(usage =>
+                usage.ProjectId == projectId &&
+                usage.StructureId == structureId)
+            .ToListAsync();
+        dbContext.StructureUsages.RemoveRange(usages);
         dbContext.Structures.Remove(structure);
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult.Success();
     }

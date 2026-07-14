@@ -76,6 +76,8 @@ export function buildStylePreviewObjectEditorProps({
   territoryPlaceIds,
   timelineEvents,
   ui,
+  updateObjectStructureAssignments,
+  refreshRelationWorkspaceData,
   uploadObjectImage,
   validationErrors,
 }: {
@@ -136,6 +138,8 @@ export function buildStylePreviewObjectEditorProps({
   territoryPlaceIds: number[]
   timelineEvents: TimelineEvent[]
   ui: ObjectEditorProps['ui']
+  updateObjectStructureAssignments: NonNullable<ObjectEditorProps['onStructureAssignmentsChange']>
+  refreshRelationWorkspaceData: NonNullable<ObjectEditorProps['onStructureWorkspaceChange']>
   uploadObjectImage: ObjectEditorProps['onImageUpload']
   validationErrors?: ObjectEditorProps['validationErrors']
 }): ObjectEditorProps {
@@ -198,6 +202,8 @@ export function buildStylePreviewObjectEditorProps({
     onOwnerOrganizationIdsChange: setOwnerOrganizationIds,
     onSave: () => void saveObject(),
     onSaveObjectAsTimelineChange: setSaveObjectAsTimelineChange,
+    onStructureAssignmentsChange: updateObjectStructureAssignments,
+    onStructureWorkspaceChange: refreshRelationWorkspaceData,
     onTerritoryPlaceIdsChange: setTerritoryPlaceIds,
     onTimelineEventUpdated: (timelineEvent) =>
       updateTimelineEventAndMarkLayoutStale({

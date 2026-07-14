@@ -41,7 +41,7 @@ export function TimelineEventDialog({
 
   return (
     <PreviewDialog title={editingTimelineEventId === null ? ui.newEvent : ui.timelineEventEditor} onClose={onCancel}>
-      <div className="sp-form" ref={formRef}>
+      <div className="sp-form sp-timeline-event-form" ref={formRef}>
         <CoverDropzone
           className="event-image event-landscape"
           cropMode="landscape"

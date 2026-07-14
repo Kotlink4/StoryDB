@@ -43,9 +43,9 @@ export function TimelineEventDetail({
   ui: PreviewText
   onAddGalleryImage?: () => void
   onClose?: () => void
-  onDelete: (eventId: number) => void
+  onDelete?: (eventId: number) => void
   onDeleteGalleryImage?: (imageId: number) => void
-  onEdit: (event: TimelineEvent) => void
+  onEdit?: (event: TimelineEvent) => void
   onGalleryCaptionChange?: (caption: string) => void
   onGalleryImageUpload?: (file: File | null) => void
   onOpenEvent: (eventId: number) => void
@@ -262,14 +262,20 @@ export function TimelineEventDetail({
         />
       )}
 
-      <div className="sp-detail-actions">
-        <button className="sp-button" type="button" onClick={() => onEdit(event)}>
-          {ui.edit}
-        </button>
-        <button className="sp-button danger" type="button" onClick={() => onDelete(event.id)}>
-          {ui.delete}
-        </button>
-      </div>
+      {(onEdit !== undefined || onDelete !== undefined) && (
+        <div className="sp-detail-actions">
+          {onEdit !== undefined && (
+            <button className="sp-button" type="button" onClick={() => onEdit(event)}>
+              {ui.edit}
+            </button>
+          )}
+          {onDelete !== undefined && (
+            <button className="sp-button danger" type="button" onClick={() => onDelete(event.id)}>
+              {ui.delete}
+            </button>
+          )}
+        </div>
+      )}
     </article>
   )
 }

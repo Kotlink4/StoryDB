@@ -22,6 +22,7 @@ import type {
   ObjectTypeKey,
   StoryObject,
   TimelineEvent,
+  StructureAssignment,
 } from '../types'
 import { LinkedText, type TextLinkTarget } from './LinkedText'
 import { GalleryPanel } from './GalleryPanel'
@@ -60,6 +61,8 @@ export function ObjectDetail({
   onGalleryImageUpload,
   onDossierTimelineEventIdChange,
   onOpenTimelineEvent,
+  onStructureAssignmentsChange,
+  onStructureWorkspaceChange,
   onTabChange,
   onTimelineEventUpdated,
 }: {
@@ -90,6 +93,8 @@ export function ObjectDetail({
   onGalleryImageUpload?: (file: File | null) => void
   onDossierTimelineEventIdChange?: (eventId: string) => void
   onOpenTimelineEvent?: (event: TimelineEvent) => void
+  onStructureAssignmentsChange?: (storyObjectId: number, assignments: StructureAssignment[]) => void
+  onStructureWorkspaceChange?: () => void | Promise<void>
   onTabChange?: (tab: ObjectDossierTab) => void
   onTimelineEventUpdated?: (event: TimelineEvent) => void
 }) {
@@ -268,14 +273,18 @@ export function ObjectDetail({
             storyObject={displayStoryObject}
             timelineEvents={timelineEvents}
             ui={ui}
+            onAssignmentsChange={onStructureAssignmentsChange}
             onTimelineEventUpdated={onTimelineEventUpdated}
           />
           {isOrganization && (
             <OrganizationStructureView
+              mode="readonly"
               objectsByType={objectsByType}
               selectedProjectId={selectedProjectId}
               storyObject={storyObject}
               ui={ui}
+              onAssignmentsChange={onStructureAssignmentsChange}
+              onStructureWorkspaceChange={onStructureWorkspaceChange}
             />
           )}
         </>

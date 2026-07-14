@@ -160,7 +160,7 @@ public sealed partial class StructureService
 
         dbContext.StructureAssignments.Add(assignment);
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureAssignmentDto>.Success(await GetStructureAssignmentDto(assignment.Id));
     }
@@ -221,7 +221,7 @@ public sealed partial class StructureService
         assignment.UpdatedAt = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult<StructureAssignmentDto>.Success(await GetStructureAssignmentDto(assignment.Id));
     }
@@ -244,7 +244,7 @@ public sealed partial class StructureService
 
         dbContext.StructureAssignments.Remove(assignment);
         await dbContext.SaveChangesAsync();
-        InvalidateRelationGraphCache(projectId);
+        await InvalidateRelationGraphCache(projectId);
 
         return StructureServiceResult.Success();
     }

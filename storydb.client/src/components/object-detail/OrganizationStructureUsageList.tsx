@@ -1,6 +1,8 @@
 import { X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 import type { PreviewText } from '../../style-preview/domain/stylePreviewI18n'
+import { previewRouteBase } from '../../style-preview/domain/stylePreviewRouting'
 import type {
   Structure,
   StructureAssignment,
@@ -9,6 +11,7 @@ import type {
 
 type OrganizationStructureUsageListProps = {
   isSaving: boolean
+  mode?: 'readonly' | 'editor'
   structureAssignments: Record<number, StructureAssignment[]>
   structureDetails: Record<number, Structure>
   structureUsages: StructureUsage[]
@@ -22,6 +25,7 @@ type OrganizationStructureUsageListProps = {
 
 export function OrganizationStructureUsageList({
   isSaving,
+  mode = 'readonly',
   structureAssignments,
   structureDetails,
   structureUsages,
@@ -32,6 +36,8 @@ export function OrganizationStructureUsageList({
   onUsageIndividualize,
   onUsagePrimary,
 }: OrganizationStructureUsageListProps) {
+  const isEditorMode = mode === 'editor'
+
   if (structureUsages.length === 0) {
     return (
       <div className="sp-empty compact">
@@ -93,24 +99,38 @@ export function OrganizationStructureUsageList({
                                 ) : (
                                   <div>
                                     {nodeAssignments.map((assignment) => (
-                                      <span className="sp-structure-node-member" key={assignment.id}>
+                                      <span
+                                        className={`sp-structure-node-member${isEditorMode ? '' : ' readonly'}`}
+                                        key={assignment.id}
+                                      >
                                         <span>{assignment.storyObjectName}</span>
-                                        <input
-                                          aria-label={ui.role}
-                                          defaultValue={assignment.roleLabel ?? ''}
-                                          disabled={isSaving}
-                                          placeholder={ui.role}
-                                          onBlur={(event) => onAssignmentRoleUpdate(assignment, event.currentTarget.value)}
-                                        />
-                                        <button
-                                          className="sp-icon-button"
-                                          disabled={isSaving}
-                                          type="button"
-                                          onClick={() => onAssignmentDelete(assignment)}
-                                          title={ui.delete}
-                                        >
-                                          <X aria-hidden="true" size={14} />
-                                        </button>
+                                        {isEditorMode ? (
+                                          <>
+                                            <input
+                                              aria-label={ui.role}
+                                              defaultValue={assignment.roleLabel ?? ''}
+                                              disabled={isSaving}
+                                              placeholder={ui.role}
+                                              onBlur={(event) =>
+                                                onAssignmentRoleUpdate(assignment, event.currentTarget.value)
+                                              }
+                                            />
+                                            <button
+                                              className="sp-icon-button"
+                                              disabled={isSaving}
+                                              type="button"
+                                              onClick={() => onAssignmentDelete(assignment)}
+                                              title={ui.delete}
+                                            >
+                                              <X aria-hidden="true" size={14} />
+                                            </button>
+                                          </>
+                                        ) : (
+                                          assignment.roleLabel !== null &&
+                                          assignment.roleLabel.trim().length > 0 && (
+                                            <span>{assignment.roleLabel}</span>
+                                          )
+                                        )}
                                       </span>
                                     ))}
                                   </div>
@@ -124,32 +144,40 @@ export function OrganizationStructureUsageList({
                 </div>
               )
             )}
-            <div className="sp-detail-actions">
-              {!usage.isPrimary && (
-                <button className="sp-button" disabled={isSaving} type="button" onClick={() => onUsagePrimary(usage)}>
-                  {ui.structureMakePrimary}
-                </button>
-              )}
-              {structure?.ownerKind !== 'object' && (
-                <button
+            {isEditorMode && (
+              <div className="sp-detail-actions">
+                <Link
                   className="sp-button"
-                  disabled={isSaving}
-                  type="button"
-                  onClick={() => onUsageIndividualize(usage)}
+                  to={`${previewRouteBase}/projects/${usage.projectId}/structures?structureId=${usage.structureId}`}
                 >
-                  {ui.structureMakeIndividual}
+                  {ui.structureEditSchema}
+                </Link>
+                {!usage.isPrimary && (
+                  <button className="sp-button" disabled={isSaving} type="button" onClick={() => onUsagePrimary(usage)}>
+                    {ui.structureMakePrimary}
+                  </button>
+                )}
+                {structure?.ownerKind !== 'object' && (
+                  <button
+                    className="sp-button"
+                    disabled={isSaving}
+                    type="button"
+                    onClick={() => onUsageIndividualize(usage)}
+                  >
+                    {ui.structureMakeIndividual}
+                  </button>
+                )}
+                <button
+                  className="sp-button danger"
+                  disabled={isSaving || assignments.length > 0}
+                  type="button"
+                  title={assignments.length > 0 ? ui.structureDisconnectWithAssignmentsHint : ui.structureDisconnect}
+                  onClick={() => onUsageDisconnect(usage)}
+                >
+                  {ui.structureDisconnect}
                 </button>
-              )}
-              <button
-                className="sp-button danger"
-                disabled={isSaving || assignments.length > 0}
-                type="button"
-                title={assignments.length > 0 ? ui.structureDisconnectWithAssignmentsHint : ui.structureDisconnect}
-                onClick={() => onUsageDisconnect(usage)}
-              >
-                {ui.structureDisconnect}
-              </button>
-            </div>
+              </div>
+            )}
           </details>
         )
       })}

@@ -35,8 +35,12 @@ export async function loadOrganizationStructureData(
       return [usage.structureId, structure] as const
     }),
   )
+  const structureDetails = Object.fromEntries(detailEntries)
+  const characterStructureUsages = structureUsages.filter(
+    (usage) => structureDetails[usage.structureId]?.applicationScope === 'characters',
+  )
   const assignmentEntries = await Promise.all(
-    structureUsages.map(async (usage) => {
+    characterStructureUsages.map(async (usage) => {
       const assignments = await fetchStructureAssignments(projectId, {
         structureUsageId: usage.id,
       })
@@ -45,9 +49,9 @@ export async function loadOrganizationStructureData(
   )
 
   return {
-    availableStructures,
+    availableStructures: availableStructures.filter((structure) => structure.applicationScope === 'characters'),
     structureAssignments: Object.fromEntries(assignmentEntries),
-    structureDetails: Object.fromEntries(detailEntries),
-    structureUsages,
+    structureDetails,
+    structureUsages: characterStructureUsages,
   }
 }

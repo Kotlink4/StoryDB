@@ -1,0 +1,14 @@
+flowchart TD
+    Start([Открытие приложения])
+    Input[Ввод email и пароля]
+    Request[Отправка данных на сервер]
+    Check[Проверка пользователя]
+    Decision{Данные верны?}
+    Success([Вход в систему])
+    Error([Сообщение об ошибке])
+    Workspace([Переход к проектам])
+    Retry([Повторный ввод данных])
+
+    Start --> Input --> Request --> Check --> Decision
+    Decision --> Success --> Workspace
+    Decision --> Error --> Retry

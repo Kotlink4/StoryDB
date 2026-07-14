@@ -190,40 +190,45 @@ export function ObjectCardsWorkspace({
         {canUseWindowVirtualization && virtualWindow.topSpacerHeight > 0 && (
           <div aria-hidden="true" className="sp-cards-virtual-spacer" style={topSpacerStyle} />
         )}
-        {renderedObjects.map((storyObject) => (
-          <article
-            className={`sp-card ${storyObject.id === selectedObjectId ? 'selected' : ''}`}
-            key={storyObject.id}
-          >
-            <button className="sp-card-main" type="button" onClick={() => onOpenObject(storyObject)}>
-              <ObjectPortrait storyObject={storyObject} />
-            </button>
-            <div className="sp-card-body" onClick={() => onOpenObject(storyObject)}>
-              <h3>{getObjectFullName(storyObject)}</h3>
-              <span>{storyObject.role ?? storyObject.typeKey}</span>
-              <div className="sp-tags">
-                {storyObject.attributes.slice(0, 3).map((attribute) => (
-                  <span key={attribute.id}>{attribute.name}</span>
-                ))}
+        {renderedObjects.map((storyObject) => {
+          const displayName = getObjectFullName(storyObject)
+          const roleLabel = storyObject.role ?? storyObject.typeKey
+
+          return (
+            <article
+              className={`sp-card ${storyObject.id === selectedObjectId ? 'selected' : ''}`}
+              key={storyObject.id}
+            >
+              <button className="sp-card-main" type="button" onClick={() => onOpenObject(storyObject)}>
+                <ObjectPortrait storyObject={storyObject} />
+              </button>
+              <div className="sp-card-body" onClick={() => onOpenObject(storyObject)}>
+                <h3 className="sp-card-title" title={displayName}>{displayName}</h3>
+                <span className="sp-card-meta" title={roleLabel}>{roleLabel}</span>
+                <div className="sp-tags">
+                  {storyObject.attributes.slice(0, 3).map((attribute) => (
+                    <span key={attribute.id}>{attribute.name}</span>
+                  ))}
+                </div>
               </div>
-            </div>
-            <KebabMenu
-              ariaLabel={`${storyObject.name}: ${ui.actions}`}
-              className="sp-card-menu"
-              ui={ui}
-              onDelete={() => onDeleteObject(storyObject)}
-              onEdit={() => onEditObject(storyObject)}
-            />
-            <div className="sp-card-actions" aria-hidden="true">
-              <button type="button" onClick={() => onEditObject(storyObject)}>
-                {ui.edit}
-              </button>
-              <button type="button" onClick={() => onDeleteObject(storyObject)}>
-                {ui.delete}
-              </button>
-            </div>
-          </article>
-        ))}
+              <KebabMenu
+                ariaLabel={`${storyObject.name}: ${ui.actions}`}
+                className="sp-card-menu"
+                ui={ui}
+                onDelete={() => onDeleteObject(storyObject)}
+                onEdit={() => onEditObject(storyObject)}
+              />
+              <div className="sp-card-actions" aria-hidden="true">
+                <button type="button" onClick={() => onEditObject(storyObject)}>
+                  {ui.edit}
+                </button>
+                <button type="button" onClick={() => onDeleteObject(storyObject)}>
+                  {ui.delete}
+                </button>
+              </div>
+            </article>
+          )
+        })}
         {canUseWindowVirtualization && virtualWindow.bottomSpacerHeight > 0 && (
           <div aria-hidden="true" className="sp-cards-virtual-spacer" style={bottomSpacerStyle} />
         )}
